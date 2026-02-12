@@ -3,6 +3,7 @@
 **Pure Rust Semantic AI Middleware — The Thinking Layer Between You and Your LLM.**
 
 [![Build Status](https://img.shields.io/github/actions/workflow/status/fabriziosalmi/synapseed/ci.yml?branch=main)](https://github.com/fabriziosalmi/synapseed/actions)
+[![Coverage](https://codecov.io/gh/fabriziosalmi/synapseed/branch/main/graph/badge.svg)](https://codecov.io/gh/fabriziosalmi/synapseed)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-stable-brightgreen.svg)](https://www.rust-lang.org/)
 [![MCP Ready](https://img.shields.io/badge/MCP-Ready-blue)](https://modelcontextprotocol.io/)
