@@ -512,6 +512,29 @@ pub fn handle_tool_call(
             }
             return result;
         }
+        // 3. Semantic catch-all — if the name looks like natural language,
+        // redirect to `ask` instead of erroring. This handles small models
+        // that write a question as the tool name instead of calling `ask`.
+        if name.contains(' ') || name.contains('?') || name.len() > 20 {
+            info!(
+                input = name,
+                "MCP: Natural-language tool name detected, redirecting to ask"
+            );
+            let query = if let Some(q) = args.get("query").and_then(|v| v.as_str()) {
+                q.to_string()
+            } else {
+                name.to_string()
+            };
+            let mut result = dispatch_tool("ask", &json!({"query": query}), ctx);
+            let prefix = format!(
+                "[Redirected to ask] Input '{name}' is not a tool name.\n\n"
+            );
+            if let Some(ContentBlock::Text { text }) = result.content.first_mut() {
+                *text = format!("{prefix}{text}");
+            }
+            return result;
+        }
+
         // Distance too large — suggest but don't auto-execute
         return error_result(format!(
             "Unknown tool: '{name}'. Did you mean '{suggestion}'?\n\nAvailable tools: {}",
