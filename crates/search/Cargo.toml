@@ -12,6 +12,7 @@ embeddings = ["fastembed"]
 [dependencies]
 synapseed-core = { workspace = true }
 synapseed-cortex = { workspace = true }
+parking_lot = { workspace = true }
 tantivy = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
@@ -22,3 +23,10 @@ thiserror = { workspace = true }
 
 # Optional: vector embeddings
 fastembed = { workspace = true, optional = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "search"
+harness = false

@@ -81,7 +81,11 @@ impl Trainer {
             })
             .collect();
 
-        results.sort_by(|a, b| b.1.score().partial_cmp(&a.1.score()).unwrap());
+        results.sort_by(|a, b| {
+            b.1.score()
+                .partial_cmp(&a.1.score())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results
     }
 }

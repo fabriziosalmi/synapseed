@@ -25,7 +25,7 @@ synapseed-search = { workspace = true, features = ["embeddings"] }
 synapseed-architect = { workspace = true }
 synapseed-shadow-check = { workspace = true }
 synapseed-whisper = { workspace = true }
-synapseed-telemetry-sink = { workspace = true }
+synapseed-telemetry-sink = { workspace = true, features = ["grpc"] }
 synapseed-gym = { workspace = true }
 synapseed-janitor = { workspace = true }
 git2 = { workspace = true }

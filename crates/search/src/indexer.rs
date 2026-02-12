@@ -12,6 +12,7 @@ use tantivy::schema::Value;
 use tantivy::{doc, Index, IndexReader, IndexWriter, ReloadPolicy, TantivyDocument, Term};
 use tracing::{debug, info, warn};
 
+use synapseed_core::error::safe_resolve_path;
 use synapseed_core::symbol::FileStructure;
 
 use crate::schema::{build_schema, fields_from_schema, SearchFields};
@@ -335,22 +336,18 @@ impl SemanticIndex {
     }
 
     /// Try to read the source file, resolving relative paths against project root.
+    /// Returns `None` if the path escapes the project root (path-traversal guard).
     fn read_source(&self, file: &FileStructure, project_root: &Path) -> Option<String> {
-        let path = if Path::new(&file.path).is_absolute() {
-            std::path::PathBuf::from(&file.path)
-        } else {
-            project_root.join(&file.path)
-        };
-
-        std::fs::read_to_string(&path).ok()
+        let safe_path = safe_resolve_path(project_root, &file.path).ok()?;
+        std::fs::read_to_string(&safe_path).ok()
     }
 
     /// Get file modification time as Unix epoch seconds.
+    /// Returns 0 if the path escapes the project root (path-traversal guard).
     fn file_mtime(&self, file: &FileStructure, project_root: &Path) -> u64 {
-        let path = if Path::new(&file.path).is_absolute() {
-            std::path::PathBuf::from(&file.path)
-        } else {
-            project_root.join(&file.path)
+        let path = match safe_resolve_path(project_root, &file.path) {
+            Ok(p) => p,
+            Err(_) => return 0,
         };
 
         std::fs::metadata(&path)

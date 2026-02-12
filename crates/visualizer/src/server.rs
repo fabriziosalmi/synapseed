@@ -15,6 +15,7 @@ use tracing::{debug, info, warn};
 use synapseed_architect::ReportStore;
 use synapseed_chronos::historian::Historian;
 use synapseed_core::context::SynapseContext;
+use synapseed_core::error::safe_resolve_path;
 use synapseed_core::symbol::SymbolKind;
 use synapseed_cortex::graph::CodeGraph;
 use synapseed_telemetry_sink::store::SpanStore;
@@ -533,14 +534,11 @@ async fn api_xray(
             }
         }
 
-        // 3. Read first 15 lines of source
-        let abs_path = if std::path::Path::new(&file_path).is_absolute() {
-            std::path::PathBuf::from(&file_path)
-        } else {
-            project_root.join(&file_path)
-        };
-        if let Ok(content) = std::fs::read_to_string(&abs_path) {
-            preview = content.lines().take(15).collect::<Vec<_>>().join("\n");
+        // 3. Read first 15 lines of source (with path-traversal guard)
+        if let Ok(abs_path) = safe_resolve_path(&project_root, &file_path) {
+            if let Ok(content) = std::fs::read_to_string(&abs_path) {
+                preview = content.lines().take(15).collect::<Vec<_>>().join("\n");
+            }
         }
 
         let short_file = file_path

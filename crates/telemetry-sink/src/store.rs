@@ -1,7 +1,9 @@
 //! Span storage — ring buffer + per-symbol metrics aggregation.
 
 use std::collections::{HashMap, VecDeque};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+
+use parking_lot::RwLock;
 
 use serde::Serialize;
 
@@ -110,7 +112,7 @@ impl SpanStore {
 
     /// Push a resolved span into the ring buffer and update metrics.
     pub fn push(&self, span: ResolvedSpan) {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write();
 
         // Update per-location metrics
         if let Some(ref file) = span.file_path {
@@ -135,13 +137,13 @@ impl SpanStore {
 
     /// Get the N most recent spans.
     pub fn recent(&self, n: usize) -> Vec<ResolvedSpan> {
-        let inner = self.inner.read().unwrap();
+        let inner = self.inner.read();
         inner.spans.iter().rev().take(n).cloned().collect()
     }
 
     /// Get hotspots sorted by average duration (descending).
     pub fn hotspots(&self) -> Vec<SpanMetrics> {
-        let inner = self.inner.read().unwrap();
+        let inner = self.inner.read();
         let mut spots: Vec<SpanMetrics> = inner.metrics.values().cloned().collect();
         spots.sort_by(|a, b| {
             b.avg_duration_ms
@@ -153,14 +155,14 @@ impl SpanStore {
 
     /// Clear all spans and metrics.
     pub fn reset(&self) {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write();
         inner.spans.clear();
         inner.metrics.clear();
     }
 
     /// Get store statistics.
     pub fn stats(&self) -> StoreStats {
-        let inner = self.inner.read().unwrap();
+        let inner = self.inner.read();
         StoreStats {
             total_spans: inner.spans.len(),
             unique_locations: inner.metrics.len(),

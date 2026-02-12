@@ -1,17 +1,17 @@
-//! Telemetry Sink Plugin — spawns the OTLP gRPC receiver.
+//! Telemetry Sink Plugin — spawns the OTLP gRPC receiver when the
+//! `grpc` feature is enabled, otherwise registers the SpanStore only.
 
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use tracing::{info, warn};
+use tracing::info;
 
 use synapseed_core::context::SynapseContext;
 use synapseed_core::error::Result;
 use synapseed_core::event::SynapseEvent;
 use synapseed_core::plugin::SynapsePlugin;
 
-use crate::server;
 use crate::store::SpanStore;
 
 /// The Telemetry Sink plugin — OTLP gRPC receiver.
@@ -40,7 +40,10 @@ impl SynapsePlugin for TelemetrySinkPlugin {
         "telemetry-sink"
     }
 
+    #[cfg(feature = "grpc")]
     fn on_init(&mut self, ctx: &SynapseContext) -> Result<()> {
+        use tracing::warn;
+
         let store = SpanStore::new();
         let port = self.port;
 
@@ -51,12 +54,24 @@ impl SynapsePlugin for TelemetrySinkPlugin {
         let ctx_for_server = ctx.clone();
         let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
         tokio::spawn(async move {
-            if let Err(e) = server::start(addr, store, ctx_for_server).await {
+            if let Err(e) = crate::server::start(addr, store, ctx_for_server).await {
                 warn!(error = %e, "Telemetry: gRPC server failed to start");
             }
         });
 
         info!(port = port, "Telemetry: OTLP receiver at 127.0.0.1:{port}");
+        Ok(())
+    }
+
+    #[cfg(not(feature = "grpc"))]
+    fn on_init(&mut self, ctx: &SynapseContext) -> Result<()> {
+        let store = SpanStore::new();
+
+        // Register store as a context extension — MCP tools can still
+        // query spans/hotspots/stats, they just won't receive live OTLP data.
+        ctx.set_extension(Arc::new(store));
+
+        info!("Telemetry: OTLP gRPC export disabled (build without `grpc` feature)");
         Ok(())
     }
 

@@ -3,7 +3,7 @@
 //! Aggregates metrics and violations into a scored report with
 //! actionable recommendations.
 
-use std::sync::RwLock;
+use parking_lot::RwLock;
 
 use serde::{Deserialize, Serialize};
 
@@ -57,11 +57,7 @@ pub struct ReportStore {
 
 impl std::fmt::Debug for ReportStore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let score = self
-            .report
-            .read()
-            .ok()
-            .and_then(|r| r.as_ref().map(|r| r.score));
+        let score = self.report.read().as_ref().map(|r| r.score);
         f.debug_struct("ReportStore")
             .field("score", &score)
             .finish()
@@ -76,20 +72,17 @@ impl ReportStore {
     }
 
     pub fn set(&self, report: ArchitectureReport) {
-        *self.report.write().unwrap() = Some(report);
+        *self.report.write() = Some(report);
     }
 
     pub fn get(&self) -> Option<ArchitectureReport> {
-        self.report.read().unwrap().clone()
+        self.report.read().clone()
     }
 
     /// Quick health check: returns (score, violation_count).
     pub fn health(&self) -> Option<(u32, usize)> {
-        self.report
-            .read()
-            .unwrap()
-            .as_ref()
-            .map(|r| (r.score, r.violations.len()))
+        let guard = self.report.read();
+        guard.as_ref().map(|r| (r.score, r.violations.len()))
     }
 }
 

@@ -2,7 +2,9 @@ use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+
+use parking_lot::RwLock;
 
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
@@ -128,14 +130,13 @@ impl ExtensionRegistry {
 
     /// Register a shared object by type.
     pub fn set<T: Send + Sync + 'static>(&self, ext: Arc<T>) {
-        self.map.write().unwrap().insert(TypeId::of::<T>(), ext);
+        self.map.write().insert(TypeId::of::<T>(), ext);
     }
 
     /// Retrieve a shared object by type.
     pub fn get<T: Send + Sync + 'static>(&self) -> Option<Arc<T>> {
-        self.map
-            .read()
-            .unwrap()
+        let guard = self.map.read();
+        guard
             .get(&TypeId::of::<T>())
             .and_then(|ext| ext.clone().downcast::<T>().ok())
     }
@@ -214,28 +215,28 @@ impl SynapseContext {
     // ── Data Accessors ──────────────────────────────────────────
 
     pub fn project_root(&self) -> PathBuf {
-        self.inner.read().unwrap().project_root.clone()
+        self.inner.read().project_root.clone()
     }
 
     pub fn project_state(&self) -> ProjectState {
-        self.inner.read().unwrap().project_state.clone()
+        self.inner.read().project_state.clone()
     }
 
     pub fn dna(&self) -> ProjectDna {
-        self.inner.read().unwrap().dna.clone()
+        self.inner.read().dna.clone()
     }
 
     pub fn metrics(&self) -> ContextMetrics {
-        self.inner.read().unwrap().metrics.clone()
+        self.inner.read().metrics.clone()
     }
 
     pub fn update_metrics<F: FnOnce(&mut ContextMetrics)>(&self, f: F) {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write();
         f(&mut inner.metrics);
     }
 
     pub fn set_project_state(&self, state: ProjectState) {
-        self.inner.write().unwrap().project_state = state;
+        self.inner.write().project_state = state;
     }
 
     // ── Event Bus (delegates to EventBus) ────────────────────────

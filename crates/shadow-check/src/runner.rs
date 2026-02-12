@@ -1,13 +1,16 @@
 //! Background runner — spawns `cargo check` and manages the diagnostic store.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
+
+use parking_lot::RwLock;
 
 use tracing::{debug, info, warn};
 
 use synapseed_core::context::SynapseContext;
+use synapseed_core::error::safe_resolve_path;
 use synapseed_core::event::SynapseEvent;
 
 use crate::diagnostic::{
@@ -68,7 +71,7 @@ impl DiagnosticStore {
 
     /// Get a snapshot of current diagnostics.
     pub fn snapshot(&self) -> DiagnosticSnapshot {
-        let inner = self.inner.read().unwrap();
+        let inner = self.inner.read();
         DiagnosticSnapshot {
             diagnostics: inner.diagnostics.clone(),
             error_count: inner.error_count,
@@ -79,7 +82,7 @@ impl DiagnosticStore {
 
     /// Get a snapshot filtered by minimum severity.
     pub fn filtered_snapshot(&self, min: MinSeverity) -> DiagnosticSnapshot {
-        let inner = self.inner.read().unwrap();
+        let inner = self.inner.read();
         let filtered: Vec<Diagnostic> = inner
             .diagnostics
             .iter()
@@ -104,7 +107,7 @@ impl DiagnosticStore {
 
     /// Get diagnostics for a specific file.
     pub fn for_file(&self, file_path: &str) -> Vec<Diagnostic> {
-        let inner = self.inner.read().unwrap();
+        let inner = self.inner.read();
         inner
             .diagnostics
             .iter()
@@ -119,7 +122,7 @@ impl DiagnosticStore {
         file_path: &str,
         error_code: &str,
     ) -> Option<(Diagnostic, Suggestion)> {
-        let inner = self.inner.read().unwrap();
+        let inner = self.inner.read();
         for diag in &inner.diagnostics {
             if (diag.file_path == file_path || file_path.ends_with(&diag.file_path))
                 && diag.code.as_deref() == Some(error_code)
@@ -139,7 +142,7 @@ impl DiagnosticStore {
     /// Run cargo check and update the store. Returns (errors, warnings).
     pub fn run_check(&self) -> (usize, usize) {
         let project_root = {
-            let inner = self.inner.read().unwrap();
+            let inner = self.inner.read();
             inner.project_root.clone()
         };
 
@@ -180,7 +183,7 @@ impl DiagnosticStore {
 
         // Update the store
         {
-            let mut inner = self.inner.write().unwrap();
+            let mut inner = self.inner.write();
             inner.diagnostics = all_diags;
             inner.error_count = errors;
             inner.warning_count = warnings;
@@ -204,16 +207,13 @@ impl DiagnosticStore {
         })?;
 
         let project_root = {
-            let inner = self.inner.read().unwrap();
+            let inner = self.inner.read();
             inner.project_root.clone()
         };
 
-        // Resolve the file path
-        let abs_path = if Path::new(&suggestion.file_path).is_absolute() {
-            PathBuf::from(&suggestion.file_path)
-        } else {
-            project_root.join(&suggestion.file_path)
-        };
+        // Resolve the file path (with path-traversal guard)
+        let abs_path = safe_resolve_path(&project_root, &suggestion.file_path)
+            .map_err(|e| format!("Path traversal blocked for {}: {e}", suggestion.file_path))?;
 
         let source = std::fs::read_to_string(&abs_path)
             .map_err(|e| format!("Failed to read {}: {e}", abs_path.display()))?;

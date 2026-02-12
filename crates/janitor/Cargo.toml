@@ -8,6 +8,7 @@ description = "The Janitor — autonomous code maintenance: clippy fixes, unused
 [dependencies]
 synapseed-core = { workspace = true }
 synapseed-gym = { workspace = true }
+parking_lot = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }

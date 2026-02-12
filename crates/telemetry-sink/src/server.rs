@@ -2,6 +2,10 @@
 //!
 //! Receives traces on port 4317, extracts code location attributes,
 //! resolves symbols via Cortex, and pushes to the SpanStore.
+//!
+//! This entire module is gated behind the `grpc` feature. Without it,
+//! the telemetry-sink crate still provides the in-memory [`SpanStore`]
+//! and a no-op plugin stub — but skips the 35+ tonic/gRPC dependencies.
 
 use std::net::SocketAddr;
 

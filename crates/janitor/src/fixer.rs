@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::process::Command;
 
+use synapseed_core::error::safe_resolve_path;
 use tracing::{debug, warn};
 
 use crate::proposal::{Proposal, ProposalCategory};
@@ -32,7 +33,7 @@ pub struct Fix {
 pub fn generate_fix(issue: &ClippyIssue, project_path: &Path) -> Option<Fix> {
     let suggestion = issue.auto_fix()?;
 
-    let abs_path = project_path.join(&suggestion.file_path);
+    let abs_path = safe_resolve_path(project_path, &suggestion.file_path).ok()?;
     let source = std::fs::read_to_string(&abs_path).ok()?;
 
     // Validate byte offsets are within the file

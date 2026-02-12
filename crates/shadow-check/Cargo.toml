@@ -7,6 +7,7 @@ description = "Shadow Compiler — background cargo check with live diagnostics"
 
 [dependencies]
 synapseed-core = { workspace = true }
+parking_lot = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

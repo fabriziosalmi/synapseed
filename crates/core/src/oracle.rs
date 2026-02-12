@@ -6,8 +6,24 @@
 //! - Feature claims vs actual implementations
 
 use std::path::Path;
+use std::sync::LazyLock;
 
+use regex::Regex;
 use serde::{Deserialize, Serialize};
+
+// ── Pre-compiled regexes for fix_docs() ────────────────────────────
+
+static VERSION_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"v\d+\.\d+\.\d+").unwrap());
+
+static CRATE_COUNT_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\b(\d+)\s+crates?\b").unwrap());
+
+static TOOL_COUNT_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\b(\d+)\s+tools?\b").unwrap());
+
+static RESOURCE_COUNT_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\b(\d+)\s+resources?\b").unwrap());
 
 /// Full consistency check report.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,21 +126,19 @@ pub fn fix_docs(project_root: &Path) -> Vec<String> {
     let mut patched = readme.clone();
 
     // Patch version strings like "v2.1.0" → current version
-    let version_re = regex::Regex::new(r"v\d+\.\d+\.\d+").unwrap();
     let new_version = format!("v{version}");
-    if let Some(first) = version_re.find(&patched) {
+    if let Some(first) = VERSION_RE.find(&patched) {
         if first.as_str() != new_version {
-            patched = version_re.replace_all(&patched, new_version.as_str()).to_string();
+            patched = VERSION_RE.replace_all(&patched, new_version.as_str()).to_string();
             changes.push(format!("Updated version references to {new_version}"));
         }
     }
 
     // Patch "N crates" pattern
-    let crate_re = regex::Regex::new(r"\b(\d+)\s+crates?\b").unwrap();
-    if let Some(cap) = crate_re.captures(&patched) {
+    if let Some(cap) = CRATE_COUNT_RE.captures(&patched) {
         let old: usize = cap[1].parse().unwrap_or(0);
         if old != crate_count && crate_count > 0 {
-            patched = crate_re
+            patched = CRATE_COUNT_RE
                 .replace_all(&patched, format!("{crate_count} crates").as_str())
                 .to_string();
             changes.push(format!("Updated crate count: {old} → {crate_count}"));
@@ -132,11 +146,10 @@ pub fn fix_docs(project_root: &Path) -> Vec<String> {
     }
 
     // Patch "N tools" pattern
-    let tool_re = regex::Regex::new(r"\b(\d+)\s+tools?\b").unwrap();
-    if let Some(cap) = tool_re.captures(&patched) {
+    if let Some(cap) = TOOL_COUNT_RE.captures(&patched) {
         let old: usize = cap[1].parse().unwrap_or(0);
         if old != tool_count && tool_count > 0 {
-            patched = tool_re
+            patched = TOOL_COUNT_RE
                 .replace_all(&patched, format!("{tool_count} tools").as_str())
                 .to_string();
             changes.push(format!("Updated tool count: {old} → {tool_count}"));
@@ -144,11 +157,10 @@ pub fn fix_docs(project_root: &Path) -> Vec<String> {
     }
 
     // Patch "N resources" pattern
-    let resource_re = regex::Regex::new(r"\b(\d+)\s+resources?\b").unwrap();
-    if let Some(cap) = resource_re.captures(&patched) {
+    if let Some(cap) = RESOURCE_COUNT_RE.captures(&patched) {
         let old: usize = cap[1].parse().unwrap_or(0);
         if old != resource_count && resource_count > 0 {
-            patched = resource_re
+            patched = RESOURCE_COUNT_RE
                 .replace_all(&patched, format!("{resource_count} resources").as_str())
                 .to_string();
             changes.push(format!("Updated resource count: {old} → {resource_count}"));

@@ -1,5 +1,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
+
+use parking_lot::Mutex;
 
 use chrono::Utc;
 use dashmap::DashMap;
@@ -140,13 +141,13 @@ impl ProposalStore {
 
     /// Mark scan as finished and store the result.
     pub fn finish_scan(&self, result: LastScan) {
-        *self.last_scan.lock().unwrap() = Some(result);
+        *self.last_scan.lock() = Some(result);
         self.scanning.store(false, Ordering::SeqCst);
     }
 
     /// Get the last scan result.
     pub fn last_scan(&self) -> Option<LastScan> {
-        self.last_scan.lock().unwrap().clone()
+        self.last_scan.lock().clone()
     }
 
     /// Add a proposal to the store.

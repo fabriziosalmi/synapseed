@@ -4,7 +4,8 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::RwLock;
+
+use parking_lot::RwLock;
 
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
@@ -48,7 +49,7 @@ impl std::fmt::Debug for VectorIndex {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("VectorIndex")
             .field("dimensions", &self.dimensions)
-            .field("count", &self.vectors.read().map(|v| v.len()).unwrap_or(0))
+            .field("count", &self.vectors.read().len())
             .finish()
     }
 }
@@ -80,9 +81,9 @@ impl VectorIndex {
 
     /// Add a batch of vectors with their metadata.
     pub fn add_batch(&self, vectors: Vec<Vec<f32>>, entries: Vec<VectorEntry>) {
-        let mut vecs = self.vectors.write().unwrap();
-        let mut ents = self.entries.write().unwrap();
-        let mut file_map = self.file_map.write().unwrap();
+        let mut vecs = self.vectors.write();
+        let mut ents = self.entries.write();
+        let mut file_map = self.file_map.write();
 
         for (vector, entry) in vectors.into_iter().zip(entries.into_iter()) {
             debug_assert_eq!(vector.len(), self.dimensions);
@@ -96,9 +97,9 @@ impl VectorIndex {
 
     /// Remove all vectors for a given file path (mark as deleted).
     pub fn remove_file(&self, file_path: &str) {
-        let mut file_map = self.file_map.write().unwrap();
+        let mut file_map = self.file_map.write();
         if let Some(indices) = file_map.remove(file_path) {
-            let mut entries = self.entries.write().unwrap();
+            let mut entries = self.entries.write();
             for idx in indices {
                 if idx < entries.len() {
                     entries[idx].file_path.clear(); // mark as deleted
@@ -111,8 +112,8 @@ impl VectorIndex {
     pub fn search(&self, query: &[f32], top_k: usize) -> Vec<SimilarityResult> {
         debug_assert_eq!(query.len(), self.dimensions);
 
-        let vectors = self.vectors.read().unwrap();
-        let entries = self.entries.read().unwrap();
+        let vectors = self.vectors.read();
+        let entries = self.entries.read();
 
         let mut scored: Vec<(f32, usize)> = vectors
             .iter()
@@ -138,7 +139,6 @@ impl VectorIndex {
     pub fn active_count(&self) -> usize {
         self.entries
             .read()
-            .unwrap()
             .iter()
             .filter(|e| !e.file_path.is_empty())
             .count()
@@ -146,7 +146,7 @@ impl VectorIndex {
 
     /// Number of unique files indexed.
     pub fn file_count(&self) -> usize {
-        self.file_map.read().unwrap().len()
+        self.file_map.read().len()
     }
 
     /// Save the index to disk (compacts deleted entries).
@@ -155,8 +155,8 @@ impl VectorIndex {
             return;
         };
 
-        let vectors = self.vectors.read().unwrap();
-        let entries = self.entries.read().unwrap();
+        let vectors = self.vectors.read();
+        let entries = self.entries.read();
 
         let active: Vec<(Vec<f32>, VectorEntry)> = vectors
             .iter()
@@ -213,9 +213,9 @@ impl VectorIndex {
                             return;
                         }
 
-                        let mut vectors = self.vectors.write().unwrap();
-                        let mut entries = self.entries.write().unwrap();
-                        let mut file_map = self.file_map.write().unwrap();
+                        let mut vectors = self.vectors.write();
+                        let mut entries = self.entries.write();
+                        let mut file_map = self.file_map.write();
 
                         for (vec, entry) in
                             data.vectors.into_iter().zip(data.entries.into_iter())

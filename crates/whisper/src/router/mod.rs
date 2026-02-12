@@ -334,6 +334,43 @@ fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> {
     targets
 }
 
+// ── Human Summary Builder ─────────────────────────────────────────────
+
+/// Build a one-line-per-symbol summary for small LLMs that struggle with
+/// raw JSON.  Output example:
+///
+/// ```text
+/// Found fn `ask` in crates/whisper/src/router/mod.rs at line 136
+/// Found struct `WhisperResult` in crates/whisper/src/router/mod.rs at line 81
+/// ```
+fn build_human_summary(code_context: &Option<CodeContext>) -> Option<String> {
+    let code = code_context.as_ref()?;
+    if code.symbols.is_empty() {
+        return None;
+    }
+
+    let lines: Vec<String> = code
+        .symbols
+        .iter()
+        .filter_map(|sym| {
+            let name = sym.get("name")?.as_str()?;
+            let file = sym.get("file_path")?.as_str()?;
+            let line = sym.get("line_start")?.as_u64()?;
+            let kind = sym
+                .get("kind")
+                .and_then(|k| k.as_str())
+                .unwrap_or("symbol");
+            Some(format!("Found {kind} `{name}` in {file} at line {line}"))
+        })
+        .collect();
+
+    if lines.is_empty() {
+        return None;
+    }
+
+    Some(lines.join("\n"))
+}
+
 // ── Smart Context Builder ──────────────────────────────────────────────
 
 fn build_smart_context(
@@ -368,6 +405,12 @@ fn build_smart_context(
     };
 
     let mut parts = vec![preamble];
+
+    // Human-readable symbol summary — helps small models locate answers fast
+    if let Some(summary) = build_human_summary(code_context) {
+        parts.push(summary);
+    }
+
     let mut section_count = 0usize;
     let max_sections = match complexity {
         QueryComplexity::Quick => 3,
@@ -564,5 +607,117 @@ mod tests {
             classify_intent("spiega come funziona il router"),
             Intent::Explain
         ));
+    }
+
+    // ── build_human_summary tests ────────────────────────────────────
+
+    #[test]
+    fn test_human_summary_none_when_no_context() {
+        assert!(build_human_summary(&None).is_none());
+    }
+
+    #[test]
+    fn test_human_summary_none_when_empty_symbols() {
+        let ctx = CodeContext {
+            symbols: vec![],
+        };
+        assert!(build_human_summary(&Some(ctx)).is_none());
+    }
+
+    #[test]
+    fn test_human_summary_single_symbol() {
+        let sym = serde_json::json!({
+            "name": "ask",
+            "kind": "function",
+            "file_path": "crates/whisper/src/router/mod.rs",
+            "line_start": 136
+        });
+        let ctx = CodeContext {
+            symbols: vec![sym],
+        };
+        let summary = build_human_summary(&Some(ctx)).unwrap();
+        assert_eq!(
+            summary,
+            "Found function `ask` in crates/whisper/src/router/mod.rs at line 136"
+        );
+    }
+
+    #[test]
+    fn test_human_summary_multiple_symbols() {
+        let symbols = vec![
+            serde_json::json!({
+                "name": "ask",
+                "kind": "function",
+                "file_path": "crates/whisper/src/router/mod.rs",
+                "line_start": 136
+            }),
+            serde_json::json!({
+                "name": "WhisperResult",
+                "kind": "struct",
+                "file_path": "crates/whisper/src/router/mod.rs",
+                "line_start": 81
+            }),
+        ];
+        let ctx = CodeContext { symbols };
+        let summary = build_human_summary(&Some(ctx)).unwrap();
+        assert!(summary.contains("Found function `ask`"));
+        assert!(summary.contains("Found struct `WhisperResult`"));
+        assert_eq!(summary.lines().count(), 2);
+    }
+
+    #[test]
+    fn test_human_summary_missing_fields_skipped() {
+        let symbols = vec![
+            serde_json::json!({ "name": "orphan" }), // missing file_path + line_start
+            serde_json::json!({
+                "name": "valid",
+                "kind": "enum",
+                "file_path": "src/lib.rs",
+                "line_start": 10
+            }),
+        ];
+        let ctx = CodeContext { symbols };
+        let summary = build_human_summary(&Some(ctx)).unwrap();
+        assert_eq!(summary.lines().count(), 1);
+        assert!(summary.contains("Found enum `valid`"));
+    }
+
+    #[test]
+    fn test_human_summary_fallback_kind() {
+        let sym = serde_json::json!({
+            "name": "mystery",
+            "file_path": "src/lib.rs",
+            "line_start": 1
+        });
+        let ctx = CodeContext {
+            symbols: vec![sym],
+        };
+        let summary = build_human_summary(&Some(ctx)).unwrap();
+        assert!(summary.contains("Found symbol `mystery`"));
+    }
+
+    #[test]
+    fn test_human_summary_injected_in_smart_context() {
+        let code_ctx = Some(CodeContext {
+            symbols: vec![serde_json::json!({
+                "name": "execute",
+                "kind": "function",
+                "file_path": "crates/root/src/executor.rs",
+                "line_start": 32
+            })],
+        });
+        let ctx = build_smart_context(
+            "explain execute",
+            &Intent::Explain,
+            QueryComplexity::Standard,
+            &None,
+            &None,
+            &code_ctx,
+            "CLEAN",
+        );
+        // Human summary appears before the section bullets
+        let summary_pos = ctx.find("Found function `execute`").unwrap();
+        let code_section_pos = ctx.find("**Code**").unwrap();
+        assert!(summary_pos < code_section_pos);
     }
 }

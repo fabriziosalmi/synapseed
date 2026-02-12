@@ -29,3 +29,7 @@ tracing = { workspace = true }
 chrono = { workspace = true }
 anyhow = { workspace = true }
 ignore = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tempfile = { workspace = true }

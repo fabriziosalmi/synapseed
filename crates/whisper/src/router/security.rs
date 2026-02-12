@@ -1,6 +1,5 @@
-use std::path::Path;
-
 use synapseed_core::context::SynapseContext;
+use synapseed_core::error::safe_resolve_path;
 use synapseed_cortex::graph::CodeGraph;
 use synapseed_husk::guard::SecurityGuard;
 
@@ -19,10 +18,12 @@ pub(super) fn gather_security(intent: &Intent, targets: &[Target], ctx: &Synapse
     let mut findings = Vec::new();
     for target in targets {
         if let Some(file_path) = &target.file_path {
-            let abs_path = if Path::new(file_path).is_absolute() {
-                file_path.into()
-            } else {
-                root.join(file_path)
+            let abs_path = match safe_resolve_path(&root, file_path) {
+                Ok(p) => p,
+                Err(e) => {
+                    findings.push(format!("{file_path}: {e}"));
+                    continue;
+                }
             };
 
             if let Ok(content) = std::fs::read_to_string(&abs_path) {
@@ -38,7 +39,11 @@ pub(super) fn gather_security(intent: &Intent, targets: &[Target], ctx: &Synapse
         let graph = CodeGraph::new();
         if graph.index_directory(&root).is_ok() {
             for file in graph.all_files() {
-                let abs_path = root.join(&file.path);
+                // Files from the index are already relative to root; still validate.
+                let abs_path = match safe_resolve_path(&root, &file.path) {
+                    Ok(p) => p,
+                    Err(_) => continue,
+                };
                 if let Ok(content) = std::fs::read_to_string(&abs_path) {
                     if let Err(e) = guard.check(&content) {
                         findings.push(format!("{}: {}", file.path, e));
