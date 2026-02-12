@@ -85,15 +85,15 @@ function initCytoscape(elements, autoCollapse) {
             'min-width': '140px',
           }
         },
-        // Collapsed file nodes — compact labeled boxes
+        // Collapsed file nodes — readable labeled boxes
         {
           selector: 'node[type="file"].collapsed',
           style: {
-            'width': 140,
-            'height': 36,
+            'width': 180,
+            'height': 44,
             'padding': '6px',
-            'min-width': '140px',
-            'min-height': '36px',
+            'min-width': '180px',
+            'min-height': '44px',
             'border-style': 'solid',
             'border-width': 2,
             'border-color': '#58a6ff',
@@ -101,7 +101,7 @@ function initCytoscape(elements, autoCollapse) {
             'text-valign': 'center',
             'text-halign': 'center',
             'text-margin-y': 0,
-            'font-size': '11px',
+            'font-size': '13px',
           }
         },
         // ── SYMBOL nodes — colored circles by type ──
@@ -187,9 +187,9 @@ function initCytoscape(elements, autoCollapse) {
         { selector: ':selected', style: { 'border-color': '#58a6ff', 'border-width': 4 } },
       ],
       layout: { name: 'preset' },
-      minZoom: 0.1,
-      maxZoom: 5.0,
-      wheelSensitivity: 0.2,
+      minZoom: 0.2,
+      maxZoom: 4.0,
+      wheelSensitivity: 0.3,
     });
 
     // Auto-collapse all files on large graphs (reduces 900+ nodes to ~56)
@@ -278,38 +278,67 @@ function initCytoscape(elements, autoCollapse) {
 
 function runLayout() {
   if (!__cy) return;
-  // Adapt physics based on visible (non-hidden) node count
-  var visibleCount = __cy.nodes(':visible').length;
-  var isLarge = visibleCount > 30;
 
-  var layout = __cy.layout({
-    name: 'cose',
-    animate: true,
-    animationDuration: isLarge ? 500 : 800,
-    randomize: true,
-    // Physics — scale to graph size
-    componentSpacing: isLarge ? 30 : 60,
-    nodeRepulsion: function() { return isLarge ? 400 : 2000; },
-    nodeOverlap: 20,
-    idealEdgeLength: function() { return isLarge ? 30 : 50; },
-    edgeElasticity: function() { return 100; },
-    nestingFactor: isLarge ? 10 : 5,
-    gravity: isLarge ? 80 : 1.2,
-    numIter: 1000,
-    initialTemp: isLarge ? 50 : 200,
-    coolingFactor: 0.95,
-    minTemp: 1.0,
-    nodeDimensionsIncludeLabels: true,
-    fit: true,
-    padding: 40,
-    // Force fit + zoom clamp when layout finishes
-    stop: function() {
-      __cy.fit(__cy.elements(':visible'), 40);
-      // Clamp zoom to a readable range
-      if (__cy.zoom() > 1.5) { __cy.zoom(1.5); __cy.center(); }
-      if (__cy.zoom() < 0.3) { __cy.zoom(0.3); __cy.center(); }
-    }
-  });
+  var visibleNodes = __cy.nodes(':visible');
+  var visibleCount = visibleNodes.length;
+  var hasVisibleSymbols = visibleNodes.filter('[type!="file"]').length > 0;
+
+  // Strategy: grid for collapsed-only overview, COSE for expanded/mixed
+  var useGrid = visibleCount > 20 && !hasVisibleSymbols;
+
+  var layoutOpts;
+
+  if (useGrid) {
+    // ── Grid layout: clean, organized rows for collapsed file boxes ──
+    layoutOpts = {
+      name: 'grid',
+      fit: true,
+      padding: 40,
+      avoidOverlap: true,
+      avoidOverlapPadding: 20,
+      nodeDimensionsIncludeLabels: true,
+      condense: true,
+      sort: function(a, b) {
+        return (a.data('label') || '').localeCompare(b.data('label') || '');
+      },
+      animate: false,
+      stop: function() {
+        // Clamp zoom so labels stay readable
+        if (__cy.zoom() > 1.5) { __cy.zoom(1.5); __cy.center(); }
+        if (__cy.zoom() < 0.5) { __cy.zoom(0.5); __cy.center(); }
+      }
+    };
+  } else {
+    // ── COSE force-directed for expanded or small graphs ──
+    var isLarge = visibleCount > 100;
+    layoutOpts = {
+      name: 'cose',
+      animate: !isLarge,             // no animation on huge graphs (prevents zoom flicker)
+      animationDuration: 800,
+      randomize: true,
+      componentSpacing: isLarge ? 20 : 60,
+      nodeRepulsion: function() { return isLarge ? 600 : 2000; },
+      nodeOverlap: 20,
+      idealEdgeLength: function() { return isLarge ? 40 : 50; },
+      edgeElasticity: function() { return 100; },
+      nestingFactor: isLarge ? 12 : 5,
+      gravity: isLarge ? 80 : 1.2,
+      numIter: isLarge ? 500 : 1000,
+      initialTemp: isLarge ? 100 : 200,
+      coolingFactor: 0.95,
+      minTemp: 1.0,
+      nodeDimensionsIncludeLabels: true,
+      fit: false,                    // we handle fit in stop callback only
+      padding: 30,
+      stop: function() {
+        __cy.fit(__cy.elements(':visible'), 30);
+        if (__cy.zoom() > 1.5) { __cy.zoom(1.5); __cy.center(); }
+        if (__cy.zoom() < 0.4) { __cy.zoom(0.4); __cy.center(); }
+      }
+    };
+  }
+
+  var layout = __cy.layout(layoutOpts);
   layout.run();
 }
 
@@ -461,6 +490,9 @@ function toggleFileCollapse(fileNode) {
     fileNode.addClass('collapsed');
     children.addClass('sym-hidden');
   }
+
+  // Re-run layout to adapt (may switch between grid ↔ COSE)
+  runLayout();
 }
 
 // ── Search / Filter ───────────────────────────────────────

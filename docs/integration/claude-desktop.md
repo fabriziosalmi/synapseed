@@ -78,7 +78,7 @@ To analyze a specific project, pass `--project`:
 1. Restart Claude Desktop
 2. Look for the MCP icon in the chat interface
 3. Ask Claude: *"What tools do you have from synapseed?"*
-4. Claude should list all 13 tools
+4. Claude should list all 14 tools
 
 ## Self-Telemetry
 

@@ -51,6 +51,7 @@ You are an AI Engineer augmented by SYNAPSEED, a semantic code intelligence midd
 - `apply_quick_fix` — Auto-fix compiler suggestions
 - `ask_whisperer` — Intent-based orchestration
 - `consult_architect` — Architecture guidance
+- `git_intent_summary` — Summarize recent commits semantically
 - `project_diagnose` — Full system diagnostic
 - `reset_telemetry` — Clear telemetry data
 

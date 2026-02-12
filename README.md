@@ -201,15 +201,15 @@ graph LR
 
 ```bash
 synapseed serve --project .          # Start MCP server (stdio)
-synapseed hoist <path>               # Print AST skeleton
-synapseed scan --text "..."          # DLP scan text
-synapseed check "cargo test"         # Evaluate command safety
-synapseed search "auth logic"        # Semantic search
-synapseed history <file>             # Git history with semantic tags
-synapseed analyze <path>             # Churn and risk analysis
+synapseed hoist --project .          # Index project and print AST skeleton
+synapseed lookup <name> --project .  # Find symbol by name across the project
+synapseed scan --text "secret_key=..." # DLP scan for sensitive data
+synapseed check "cargo test"         # Evaluate command against security policy
+synapseed history --limit 20         # Git history with semantic commit tags
+synapseed blame <file> -s 1 -e 30   # Git blame for file line range
 synapseed diagnose --project .       # Full system diagnostic
-synapseed visualize --project .      # Start visualizer on :3000
-synapseed ask "how does auth work?"  # Ask the Whisperer
+synapseed status --project .         # Runtime metrics and system status
+synapseed init --project .           # Initialize all plugins and broadcast event
 ```
 
 ---
@@ -228,24 +228,37 @@ This enables a feedback loop: SYNAPSEED operations emit spans via `BatchSpanProc
 
 ## Configuration
 
-Create `synapseed.toml` in your project root:
+Create `.synapseed/dna.yaml` in your project root (or `~/.config/synapseed/dna.yaml` for user-level defaults):
 
-```toml
-[project]
-name = "my-project"
-description = "Project description"
-language = "rust"
+```yaml
+workspace_strategy: monorepo
 
-[architecture]
-style = "modular-monolith"
-key_modules = ["core", "api", "storage"]
-invariants = ["All public APIs must have error handling"]
+naming:
+  core_crate: core
+  bin_name: my-app
 
-[security]
-deny_commands = ["rm -rf", "curl | sh"]
-allow_commands = ["cargo test", "cargo build", "cargo clippy"]
-sensitive_paths = [".env", "secrets/"]
+preferred_libs:
+  async: tokio
+  json: serde_json
+  error: thiserror
+  http: axum
+
+plugins:
+  - cortex
+  - husk
+  - root
+  - chronos
+  - search
+  - visualizer
+  - shadow
+  - whisper
+  - telemetry
+
+dlp_level: standard          # off | low | standard | strict | paranoid
+visualizer_port: 3000        # override with SYNAPSEED_VISUALIZER_PORT env var
 ```
+
+All fields are optional — omitted fields use sensible defaults. Project-level config overrides user-level config. See [`examples/dna.yaml`](examples/dna.yaml) for a full annotated example.
 
 ### Search Index
 
