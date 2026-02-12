@@ -14,6 +14,7 @@ use synapseed_root::sentinel::Sentinel;
 use synapseed_search::indexer::SemanticIndex;
 use synapseed_shadow_check::runner::DiagnosticStore;
 use synapseed_gym::{Scenario, Trainer};
+use synapseed_janitor::{Janitor, ProposalStore};
 use synapseed_telemetry_sink::store::SpanStore;
 
 use crate::protocol::{ContentBlock, ToolCallResult, ToolDefinition};
@@ -251,6 +252,28 @@ pub fn list_tools() -> Vec<ToolDefinition> {
                 "properties": {}
             }),
         },
+        ToolDefinition {
+            name: "janitor_run_now".into(),
+            description: "Run the Janitor: scan the project for clippy warnings and unused dependencies, generate validated fix proposals. Returns a summary of findings and actionable proposals. Ask 'Janitor, hai trovato qualcosa?' to trigger this.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {}
+            }),
+        },
+        ToolDefinition {
+            name: "janitor_apply_fix".into(),
+            description: "Apply a specific Janitor fix proposal by ID. The fix is applied to the actual file, then verified with `cargo check`. Automatically reverts if compilation breaks.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "proposal_id": {
+                        "type": "string",
+                        "description": "The UUID of the proposal to apply (from janitor_run_now results)"
+                    }
+                },
+                "required": ["proposal_id"]
+            }),
+        },
     ]
 }
 
@@ -278,6 +301,8 @@ pub fn handle_tool_call(
         "git_intent_summary" => tool_git_intent_summary(args, ctx),
         "train_code" => tool_train_code(args),
         "reset_telemetry" => tool_reset_telemetry(ctx),
+        "janitor_run_now" => tool_janitor_run_now(ctx),
+        "janitor_apply_fix" => tool_janitor_apply_fix(args, ctx),
         _ => ToolCallResult {
             content: vec![ContentBlock::Text {
                 text: format!("Unknown tool: {name}"),
@@ -774,6 +799,91 @@ fn tool_reset_telemetry(ctx: &SynapseContext) -> ToolCallResult {
             ))
         }
         None => text_result("Telemetry sink not active.".into()),
+    }
+}
+
+fn tool_janitor_run_now(ctx: &SynapseContext) -> ToolCallResult {
+    let store = match ctx.get_extension::<ProposalStore>() {
+        Some(s) => s,
+        None => return error_result("Janitor plugin not active.".into()),
+    };
+
+    let janitor = Janitor::new(store);
+    let root = ctx.project_root();
+
+    match janitor.scan(&root) {
+        Ok(result) => {
+            let proposals = janitor.store().pending();
+            let mut output = format!(
+                "=== JANITOR REPORT ===\nClippy issues: {} ({} fixable) | Unused deps: {} | Proposals: {}\n",
+                result.clippy_issues,
+                result.fixable_issues,
+                result.unused_deps.len(),
+                result.proposals_created,
+            );
+
+            if proposals.is_empty() {
+                output.push_str("\nProgetto pulito! Nessuna proposta da fare.");
+            } else {
+                output.push_str("\n--- Proposals ---\n");
+                for p in &proposals {
+                    output.push_str(&format!(
+                        "\n[{}] {} ({})\n  File: {}:{}\n  Lint: {}\n  Fix: {} → {}\n",
+                        p.id,
+                        p.description,
+                        match &p.category {
+                            synapseed_janitor::ProposalCategory::Clippy => "clippy",
+                            synapseed_janitor::ProposalCategory::CompilerWarning => "warning",
+                            synapseed_janitor::ProposalCategory::UnusedDependency => "unused dep",
+                        },
+                        p.file_path,
+                        p.line_start,
+                        p.lint_code,
+                        truncate_code(&p.original_code, 60),
+                        truncate_code(&p.fixed_code, 60),
+                    ));
+                }
+                output.push_str(&format!(
+                    "\nUse `janitor_apply_fix` with a proposal ID to apply a fix."
+                ));
+            }
+
+            let json = serde_json::to_string_pretty(&result).unwrap_or_default();
+            output.push_str(&format!("\n\n{json}"));
+
+            text_result(output)
+        }
+        Err(e) => error_result(format!("Janitor scan failed: {e}")),
+    }
+}
+
+fn tool_janitor_apply_fix(args: &serde_json::Value, ctx: &SynapseContext) -> ToolCallResult {
+    let proposal_id = match args.get("proposal_id").and_then(|v| v.as_str()) {
+        Some(id) => id,
+        None => return error_result("Missing required parameter: proposal_id".into()),
+    };
+
+    let store = match ctx.get_extension::<ProposalStore>() {
+        Some(s) => s,
+        None => return error_result("Janitor plugin not active.".into()),
+    };
+
+    let janitor = Janitor::new(store);
+    let root = ctx.project_root();
+
+    match janitor.apply(proposal_id, &root) {
+        Ok(msg) => text_result(format!("Fix applied successfully.\n{msg}")),
+        Err(e) => error_result(format!("Failed to apply fix: {e}")),
+    }
+}
+
+/// Truncate code snippet for display, replacing newlines with spaces.
+fn truncate_code(code: &str, max_len: usize) -> String {
+    let oneline: String = code.chars().map(|c| if c == '\n' { ' ' } else { c }).collect();
+    if oneline.len() > max_len {
+        format!("{}...", &oneline[..max_len])
+    } else {
+        oneline
     }
 }
 

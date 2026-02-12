@@ -6,6 +6,7 @@ use serde_json::json;
 
 use synapseed_core::context::SynapseContext;
 use synapseed_core::state::ProjectState;
+use synapseed_janitor::ProposalStore;
 use synapseed_root::sentinel::Sentinel;
 use synapseed_shadow_check::runner::DiagnosticStore;
 use synapseed_telemetry_sink::store::SpanStore;
@@ -69,6 +70,15 @@ pub fn list_resources() -> Vec<ResourceDefinition> {
             ),
             mime_type: Some("application/json".into()),
         },
+        ResourceDefinition {
+            uri: "synapseed://janitor/proposals".into(),
+            name: "Janitor Proposals".into(),
+            description: Some(
+                "Pending maintenance proposals from the Janitor. Lists clippy fixes, unused dependencies, and other validated improvements ready to apply. Ask the Janitor to scan first with `janitor_run_now`."
+                    .into(),
+            ),
+            mime_type: Some("application/json".into()),
+        },
     ]
 }
 
@@ -81,6 +91,7 @@ pub fn read_resource(uri: &str, ctx: &SynapseContext) -> Option<ResourceContent>
         "synapseed://diagnostics/active" => Some(resource_diagnostics(ctx)),
         "synapseed://visualizer/url" => Some(resource_visualizer_url()),
         "synapseed://telemetry/hotspots" => Some(resource_telemetry_hotspots(ctx)),
+        "synapseed://janitor/proposals" => Some(resource_janitor_proposals(ctx)),
         _ => None,
     }
 }
@@ -276,6 +287,38 @@ fn resource_telemetry_hotspots(ctx: &SynapseContext) -> ResourceContent {
 
     ResourceContent {
         uri: "synapseed://telemetry/hotspots".into(),
+        mime_type: Some("application/json".into()),
+        text: Some(text),
+    }
+}
+
+fn resource_janitor_proposals(ctx: &SynapseContext) -> ResourceContent {
+    let text = match ctx.get_extension::<ProposalStore>() {
+        Some(store) => {
+            let pending = store.pending();
+            let applied: Vec<_> = store
+                .all()
+                .into_iter()
+                .filter(|p| p.status == synapseed_janitor::ProposalStatus::Applied)
+                .collect();
+
+            serde_json::to_string_pretty(&json!({
+                "pending_count": pending.len(),
+                "applied_count": applied.len(),
+                "total_count": store.total_count(),
+                "proposals": pending,
+            }))
+            .unwrap_or_default()
+        }
+        None => serde_json::to_string_pretty(&json!({
+            "status": "inactive",
+            "message": "Janitor plugin not active. Run `janitor_run_now` to scan for issues.",
+        }))
+        .unwrap_or_default(),
+    };
+
+    ResourceContent {
+        uri: "synapseed://janitor/proposals".into(),
         mime_type: Some("application/json".into()),
         text: Some(text),
     }

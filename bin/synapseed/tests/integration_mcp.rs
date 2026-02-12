@@ -110,7 +110,7 @@ fn test_mcp_full_lifecycle() {
     let tools_list = &responses[1];
     assert_eq!(tools_list["id"], 2);
     let tools = tools_list["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 15, "Expected 15 tools, got {}", tools.len());
+    assert_eq!(tools.len(), 17, "Expected 17 tools, got {}", tools.len());
 
     // Verify all tool names are present
     let tool_names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
@@ -129,6 +129,8 @@ fn test_mcp_full_lifecycle() {
     assert!(tool_names.contains(&"git_intent_summary"));
     assert!(tool_names.contains(&"train_code"));
     assert!(tool_names.contains(&"reset_telemetry"));
+    assert!(tool_names.contains(&"janitor_run_now"));
+    assert!(tool_names.contains(&"janitor_apply_fix"));
 
     // ── 3. check_command "ls" → ALLOWED ──
     let check_ls = &responses[2];
@@ -177,8 +179,8 @@ fn test_mcp_full_lifecycle() {
     let resources = res_list["result"]["resources"].as_array().unwrap();
     assert_eq!(
         resources.len(),
-        6,
-        "Expected 6 resources, got {}",
+        7,
+        "Expected 7 resources, got {}",
         resources.len()
     );
 

@@ -2090,6 +2090,7 @@ dependencies = [
  "synapseed-cortex",
  "synapseed-gym",
  "synapseed-husk",
+ "synapseed-janitor",
  "synapseed-mcp",
  "synapseed-root",
  "synapseed-search",
@@ -2163,6 +2164,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "synapseed-janitor"
+version = "1.0.0"
+dependencies = [
+ "chrono",
+ "dashmap",
+ "serde",
+ "serde_json",
+ "synapseed-core",
+ "synapseed-gym",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "synapseed-mcp"
 version = "1.0.0"
 dependencies = [
@@ -2174,6 +2192,7 @@ dependencies = [
  "synapseed-cortex",
  "synapseed-gym",
  "synapseed-husk",
+ "synapseed-janitor",
  "synapseed-root",
  "synapseed-search",
  "synapseed-shadow-check",
