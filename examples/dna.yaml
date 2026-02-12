@@ -1,0 +1,78 @@
+# ──────────────────────────────────────────────────────────────
+# SYNAPSEED DNA — Project Configuration
+# ──────────────────────────────────────────────────────────────
+#
+# Place this file at:
+#   .synapseed/dna.yaml     (project-level, highest priority)
+#   ~/.config/synapseed/dna.yaml  (user-level, lower priority)
+#
+# All fields are optional. Omitted fields use sensible defaults.
+# Project-level config overrides user-level config.
+
+# ── Workspace Strategy ────────────────────────────────────────
+# How your project is organized: "monorepo", "single", "polyrepo"
+workspace_strategy: "monorepo"
+
+# ── Naming Conventions ────────────────────────────────────────
+naming:
+  core_crate: "core"
+  bin_name: "synapseed"
+
+# ── Preferred Libraries ───────────────────────────────────────
+# Hint to the LLM which libraries to prefer in generated code.
+preferred_libs:
+  async: "tokio"
+  json: "serde_json"
+  error: "thiserror"
+  http: "axum"
+
+# ── Plugins ───────────────────────────────────────────────────
+# Which plugins to load. Default: cortex, husk, root, chronos.
+# Add more for full functionality in MCP serve mode.
+plugins:
+  - cortex        # AST parser + code graph
+  - husk          # DLP scanner + security guard
+  - root          # Command sentinel + executor
+  - chronos       # Git historian + analyzer
+  - search        # Tantivy full-text search
+  - visualizer    # Architecture dashboard (HTTP/WebSocket)
+  - shadow        # Background diagnostics
+  - whisper       # Event router
+  - telemetry     # OTLP span collector
+
+# ── DLP (Data Loss Prevention) ────────────────────────────────
+# Sensitivity level: off, low, standard, strict, paranoid
+dlp_level: standard
+
+# Custom DLP rules (merged with built-in patterns).
+# Each rule needs: name, pattern (regex), action (allow/deny/redact/audit).
+dlp_custom_rules:
+  - name: "Internal API Token"
+    pattern: "ACME-[A-Z0-9]{16}"
+    action: redact
+
+  - name: "Internal Endpoint"
+    pattern: "https://internal\\.corp\\.example\\.com"
+    action: audit
+
+# ── Search Engine ─────────────────────────────────────────────
+search:
+  # Persist Tantivy index to .synapseed/index/ on disk.
+  # Default: false (RAM-only — fast startup, re-indexes on restart).
+  # Set true for large codebases to avoid re-indexing.
+  persistence: false
+
+# ── Visualizer Dashboard ──────────────────────────────────────
+# Override the default port (3000).
+# Can also be set via SYNAPSEED_VISUALIZER_PORT env var.
+visualizer_port: 3000
+
+# ── Scaffold Templates ────────────────────────────────────────
+# Custom file templates for code generation (key: template name).
+templates:
+  module: |
+    //! ${name} module.
+
+    pub fn init() {
+        todo!()
+    }

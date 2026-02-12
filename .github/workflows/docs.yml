@@ -33,7 +33,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: docs
-        run: npm ci || npm install
+        run: npm ci
 
       - name: Build VitePress
         working-directory: docs
