@@ -15,7 +15,6 @@ use synapseed_core::telemetry;
 use synapseed_chronos::plugin::ChronosPlugin;
 use synapseed_cortex::graph::CodeGraph;
 use synapseed_cortex::plugin::CortexPlugin;
-use synapseed_husk::guard::SecurityGuard;
 use synapseed_husk::plugin::HuskPlugin;
 use synapseed_root::plugin::RootPlugin;
 use synapseed_root::sentinel::Sentinel;
@@ -54,33 +53,39 @@ enum Commands {
     // ── Existing commands (with MCP aliases) ────────────────────────
 
     /// Index a project and display its code graph skeleton
-    #[command(alias = "get_code_skeleton")]
-    Hoist,
+    #[command(visible_alias = "get_code_skeleton")]
+    Hoist {
+        /// Directory to index (default: project root)
+        path: Option<String>,
+    },
 
     /// Look up a symbol by name across the indexed project
-    #[command(alias = "lookup_symbol")]
+    #[command(visible_alias = "lookup_symbol")]
     Lookup {
         /// Symbol name to search for
         name: String,
     },
 
     /// Scan content for sensitive data (DLP check)
-    #[command(alias = "scan_security")]
+    #[command(visible_alias = "scan_security")]
     Scan {
-        /// Text to scan (reads from stdin if not provided)
+        /// Content to scan (reads from stdin if not provided)
         #[arg(short, long)]
-        text: Option<String>,
+        content: Option<String>,
+        /// Scan mode: all (default), dlp, patterns
+        #[arg(short, long, default_value = "all")]
+        mode: String,
     },
 
     /// Evaluate a command against the security sentinel
-    #[command(alias = "check_command")]
+    #[command(visible_alias = "check_command")]
     Check {
         /// Command to evaluate
         command: String,
     },
 
     /// Run full system diagnostic — detect state, load plugins, report
-    #[command(alias = "project_diagnose")]
+    #[command(visible_alias = "project_diagnose")]
     Diagnose,
 
     /// Show git history summary and recent commits
@@ -91,7 +96,7 @@ enum Commands {
     },
 
     /// Show blame information for a file
-    #[command(alias = "git_history")]
+    #[command(visible_alias = "git_history")]
     Blame {
         /// File path (relative to project root)
         file: String,
@@ -115,14 +120,14 @@ enum Commands {
     // ── New commands (MCP-only tools exposed to CLI) ────────────────
 
     /// Ask a natural-language question — SYNAPSEED orchestrates all subsystems
-    #[command(alias = "ask_synapseed", alias = "whisper")]
+    #[command(visible_alias = "ask_synapseed", visible_alias = "whisper")]
     Ask {
         /// Natural-language question
         query: String,
     },
 
     /// Search for code by concept (Tantivy keyword index)
-    #[command(alias = "semantic_search")]
+    #[command(visible_alias = "semantic_search")]
     Search {
         /// Search query
         query: String,
@@ -132,7 +137,7 @@ enum Commands {
     },
 
     /// Show compiler diagnostics from the shadow compiler
-    #[command(alias = "get_diagnostics")]
+    #[command(visible_alias = "get_diagnostics")]
     Diagnostics {
         /// Filter by file path
         #[arg(short, long)]
@@ -143,7 +148,7 @@ enum Commands {
     },
 
     /// Analyze file history: churn, hotspots, co-change patterns, risk
-    #[command(alias = "analyze_history")]
+    #[command(visible_alias = "analyze_history")]
     Analyze {
         /// File path (relative to project root)
         file: String,
@@ -156,7 +161,7 @@ enum Commands {
     },
 
     /// Apply a compiler-suggested quick fix
-    #[command(alias = "apply_quick_fix")]
+    #[command(visible_alias = "apply_quick_fix")]
     Quickfix {
         /// File path containing the error
         file: String,
@@ -165,7 +170,7 @@ enum Commands {
     },
 
     /// Summarize the intent of recent commits semantically
-    #[command(alias = "git_intent_summary")]
+    #[command(visible_alias = "git_intent_summary")]
     Intent {
         /// Number of recent commits to analyze
         #[arg(short, long, default_value = "20")]
@@ -173,7 +178,7 @@ enum Commands {
     },
 
     /// Evaluate Rust code in the Gym sandbox
-    #[command(alias = "train_code")]
+    #[command(visible_alias = "train_code")]
     Train {
         /// Path to Rust source file (or - for stdin)
         source: String,
@@ -192,15 +197,15 @@ enum Commands {
     },
 
     /// Clear all telemetry data (OTLP spans and metrics)
-    #[command(alias = "reset_telemetry")]
+    #[command(visible_alias = "reset_telemetry")]
     ResetTelemetry,
 
     /// Run Janitor: scan clippy warnings and unused dependencies
-    #[command(alias = "janitor_run_now")]
+    #[command(visible_alias = "janitor_run_now")]
     Janitor,
 
     /// Apply a Janitor fix proposal by ID
-    #[command(alias = "janitor_apply_fix")]
+    #[command(visible_alias = "janitor_apply_fix")]
     JanitorFix {
         /// UUID of the proposal to apply
         proposal_id: String,
@@ -210,7 +215,7 @@ enum Commands {
     },
 
     /// Analyze project structural health (architecture score, coupling, cycles)
-    #[command(alias = "architect_analyze")]
+    #[command(visible_alias = "architect_analyze")]
     Architect {
         /// Force fresh analysis (skip cache)
         #[arg(long)]
@@ -218,18 +223,18 @@ enum Commands {
     },
 
     /// Consult the project's architecture policy (DNA config)
-    #[command(alias = "consult_architect")]
+    #[command(visible_alias = "consult_architect")]
     Consult {
         /// Architecture question
         query: String,
     },
 
     /// Auto-repair drifted documentation (versions, counts)
-    #[command(alias = "oracle_fix_docs")]
+    #[command(visible_alias = "oracle_fix_docs")]
     Oracle,
 
     /// Find code similar to a query using vector embeddings
-    #[command(alias = "semantic_similarity")]
+    #[command(visible_alias = "semantic_similarity")]
     Similar {
         /// Natural-language query
         query: String,
@@ -240,6 +245,10 @@ enum Commands {
         #[arg(short, long, default_value = "0.3")]
         min_similarity: f64,
     },
+
+    /// Catch-all: unrecognized input is treated as an `ask` query
+    #[command(external_subcommand)]
+    External(Vec<String>),
 }
 
 #[tokio::main]
@@ -258,9 +267,26 @@ async fn main() -> Result<()> {
 
     match cli.command {
         // ── Existing commands ───────────────────────────────────────
-        Commands::Hoist => cmd_hoist(&project_root)?,
+        Commands::Hoist { path } => {
+            let mut args = json!({});
+            if let Some(p) = path {
+                args["path"] = json!(p);
+            }
+            cmd_mcp(&project_root, "hoist", args).await?
+        }
         Commands::Lookup { name } => cmd_lookup(&name, &project_root)?,
-        Commands::Scan { text } => cmd_scan(text.as_deref())?,
+        Commands::Scan { content, mode } => {
+            let text = match content {
+                Some(c) => c,
+                None => {
+                    use std::io::Read;
+                    let mut buf = String::new();
+                    std::io::stdin().read_to_string(&mut buf)?;
+                    buf
+                }
+            };
+            cmd_mcp(&project_root, "scan", json!({"content": text, "mode": mode})).await?
+        }
         Commands::Check { command } => cmd_check(&command)?,
         Commands::Diagnose => cmd_diagnose(&project_root)?,
         Commands::History { limit } => cmd_history(&project_root, limit)?,
@@ -323,6 +349,11 @@ async fn main() -> Result<()> {
         }
         Commands::Similar { query, top_k, min_similarity } => {
             cmd_mcp(&project_root, "similar", json!({"query": query, "top_k": top_k, "min_similarity": min_similarity})).await?
+        }
+        Commands::External(args) => {
+            let query = args.join(" ");
+            eprintln!("[ask] {query}");
+            cmd_mcp(&project_root, "ask", json!({"query": query})).await?
         }
     }
 
@@ -394,28 +425,6 @@ fn read_source_or_stdin(path: &str) -> Result<String> {
 
 // ── Existing command handlers ───────────────────────────────────────
 
-fn cmd_hoist(path: &Path) -> Result<()> {
-    let graph = CodeGraph::new();
-
-    info!(path = %path.display(), "Indexing project");
-    graph.index_directory(path)?;
-
-    println!(
-        "Indexed {} files, {} symbols\n",
-        graph.file_count(),
-        graph.symbol_count()
-    );
-
-    let json = serde_json::to_string_pretty(&serde_json::json!({
-        "project": "synapseed",
-        "files_indexed": graph.file_count(),
-        "symbols_indexed": graph.symbol_count(),
-    }))?;
-    println!("{json}");
-
-    Ok(())
-}
-
 fn cmd_lookup(name: &str, path: &Path) -> Result<()> {
     let graph = CodeGraph::new();
     graph.index_directory(path)?;
@@ -429,31 +438,6 @@ fn cmd_lookup(name: &str, path: &Path) -> Result<()> {
         for sym in &results {
             let json = serde_json::to_string_pretty(sym)?;
             println!("{json}\n");
-        }
-    }
-
-    Ok(())
-}
-
-fn cmd_scan(text: Option<&str>) -> Result<()> {
-    let content = match text {
-        Some(t) => t.to_string(),
-        None => {
-            use std::io::Read;
-            let mut buf = String::new();
-            std::io::stdin().read_to_string(&mut buf)?;
-            buf
-        }
-    };
-
-    let guard = SecurityGuard::with_defaults();
-
-    match guard.check(&content) {
-        Ok(()) => println!("CLEAN: No sensitive data detected."),
-        Err(e) => {
-            println!("ALERT: {e}");
-            let sanitized = guard.redact(&content);
-            println!("\nSanitized output:\n{sanitized}");
         }
     }
 

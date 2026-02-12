@@ -213,9 +213,12 @@ graph LR
 
 ## CLI Commands
 
-Every MCP tool is available as a CLI command. Legacy MCP names (e.g. `ask_synapseed`, `get_code_skeleton`) are accepted as aliases.
+Every MCP tool is available as a CLI command. Legacy MCP names (e.g. `ask_synapseed`, `get_code_skeleton`) are accepted as visible aliases. Unrecognized input is treated as an `ask` query.
 
 ```bash
+# ── Quick Ask (default fallback) ──
+synapseed "why is login broken?"     # Shorthand for: synapseed ask "..."
+
 # ── Server & System ──
 synapseed serve --project .          # Start MCP server (stdio)
 synapseed init --project .           # Initialize all plugins and broadcast event
@@ -223,14 +226,17 @@ synapseed status --project .         # Runtime metrics and system status
 synapseed diagnose --project .       # Full system diagnostic
 
 # ── Code Analysis ──
-synapseed hoist --project .          # Index project and print AST skeleton
+synapseed hoist                      # Index project and print AST skeleton
+synapseed hoist src/                 # Index a specific subdirectory
 synapseed lookup <name> --project .  # Find symbol by name across the project
 synapseed search "auth login" -l 10  # Semantic search via Tantivy
 synapseed similar "error handling"   # Vector embedding similarity search
 synapseed ask "why is login broken?" # Ask SYNAPSEED (orchestrates everything)
 
 # ── Security ──
-synapseed scan --text "secret=..."   # DLP scan for sensitive data
+synapseed scan -c "secret=..."       # DLP scan for sensitive data
+synapseed scan --content "..." -m dlp  # DLP-only scan mode
+echo "data" | synapseed scan         # Scan from stdin
 synapseed check "cargo test"         # Evaluate command against security policy
 
 # ── Git ──

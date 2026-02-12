@@ -67,13 +67,21 @@ pub fn init_telemetry() {
     if format == "json" {
         tracing_subscriber::registry()
             .with(filter)
-            .with(tracing_subscriber::fmt::layer().json())
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .with_writer(std::io::stderr)
+                    .json(),
+            )
             .with(build_otel_layer())
             .init();
     } else {
         tracing_subscriber::registry()
             .with(filter)
-            .with(tracing_subscriber::fmt::layer().compact())
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .with_writer(std::io::stderr)
+                    .compact(),
+            )
             .with(build_otel_layer())
             .init();
     }

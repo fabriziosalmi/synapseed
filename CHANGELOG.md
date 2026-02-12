@@ -1,5 +1,54 @@
 # Changelog
 
+## [3.2.0] — 2026-02-12
+
+### "Tutto Perfetto" Release
+
+Quality polish: CLI/MCP argument parity, stderr-only telemetry, default ask
+fallback, visible aliases, and dead code cleanup.
+
+---
+
+### Architecture (15 crates, 20 tools, 9 resources, 6 prompts)
+
+Score: **97/100 (Grade A)** — 161 modules, 58 edges.
+93 tests passing, 0 failures.
+
+### Fixes
+
+- **Argument parity (scan)** — Renamed CLI `--text` to `--content` to match MCP
+  tool schema. Added `--mode` flag (all/dlp/patterns). Scan now routes through
+  `cmd_mcp()` bridge for zero logic duplication.
+
+- **Argument parity (hoist)** — Added optional positional `path` argument to CLI
+  `hoist` command. `synapseed hoist src/` now works. Routes through `cmd_mcp()`.
+
+- **Telemetry to stderr** — `init_telemetry()` now writes to stderr in both
+  compact and JSON modes. Tracing output no longer contaminates stdout for any
+  CLI command.
+
+- **Visible aliases** — All `alias` attributes changed to `visible_alias`.
+  Legacy MCP names now appear in `synapseed --help` output for discoverability.
+
+- **Default ask fallback** — `synapseed "why is login broken?"` now works as
+  shorthand for `synapseed ask "..."`. Unrecognized subcommands are interpreted
+  as `ask` queries via Clap `external_subcommand`.
+
+### Removed
+
+- `cmd_scan()` local handler — replaced by `cmd_mcp("scan", ...)` bridge
+- `cmd_hoist()` local handler — replaced by `cmd_mcp("hoist", ...)` bridge
+- `SecurityGuard` import (no longer needed in CLI binary)
+
+### Technical Details
+
+- **Files changed**: 4 (`bin/synapseed/src/main.rs`, `crates/core/src/telemetry.rs`,
+  `README.md`, `CHANGELOG.md`)
+- **Zero new dependencies**
+- **Net code reduction**: ~40 lines removed (dead handlers replaced by bridge calls)
+
+---
+
 ## [3.1.0] — 2026-02-12
 
 ### "Fuzzy & Resilient" Release
