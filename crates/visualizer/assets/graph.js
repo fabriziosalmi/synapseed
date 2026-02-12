@@ -42,26 +42,50 @@ function initCytoscape(elements) {
       container: document.getElementById('cy'),
       elements: elements,
       style: [
-        // File nodes (compound parents)
+        // ── Base node (all nodes inherit) ──
+        {
+          selector: 'node',
+          style: {
+            'label': 'data(label)',
+            'color': '#ffffff',
+            'text-valign': 'bottom',
+            'text-halign': 'center',
+            'text-margin-y': 6,
+            'font-size': '12px',
+            'font-family': 'SF Mono, Fira Code, JetBrains Mono, monospace',
+            'background-color': '#444',
+            'border-width': 2,
+            'border-color': '#555',
+            'overlay-padding': '6px',
+            'z-index': 10,
+            'transition-property': 'background-color, border-color, border-width, opacity',
+            'transition-duration': '0.3s',
+          }
+        },
+        // ── FILE nodes (compound parents) — large rounded rectangles ──
         {
           selector: 'node[type="file"]',
           style: {
-            'background-color': '#161b22',
-            'border-color': '#30363d',
-            'border-width': 2,
-            'label': 'data(label)',
-            'color': '#c9d1d9',
-            'font-size': '12px',
-            'font-family': 'SF Mono, Fira Code, monospace',
+            'shape': 'round-rectangle',
+            'width': 60,
+            'height': 60,
+            'background-color': '#0d1117',
+            'border-color': '#58a6ff',
+            'border-width': 3,
+            'font-size': '14px',
+            'font-weight': 'bold',
             'text-valign': 'top',
             'text-halign': 'center',
             'text-margin-y': 10,
+            'text-background-opacity': 1,
+            'text-background-color': '#0d1117',
+            'text-background-padding': '4px',
+            'text-background-shape': 'round-rectangle',
             'padding': '24px',
-            'shape': 'roundrectangle',
             'min-width': '140px',
           }
         },
-        // Collapsed file nodes (no children visible)
+        // Collapsed file nodes
         {
           selector: 'node[type="file"].collapsed',
           style: {
@@ -71,110 +95,92 @@ function initCytoscape(elements) {
             'text-valign': 'center',
           }
         },
-        // Symbol nodes
+        // ── SYMBOL nodes — colored circles by type ──
         {
-          selector: 'node[type!="file"]',
+          selector: 'node[type="function"], node[type="method"]',
           style: {
-            'width': 30,
-            'height': 30,
-            'label': 'data(label)',
-            'font-size': '10px',
-            'font-family': 'SF Mono, Fira Code, monospace',
-            'text-valign': 'bottom',
-            'text-halign': 'center',
-            'text-margin-y': 8,
-            'text-max-width': '120px',
-            'text-wrap': 'ellipsis',
-            'border-width': 2,
-            'transition-property': 'background-color, border-color, width, height, opacity',
-            'transition-duration': '0.3s',
-          }
-        },
-        // Hidden children (collapsed)
-        {
-          selector: '.sym-hidden',
-          style: {
-            'display': 'none',
-          }
-        },
-        // Search dimmed
-        {
-          selector: '.search-dimmed',
-          style: {
-            'opacity': 0.15,
-          }
-        },
-        // Search match highlight
-        {
-          selector: '.search-match',
-          style: {
-            'border-width': 4,
-            'border-color': '#d29922',
-            'z-index': 999,
-          }
-        },
-        // Highlighted nodes (on file change)
-        {
-          selector: '.highlighted',
-          style: {
-            'border-color': '#f0883e',
-            'border-width': 4,
-            'z-index': 999,
-          }
-        },
-        {
-          selector: '.pulse',
-          style: {
-            'border-color': '#f85149',
-            'background-color': '#3a0f0f',
-            'border-width': 4,
-          }
-        },
-        // Telemetry heatmap levels
-        {
-          selector: '.heat-hot',
-          style: {
-            'border-color': '#f85149',
-            'border-width': 4,
-          }
-        },
-        {
-          selector: '.heat-warm',
-          style: {
-            'border-color': '#d29922',
-            'border-width': 3,
-          }
-        },
-        {
-          selector: '.heat-cool',
-          style: {
+            'shape': 'ellipse',
+            'width': 24,
+            'height': 24,
+            'background-color': '#238636',
             'border-color': '#7ee787',
             'border-width': 2,
           }
         },
-        // Selected node
         {
-          selector: ':selected',
+          selector: 'node[type="struct"], node[type="class"], node[type="interface"]',
           style: {
+            'shape': 'ellipse',
+            'width': 24,
+            'height': 24,
+            'background-color': '#1158c7',
             'border-color': '#58a6ff',
-            'border-width': 3,
+            'border-width': 2,
           }
         },
+        {
+          selector: 'node[type="enum"]',
+          style: {
+            'shape': 'ellipse',
+            'width': 24,
+            'height': 24,
+            'background-color': '#6e40c9',
+            'border-color': '#d2a8ff',
+            'border-width': 2,
+          }
+        },
+        {
+          selector: 'node[type="module"], node[type="constant"]',
+          style: {
+            'shape': 'ellipse',
+            'width': 24,
+            'height': 24,
+            'background-color': '#9e6a03',
+            'border-color': '#f0883e',
+            'border-width': 2,
+          }
+        },
+        {
+          selector: 'node[type="variable"], node[type="import"]',
+          style: {
+            'shape': 'ellipse',
+            'width': 20,
+            'height': 20,
+            'background-color': '#333',
+            'border-color': '#8b949e',
+            'border-width': 1,
+          }
+        },
+        // ── EDGES — subtle bezier arrows ──
+        {
+          selector: 'edge',
+          style: {
+            'width': 2,
+            'curve-style': 'bezier',
+            'line-color': '#30363d',
+            'target-arrow-shape': 'triangle',
+            'target-arrow-color': '#30363d',
+            'arrow-scale': 0.8,
+            'opacity': 0.5,
+          }
+        },
+        // ── State classes ──
+        { selector: '.sym-hidden', style: { 'display': 'none' } },
+        { selector: '.search-dimmed', style: { 'opacity': 0.1, 'z-index': 0 } },
+        { selector: '.search-match', style: { 'border-color': '#f0883e', 'border-width': 6, 'z-index': 999 } },
+        { selector: '.highlighted', style: { 'border-color': '#f0883e', 'border-width': 5, 'z-index': 999 } },
+        { selector: '.pulse', style: { 'border-color': '#f85149', 'background-color': '#550000', 'border-width': 5 } },
+        // ── Heatmap ──
+        { selector: '.heat-hot', style: { 'border-color': '#ff4433', 'border-width': 6, 'background-color': '#550000' } },
+        { selector: '.heat-warm', style: { 'border-color': '#d29922', 'border-width': 4 } },
+        { selector: '.heat-cool', style: { 'border-color': '#3fb950', 'border-width': 4 } },
+        // ── Selected ──
+        { selector: ':selected', style: { 'border-color': '#58a6ff', 'border-width': 4 } },
       ],
       layout: { name: 'preset' },
       minZoom: 0.1,
       maxZoom: 5.0,
       wheelSensitivity: 0.2,
-    });
-
-    // Apply individual symbol colors
-    Object.entries(NODE_COLORS).forEach(([type, colors]) => {
-      if (type === 'file') return;
-      __cy.nodes(`[type="${type}"]`).style({
-        'background-color': colors.bg,
-        'border-color': colors.border,
-        'color': colors.text,
-      });
     });
 
     // Re-apply collapsed state from previous render
@@ -257,27 +263,22 @@ function runLayout() {
   var layout = __cy.layout({
     name: 'cose',
     animate: true,
-    animationDuration: 1000,
-    // Physics — aggressive containment
-    componentSpacing: 40,
-    nodeRepulsion: function() { return 2048; },
-    idealEdgeLength: function() { return 32; },
-    edgeElasticity: function() { return 32; },
-    nestingFactor: 1.2,
-    gravity: 1.5,
+    randomize: true,
+    // Physics — contained chaos
+    componentSpacing: 60,
+    nodeRepulsion: function() { return 2000; },
+    nodeOverlap: 20,
+    idealEdgeLength: function() { return 50; },
+    edgeElasticity: function() { return 100; },
+    nestingFactor: 5,
+    gravity: 1.2,
     numIter: 1000,
-    initialTemp: 1000,
-    coolingFactor: 0.99,
+    initialTemp: 200,
+    coolingFactor: 0.95,
     minTemp: 1.0,
     nodeDimensionsIncludeLabels: true,
-    // Viewport
     fit: true,
     padding: 50,
-    // Force fit + center when layout finishes
-    stop: function() {
-      __cy.fit(__cy.elements(), 50);
-      __cy.center();
-    }
   });
   layout.run();
 }
@@ -525,6 +526,13 @@ async function loadGraph() {
     }
     setStatus(null);
     initCytoscape(elements);
+
+    // Clamp zoom after layout settles — don't over-zoom on small graphs
+    __cy.ready(function() {
+      __cy.fit();
+      if (__cy.zoom() > 1.5) __cy.zoom(1.5);
+      __cy.center();
+    });
 
     // Re-apply search if active
     const searchVal = document.getElementById('search-box').value.trim();
