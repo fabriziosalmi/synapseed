@@ -133,8 +133,21 @@ pub fn analyze_complexity(query: &str) -> QueryComplexity {
 /// and returns everything the LLM needs in a single call.
 ///
 /// HCI Req 5 (Mentor Mode): Response depth adapts to query complexity.
+///
+/// When `raw_injection` is true (v3.4.0+), the Whisperer reads the actual
+/// source code for each discovered symbol and injects it verbatim into the
+/// prompt, giving even sub-3B models enough context to answer accurately.
 pub fn ask(query: &str, ctx: &SynapseContext) -> WhisperResult {
-    info!(query = query, "Whisperer: Processing query");
+    ask_with_options(query, ctx, false)
+}
+
+/// Like [`ask`] but with explicit control over raw source injection.
+pub fn ask_raw(query: &str, ctx: &SynapseContext, raw_injection: bool) -> WhisperResult {
+    ask_with_options(query, ctx, raw_injection)
+}
+
+fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> WhisperResult {
+    info!(query = query, raw = raw_injection, "Whisperer: Processing query");
 
     let intent = classify_intent(query);
     let complexity = analyze_complexity(query);
@@ -149,6 +162,13 @@ pub fn ask(query: &str, ctx: &SynapseContext) -> WhisperResult {
     let code_ctx = code::gather_code_context(&intent, &targets, ctx);
     let sec_status = security::gather_security(&intent, &targets, ctx);
 
+    // ── Raw Source Injection (v3.4.0) ──────────────────────────────
+    let raw_sources = if raw_injection {
+        inject_raw_sources(&targets, ctx)
+    } else {
+        Vec::new()
+    };
+
     let smart_context = build_smart_context(
         query,
         &intent,
@@ -157,6 +177,8 @@ pub fn ask(query: &str, ctx: &SynapseContext) -> WhisperResult {
         &hist,
         &code_ctx,
         &sec_status,
+        raw_injection,
+        &raw_sources,
     );
 
     WhisperResult {
@@ -371,6 +393,73 @@ fn build_human_summary(code_context: &Option<CodeContext>) -> Option<String> {
     Some(lines.join("\n"))
 }
 
+// ── Raw Source Injection ────────────────────────────────────────────────
+
+/// A raw source code snippet extracted from disk for a discovered symbol.
+#[derive(Debug, Clone, Serialize)]
+pub struct RawSource {
+    pub file_path: String,
+    pub line_start: usize,
+    pub line_end: usize,
+    pub source: String,
+}
+
+/// Read the actual source code for each target that has file/line info.
+fn inject_raw_sources(targets: &[Target], ctx: &SynapseContext) -> Vec<RawSource> {
+    let root = ctx.project_root();
+    let mut sources = Vec::new();
+
+    // Also look up Cortex symbols for precise line_end
+    let graph = CodeGraph::new();
+    let _ = graph.index_directory(&root);
+
+    for target in targets {
+        let rel_path = match &target.file_path {
+            Some(p) => p.clone(),
+            None => continue,
+        };
+
+        let abs_path = root.join(&rel_path);
+        let content = match std::fs::read_to_string(&abs_path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+
+        let lines: Vec<&str> = content.lines().collect();
+        if lines.is_empty() {
+            continue;
+        }
+
+        // Try to get precise line range from Cortex symbol table
+        let (start, end) = if let Some(sym) = graph.lookup(&target.name).first() {
+            (sym.line_start, sym.line_end)
+        } else if let Some(ls) = target.line_start {
+            // Fallback: ±30 lines around the target
+            let s = ls.saturating_sub(1);
+            let e = (ls + 30).min(lines.len());
+            (s + 1, e) // 1-indexed
+        } else {
+            // No line info at all — take first 60 lines
+            (1, lines.len().min(60))
+        };
+
+        // Clamp to file bounds (1-indexed)
+        let s = start.max(1).min(lines.len());
+        let e = end.max(s).min(lines.len());
+
+        let snippet: String = lines[(s - 1)..e].join("\n");
+
+        sources.push(RawSource {
+            file_path: rel_path,
+            line_start: s,
+            line_end: e,
+            source: snippet,
+        });
+    }
+
+    sources
+}
+
 // ── Smart Context Builder ──────────────────────────────────────────────
 
 fn build_smart_context(
@@ -381,6 +470,8 @@ fn build_smart_context(
     history: &Option<HistoryContext>,
     code_context: &Option<CodeContext>,
     security_status: &str,
+    raw_injection: bool,
+    raw_sources: &[RawSource],
 ) -> String {
     let intent_label = match intent {
         Intent::BugFix => "bug fix",
@@ -471,10 +562,31 @@ fn build_smart_context(
         }
     }
 
-    let closing = match complexity {
-        QueryComplexity::Quick => "\nProvide a concise answer.",
-        QueryComplexity::Standard => "\nUse the full JSON context below to provide an informed, precise answer.",
-        QueryComplexity::Deep => "\nUse ALL gathered context to provide a thorough, cross-referenced analysis with specific file paths and line numbers.",
+    // ── Raw Source Injection block ──────────────────────────────────
+    if raw_injection && !raw_sources.is_empty() {
+        parts.push(String::new());
+        parts.push("## Injected Source Code".into());
+        parts.push("You are provided with the EXACT source code for your query. \
+                     Use the provided file paths and line numbers in your answer.".into());
+        for src in raw_sources {
+            parts.push(format!(
+                "\n[SOURCE_START file=\"{}\" lines={}-{}]",
+                src.file_path, src.line_start, src.line_end
+            ));
+            parts.push(src.source.clone());
+            parts.push("[SOURCE_END]".into());
+        }
+    }
+
+    let closing = if raw_injection {
+        "\nAnswer based ONLY on the injected source code above. \
+         Cite exact file paths and line numbers."
+    } else {
+        match complexity {
+            QueryComplexity::Quick => "\nProvide a concise answer.",
+            QueryComplexity::Standard => "\nUse the full JSON context below to provide an informed, precise answer.",
+            QueryComplexity::Deep => "\nUse ALL gathered context to provide a thorough, cross-referenced analysis with specific file paths and line numbers.",
+        }
     };
     parts.push(closing.into());
     parts.join("\n")
@@ -714,6 +826,8 @@ mod tests {
             &None,
             &code_ctx,
             "CLEAN",
+            false,
+            &[],
         );
         // Human summary appears before the section bullets
         let summary_pos = ctx.find("Found function `execute`").unwrap();

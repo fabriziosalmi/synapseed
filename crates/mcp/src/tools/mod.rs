@@ -224,6 +224,11 @@ pub fn list_tools() -> Vec<ToolDefinition> {
                     "query": {
                         "type": "string",
                         "description": "Natural-language question (e.g., 'why is the login broken?', 'run a security audit', 'explain the router module')"
+                    },
+                    "raw": {
+                        "type": "boolean",
+                        "description": "When true, inject the EXACT source code of discovered symbols into the prompt (Direct Symbol Injection). Ideal for small models that need real code, not summaries.",
+                        "default": false
                     }
                 },
                 "required": ["query"]

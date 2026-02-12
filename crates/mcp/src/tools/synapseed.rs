@@ -12,7 +12,9 @@ pub(super) fn tool_ask_synapseed(
         None => return error_result("Missing required parameter: query".into()),
     };
 
-    let result = synapseed_whisper::router::ask(query, ctx);
+    let raw = args.get("raw").and_then(|v| v.as_bool()).unwrap_or(false);
+
+    let result = synapseed_whisper::router::ask_raw(query, ctx, raw);
 
     let json = serde_json::to_string_pretty(&result).unwrap_or_default();
 

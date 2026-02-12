@@ -1,5 +1,32 @@
 # Changelog
 
+## [3.4.0] — 2026-02-13
+
+### "Direct Truth" Release — Raw Symbol Injection
+
+New `--raw` flag for `synapseed ask` injects **actual source code** of discovered
+symbols directly into the LLM prompt, boosting F1-Score for sub-3B models.
+
+---
+
+#### Added
+
+- **Raw Symbol Injection** (`--raw` flag): Cortex finds the symbol, Whisperer reads
+  the real source from disk using precise `line_start..line_end` ranges, and injects it
+  verbatim in the prompt between `[SOURCE_START]` / `[SOURCE_END]` tags.
+- **MCP `ask` tool**: new optional `raw: boolean` parameter for programmatic access.
+- **`ask_raw()` public API** in `synapseed_whisper::router` for library consumers.
+- **Instruction Hardening**: when `--raw` is active, the prompt includes an imperative
+  directive: _"Answer based ONLY on the injected source code. Cite exact file paths
+  and line numbers."_
+
+#### Changed
+
+- `build_smart_context()` now accepts `raw_injection` + `raw_sources` parameters.
+- `WhisperResult.smart_context` includes source blocks when raw mode is on.
+
+---
+
 ## [3.3.0] — 2026-02-13
 
 ### "Auto-Hoist" Release

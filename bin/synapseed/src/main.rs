@@ -124,6 +124,9 @@ enum Commands {
     Ask {
         /// Natural-language question
         query: String,
+        /// Inject raw source code of discovered symbols into the prompt
+        #[arg(long)]
+        raw: bool,
     },
 
     /// Search for code by concept (Tantivy keyword index)
@@ -296,8 +299,8 @@ async fn main() -> Result<()> {
         Commands::Serve => cmd_serve(&project_root).await?,
 
         // ── MCP-bridged commands ────────────────────────────────────
-        Commands::Ask { query } => {
-            cmd_ask(&project_root, &query).await?
+        Commands::Ask { query, raw } => {
+            cmd_ask(&project_root, &query, raw).await?
         }
         Commands::Search { query, limit } => {
             cmd_mcp(&project_root, "search", json!({"query": query, "limit": limit})).await?
@@ -353,7 +356,7 @@ async fn main() -> Result<()> {
         Commands::External(args) => {
             let query = args.join(" ");
             eprintln!("[ask] {query}");
-            cmd_ask(&project_root, &query).await?
+            cmd_ask(&project_root, &query, false).await?
         }
     }
 
@@ -399,7 +402,7 @@ async fn init_full_context(path: &Path) -> Result<SynapseContext> {
 /// may still be empty when the Whisperer processes the query.  This function
 /// detects that situation and performs a **synchronous** hoist (equivalent to
 /// `synapseed hoist . && synapseed ask "..."`) in a single process.
-async fn cmd_ask(path: &Path, query: &str) -> Result<()> {
+async fn cmd_ask(path: &Path, query: &str, raw: bool) -> Result<()> {
     let ctx = init_full_context(path).await?;
 
     // Wait briefly for the background indexer, then fall back to synchronous.
@@ -442,7 +445,7 @@ async fn cmd_ask(path: &Path, query: &str) -> Result<()> {
         }
     }
 
-    let result = handle_tool_call("ask", &json!({"query": query}), &ctx);
+    let result = handle_tool_call("ask", &json!({"query": query, "raw": raw}), &ctx);
 
     for block in &result.content {
         match block {
