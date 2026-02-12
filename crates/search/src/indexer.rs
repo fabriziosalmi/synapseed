@@ -64,9 +64,7 @@ impl SemanticIndex {
 
         if !index_dir.exists() {
             std::fs::create_dir_all(index_dir).map_err(|e| {
-                tantivy::TantivyError::SystemError(format!(
-                    "Failed to create index directory: {e}"
-                ))
+                tantivy::TantivyError::SystemError(format!("Failed to create index directory: {e}"))
             })?;
         }
 
@@ -168,11 +166,7 @@ impl SemanticIndex {
     }
 
     /// Incremental update: remove all docs for a file path, then re-index.
-    pub fn reindex_file(
-        &self,
-        file: &FileStructure,
-        project_root: &Path,
-    ) -> usize {
+    pub fn reindex_file(&self, file: &FileStructure, project_root: &Path) -> usize {
         let mut writer = match self.writer.lock() {
             Ok(w) => w,
             Err(_) => return 0,
@@ -257,10 +251,7 @@ impl SemanticIndex {
             Ok(q) => q,
             Err(_) => {
                 // Escape the query and try again
-                let escaped = query_str
-                    .replace(':', " ")
-                    .replace('(', " ")
-                    .replace(')', " ");
+                let escaped = query_str.replace([':', '(', ')'], " ");
                 match query_parser.parse_query(&escaped) {
                     Ok(q) => q,
                     Err(e) => {
@@ -295,9 +286,7 @@ impl SemanticIndex {
             };
 
             let get_u64 = |field: tantivy::schema::Field| -> u64 {
-                doc.get_first(field)
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0)
+                doc.get_first(field).and_then(|v| v.as_u64()).unwrap_or(0)
             };
 
             results.push(SearchResult {
@@ -348,7 +337,9 @@ fn extract_doc_comment(source: &str, line_start: usize) -> String {
             doc_lines.push(trimmed.trim_start_matches("///").trim());
         } else if trimmed.starts_with("//!") {
             doc_lines.push(trimmed.trim_start_matches("//!").trim());
-        } else if trimmed.starts_with("*") || trimmed.starts_with("/**") || trimmed.starts_with("*/")
+        } else if trimmed.starts_with("*")
+            || trimmed.starts_with("/**")
+            || trimmed.starts_with("*/")
         {
             // Multi-line doc comment
             let cleaned = trimmed
@@ -387,7 +378,9 @@ fn extract_body_snippet(source: &str, line_start: usize, line_end: usize) -> Str
     }
 
     let start = line_start.saturating_sub(1); // 0-indexed
-    let end = (start + 5).min(line_end.saturating_sub(1) + 1).min(lines.len());
+    let end = (start + 5)
+        .min(line_end.saturating_sub(1) + 1)
+        .min(lines.len());
 
     lines[start..end].join("\n")
 }

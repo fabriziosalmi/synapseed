@@ -56,7 +56,7 @@ impl Executor {
             .arg(command)
             .output()
             .await
-            .map_err(|e| SynapseedError::Io(e))?;
+            .map_err(SynapseedError::Io)?;
 
         let result = ExecutionResult::from_output(output);
 

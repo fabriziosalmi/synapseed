@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -18,11 +18,11 @@ use synapseed_husk::guard::SecurityGuard;
 use synapseed_husk::plugin::HuskPlugin;
 use synapseed_root::plugin::RootPlugin;
 use synapseed_root::sentinel::Sentinel;
-use synapseed_visualizer::plugin::VisualizerPlugin;
 use synapseed_search::plugin::SearchPlugin;
 use synapseed_shadow_check::plugin::ShadowCheckPlugin;
-use synapseed_whisper::plugin::WhisperPlugin;
 use synapseed_telemetry_sink::plugin::TelemetrySinkPlugin;
+use synapseed_visualizer::plugin::VisualizerPlugin;
+use synapseed_whisper::plugin::WhisperPlugin;
 
 #[derive(Parser)]
 #[command(
@@ -126,7 +126,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-fn cmd_hoist(path: &PathBuf) -> Result<()> {
+fn cmd_hoist(path: &Path) -> Result<()> {
     let graph = CodeGraph::new();
 
     info!(path = %path.display(), "Indexing project");
@@ -148,7 +148,7 @@ fn cmd_hoist(path: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn cmd_lookup(name: &str, path: &PathBuf) -> Result<()> {
+fn cmd_lookup(name: &str, path: &Path) -> Result<()> {
     let graph = CodeGraph::new();
     graph.index_directory(path)?;
 
@@ -203,7 +203,7 @@ fn cmd_check(command: &str) -> Result<()> {
     Ok(())
 }
 
-fn cmd_diagnose(path: &PathBuf) -> Result<()> {
+fn cmd_diagnose(path: &Path) -> Result<()> {
     println!("=== SYNAPSEED SYSTEM DIAGNOSTIC ===\n");
 
     // State detection
@@ -230,7 +230,10 @@ fn cmd_diagnose(path: &PathBuf) -> Result<()> {
     match synapseed_chronos::historian::Historian::open(path) {
         Ok(historian) => {
             let summary = historian.summary(3)?;
-            println!("Branch: {}", summary.branch.as_deref().unwrap_or("detached"));
+            println!(
+                "Branch: {}",
+                summary.branch.as_deref().unwrap_or("detached")
+            );
             println!("HEAD: {}", summary.head_commit);
             println!("Commits: {}", summary.total_commits);
             println!("Dirty: {}", summary.is_dirty);
@@ -242,7 +245,7 @@ fn cmd_diagnose(path: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn cmd_history(path: &PathBuf, limit: usize) -> Result<()> {
+fn cmd_history(path: &Path, limit: usize) -> Result<()> {
     let historian = synapseed_chronos::historian::Historian::open(path)?;
     let summary = historian.summary(limit)?;
 
@@ -264,7 +267,7 @@ fn cmd_history(path: &PathBuf, limit: usize) -> Result<()> {
     Ok(())
 }
 
-fn cmd_blame(path: &PathBuf, file: &str, start: usize, end: usize) -> Result<()> {
+fn cmd_blame(path: &Path, file: &str, start: usize, end: usize) -> Result<()> {
     let historian = synapseed_chronos::historian::Historian::open(path)?;
     let blame = historian.blame_lines(file, start, end)?;
 
@@ -283,10 +286,10 @@ fn cmd_blame(path: &PathBuf, file: &str, start: usize, end: usize) -> Result<()>
     Ok(())
 }
 
-async fn cmd_status(path: &PathBuf) -> Result<()> {
+async fn cmd_status(path: &Path) -> Result<()> {
     let state = ProjectState::detect(path);
     let dna = ProjectDna::load(path);
-    let ctx = SynapseContext::new(path.clone(), state.clone(), dna);
+    let ctx = SynapseContext::new(path.to_path_buf(), state.clone(), dna);
 
     // Init all plugins to gather metrics
     let mut plugins: Vec<Box<dyn SynapsePlugin>> = vec![
@@ -326,10 +329,10 @@ async fn cmd_status(path: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-async fn cmd_init(path: &PathBuf) -> Result<()> {
+async fn cmd_init(path: &Path) -> Result<()> {
     let state = ProjectState::detect(path);
     let dna = ProjectDna::load(path);
-    let ctx = SynapseContext::new(path.clone(), state.clone(), dna);
+    let ctx = SynapseContext::new(path.to_path_buf(), state.clone(), dna);
 
     println!("=== SYNAPSEED INIT ===\n");
     println!("{}\n", state.diagnostic());
@@ -347,7 +350,11 @@ async fn cmd_init(path: &PathBuf) -> Result<()> {
 
     for plugin in &mut plugins {
         match plugin.on_init(&ctx) {
-            Ok(()) => println!("  [OK] {} initialized (priority: {})", plugin.name(), plugin.priority()),
+            Ok(()) => println!(
+                "  [OK] {} initialized (priority: {})",
+                plugin.name(),
+                plugin.priority()
+            ),
             Err(e) => println!("  [FAIL] {} error: {e}", plugin.name()),
         }
     }
@@ -365,7 +372,11 @@ async fn cmd_init(path: &PathBuf) -> Result<()> {
     for plugin in &plugins {
         match plugin.on_event(&event, &ctx).await {
             Ok(Some(new_event)) => {
-                println!("  [EVENT] {} emitted: {:?}", plugin.name(), std::mem::discriminant(&new_event));
+                println!(
+                    "  [EVENT] {} emitted: {:?}",
+                    plugin.name(),
+                    std::mem::discriminant(&new_event)
+                );
                 ctx.broadcast(new_event);
             }
             Ok(None) => {}
@@ -375,17 +386,19 @@ async fn cmd_init(path: &PathBuf) -> Result<()> {
 
     let metrics = ctx.metrics();
     println!("\n--- Init Summary ---");
-    println!("Files: {} | Symbols: {} | Events: {}",
-        metrics.files_indexed, metrics.symbols_found, metrics.events_broadcast);
+    println!(
+        "Files: {} | Symbols: {} | Events: {}",
+        metrics.files_indexed, metrics.symbols_found, metrics.events_broadcast
+    );
 
     println!("\n=== SYNAPSEED READY ===");
     Ok(())
 }
 
-async fn cmd_serve(path: &PathBuf) -> Result<()> {
+async fn cmd_serve(path: &Path) -> Result<()> {
     let state = ProjectState::detect(path);
     let dna = ProjectDna::load(path);
-    let ctx = SynapseContext::new(path.clone(), state, dna.clone());
+    let ctx = SynapseContext::new(path.to_path_buf(), state, dna.clone());
 
     // Initialize plugins before starting the server
     let mut plugins: Vec<Box<dyn SynapsePlugin>> = vec![

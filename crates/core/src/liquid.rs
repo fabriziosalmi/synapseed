@@ -51,18 +51,12 @@ pub struct ProjectDna {
 }
 
 /// Search index configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SearchConfig {
     /// Persist Tantivy index to `.synapseed/index/` on disk.
     /// Default: false (RAM-only, fast startup).
     #[serde(default)]
     pub persistence: bool,
-}
-
-impl Default for SearchConfig {
-    fn default() -> Self {
-        Self { persistence: false }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -183,9 +177,7 @@ impl ProjectDna {
 
         // Support both YAML and TOML based on extension
         match path.extension().and_then(|e| e.to_str()) {
-            Some("yaml" | "yml") => {
-                serde_yaml::from_str(&content).map_err(|e| e.to_string())
-            }
+            Some("yaml" | "yml") => serde_yaml::from_str(&content).map_err(|e| e.to_string()),
             Some("toml") => toml::from_str(&content).map_err(|e| e.to_string()),
             _ => serde_yaml::from_str(&content).map_err(|e| e.to_string()),
         }

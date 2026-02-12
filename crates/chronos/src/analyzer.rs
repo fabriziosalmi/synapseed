@@ -157,9 +157,9 @@ impl Historian {
         line_end: Option<usize>,
     ) -> Result<HistoryAnalysis> {
         self.with_repo(|repo| {
-            let mut revwalk = repo.revwalk().map_err(|e| {
-                SynapseedError::Internal(format!("Failed to walk commits: {e}"))
-            })?;
+            let mut revwalk = repo
+                .revwalk()
+                .map_err(|e| SynapseedError::Internal(format!("Failed to walk commits: {e}")))?;
             // Empty repos have no HEAD — return empty analysis
             if revwalk.push_head().is_err() {
                 return Ok(HistoryAnalysis {
@@ -169,8 +169,12 @@ impl Historian {
                     hotspot_score: 0.0,
                     top_authors: Vec::new(),
                     semantic_summary: SemanticSummary {
-                        fix_count: 0, revert_count: 0, refactor_count: 0,
-                        feature_count: 0, security_count: 0, performance_count: 0,
+                        fix_count: 0,
+                        revert_count: 0,
+                        refactor_count: 0,
+                        feature_count: 0,
+                        security_count: 0,
+                        performance_count: 0,
                         risk_indicator: "none".to_string(),
                     },
                     co_changes: Vec::new(),
@@ -178,23 +182,17 @@ impl Historian {
                     last_fix_commit: None,
                 });
             }
-            revwalk.set_sorting(Sort::TIME).map_err(|e| {
-                SynapseedError::Internal(format!("Failed to set sort: {e}"))
-            })?;
+            revwalk
+                .set_sorting(Sort::TIME)
+                .map_err(|e| SynapseedError::Internal(format!("Failed to set sort: {e}")))?;
 
             let mut file_commits: Vec<AnalyzedCommit> = Vec::new();
             let mut co_change_map: HashMap<String, usize> = HashMap::new();
             let mut author_counts: HashMap<String, usize> = HashMap::new();
 
             let max_commits = 500;
-            let mut scanned = 0;
 
-            for oid in revwalk {
-                if scanned >= max_commits {
-                    break;
-                }
-                scanned += 1;
-
+            for oid in revwalk.take(max_commits) {
                 let oid = match oid {
                     Ok(o) => o,
                     Err(_) => continue,
@@ -407,9 +405,9 @@ impl Historian {
     /// Groups commits by semantic tag and builds a natural-language summary.
     pub fn summarize_intent(&self, limit: usize) -> Result<IntentSummary> {
         self.with_repo(|repo| {
-            let mut revwalk = repo.revwalk().map_err(|e| {
-                SynapseedError::Internal(format!("Failed to walk commits: {e}"))
-            })?;
+            let mut revwalk = repo
+                .revwalk()
+                .map_err(|e| SynapseedError::Internal(format!("Failed to walk commits: {e}")))?;
             // Empty repos have no HEAD — return empty summary
             if revwalk.push_head().is_err() {
                 return Ok(IntentSummary {
@@ -419,9 +417,9 @@ impl Historian {
                     time_span: None,
                 });
             }
-            revwalk.set_sorting(git2::Sort::TIME).map_err(|e| {
-                SynapseedError::Internal(format!("Failed to set sort: {e}"))
-            })?;
+            revwalk
+                .set_sorting(git2::Sort::TIME)
+                .map_err(|e| SynapseedError::Internal(format!("Failed to set sort: {e}")))?;
 
             let mut categories: HashMap<String, usize> = HashMap::new();
             let mut scopes: HashMap<String, Vec<String>> = HashMap::new();
@@ -483,33 +481,31 @@ impl Historian {
             };
 
             // Build natural-language summary
-            let mut sorted_cats: Vec<(String, usize)> = categories.iter()
-                .map(|(k, v)| (k.clone(), *v))
-                .collect();
+            let mut sorted_cats: Vec<(String, usize)> =
+                categories.iter().map(|(k, v)| (k.clone(), *v)).collect();
             sorted_cats.sort_by(|a, b| b.1.cmp(&a.1));
 
-            let parts: Vec<String> = sorted_cats.iter().map(|(cat, count)| {
-                let scope_list = scopes.get(cat)
-                    .map(|s| {
+            let parts: Vec<String> = sorted_cats
+                .iter()
+                .map(|(cat, count)| {
+                    let scope_list = scopes.get(cat).map(|s| {
                         let mut deduped: Vec<String> = s.clone();
                         deduped.sort();
                         deduped.dedup();
                         deduped.truncate(3);
                         deduped
                     });
-                match scope_list {
-                    Some(ref sl) if !sl.is_empty() => {
-                        format!("{count} {cat} ({})", sl.join(", "))
+                    match scope_list {
+                        Some(ref sl) if !sl.is_empty() => {
+                            format!("{count} {cat} ({})", sl.join(", "))
+                        }
+                        _ => format!("{count} {cat}"),
                     }
-                    _ => format!("{count} {cat}"),
-                }
-            }).collect();
+                })
+                .collect();
 
             let span_str = time_span.as_deref().unwrap_or("recent history");
-            let summary = format!(
-                "{total} commits over {span_str}: {}",
-                parts.join(", ")
-            );
+            let summary = format!("{total} commits over {span_str}: {}", parts.join(", "));
 
             Ok(IntentSummary {
                 summary,

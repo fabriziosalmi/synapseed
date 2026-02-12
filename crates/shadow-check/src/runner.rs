@@ -148,11 +148,9 @@ impl DiagnosticStore {
 
     /// Apply a quick fix: read the file, apply the replacement, write back.
     pub fn apply_fix(&self, file_path: &str, error_code: &str) -> Result<String, String> {
-        let (_diag, suggestion) = self
-            .find_suggestion(file_path, error_code)
-            .ok_or_else(|| {
-                format!("No MachineApplicable fix found for {error_code} in {file_path}")
-            })?;
+        let (_diag, suggestion) = self.find_suggestion(file_path, error_code).ok_or_else(|| {
+            format!("No MachineApplicable fix found for {error_code} in {file_path}")
+        })?;
 
         let project_root = {
             let inner = self.inner.read().unwrap();
@@ -192,7 +190,9 @@ impl DiagnosticStore {
                 // Multi-line: emit content before the span + replacement
                 let before = &line[..suggestion.column_start.saturating_sub(1)];
                 // Grab trailing content from the last line of the span
-                let last_line = lines.get(suggestion.line_end.saturating_sub(1)).unwrap_or(&"");
+                let last_line = lines
+                    .get(suggestion.line_end.saturating_sub(1))
+                    .unwrap_or(&"");
                 let after = if suggestion.column_end <= last_line.len() {
                     &last_line[suggestion.column_end.saturating_sub(1)..]
                 } else {
@@ -242,13 +242,7 @@ pub fn start_background_loop(
         // Then wait for triggers with debouncing
         let debounce = Duration::from_secs(2);
 
-        loop {
-            // Wait for the first trigger
-            match trigger_rx.recv() {
-                Ok(()) => {}
-                Err(_) => break, // Channel closed
-            }
-
+        while trigger_rx.recv().is_ok() {
             // Drain any additional triggers (debounce)
             let deadline = Instant::now() + debounce;
             loop {
@@ -257,8 +251,8 @@ pub fn start_background_loop(
                     break;
                 }
                 match trigger_rx.recv_timeout(remaining) {
-                    Ok(()) => continue,  // More triggers — keep draining
-                    Err(_) => break,     // Timeout — time to run
+                    Ok(()) => continue, // More triggers — keep draining
+                    Err(_) => break,    // Timeout — time to run
                 }
             }
 
