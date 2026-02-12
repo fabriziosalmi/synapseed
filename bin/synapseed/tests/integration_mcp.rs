@@ -339,8 +339,8 @@ fn test_mcp_prompt_get() {
 
     let text = messages[0]["content"]["text"].as_str().unwrap();
     assert!(
-        text.contains("scan_security"),
-        "Prompt should reference scan_security tool"
+        text.contains("scan"),
+        "Prompt should reference scan tool"
     );
     assert!(text.contains("CLEAN"), "Prompt should mention risk levels");
 }

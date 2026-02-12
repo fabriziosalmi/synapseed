@@ -116,7 +116,7 @@ fn prompt_describe_architecture(args: &serde_json::Value) -> Vec<PromptMessage> 
         "overview" => format!(
             r#"Analyze the project architecture at "{path}". Follow these steps:
 
-1. Use `get_code_skeleton` to index the project directory at "{path}"
+1. Use `hoist` to index the project directory at "{path}"
 2. Read `synapseed://status` to understand the project state
 3. Read `synapseed://dna` for configuration context
 
@@ -129,11 +129,11 @@ Produce a concise architectural overview:
         "deep" => format!(
             r#"Perform a deep architectural analysis of "{path}". Follow these steps:
 
-1. Use `get_code_skeleton` to index the project at "{path}"
+1. Use `hoist` to index the project at "{path}"
 2. Read `synapseed://status` for project state and metrics
 3. Read `synapseed://dna` for configuration context
-4. Use `git_history` on key files (entry points, config files) to understand evolution
-5. Use `lookup_symbol` for any critical types, traits, or interfaces found in the skeleton
+4. Use `blame` on key files (entry points, config files) to understand evolution
+5. Use `lookup` for any critical types, traits, or interfaces found in the skeleton
 
 Produce a comprehensive architecture document:
 - Project type, build system, and workspace layout
@@ -146,10 +146,10 @@ Produce a comprehensive architecture document:
         _ => format!(
             r#"Analyze the project architecture at "{path}" in detail. Follow these steps:
 
-1. Use `get_code_skeleton` to index the project directory at "{path}"
+1. Use `hoist` to index the project directory at "{path}"
 2. Read `synapseed://status` to understand the project state
 3. Read `synapseed://dna` for configuration context
-4. Use `lookup_symbol` to find key types: look for "main", "app", "server", "config", "router", "handler"
+4. Use `lookup` to find key types: look for "main", "app", "server", "config", "router", "handler"
 
 Produce a detailed architectural overview:
 - Project type, build system, and workspace layout
@@ -179,7 +179,7 @@ fn prompt_visualize_architecture(args: &serde_json::Value) -> Vec<PromptMessage>
         r#"Help the user visualize their project architecture. Follow these steps:
 
 1. Read `synapseed://visualizer/url` to get the dashboard URL
-2. Use `get_code_skeleton` to index the project and ensure the graph data is ready
+2. Use `hoist` to index the project and ensure the graph data is ready
 3. Tell the user to open the dashboard URL in their browser
 4. Describe what they'll see: an interactive Cytoscape.js graph with file nodes (dark containers) containing symbol nodes (colored by type: green=functions, cyan=methods, blue=structs, purple=enums, orange=modules){focus_instruction}
 
@@ -213,16 +213,16 @@ fn prompt_fix_build_errors(args: &serde_json::Value) -> Vec<PromptMessage> {
         == "true";
 
     let fix_instruction = if auto_fix {
-        "4. For each error/warning that has a `MachineApplicable` suggestion, automatically use `apply_quick_fix` to apply it\n5. After applying all fixes, run `get_diagnostics` again to verify the fixes worked"
+        "4. For each error/warning that has a `MachineApplicable` suggestion, automatically use `quickfix` to apply it\n5. After applying all fixes, run `diagnostics` again to verify the fixes worked"
     } else {
-        "4. For each error/warning, explain what it means and whether a compiler-suggested fix is available\n5. Ask the user if they want to apply the available fixes\n6. If approved, use `apply_quick_fix` for each fixable issue"
+        "4. For each error/warning, explain what it means and whether a compiler-suggested fix is available\n5. Ask the user if they want to apply the available fixes\n6. If approved, use `quickfix` for each fixable issue"
     };
 
     let instructions = format!(
         r#"Help the user fix current build errors using the shadow compiler. Follow these steps:
 
 1. Read `synapseed://diagnostics/active` to see the current compiler state
-2. Use `get_diagnostics` to get the full list of errors and warnings
+2. Use `diagnostics` to get the full list of errors and warnings
 3. Group diagnostics by file and severity (errors first, then warnings)
 
 {fix_instruction}
@@ -257,18 +257,18 @@ fn prompt_explain_evolution(args: &serde_json::Value) -> Vec<PromptMessage> {
 
     let line_range_instruction = if !start_line.is_empty() && !end_line.is_empty() {
         format!(
-            r#"3. Use `analyze_history` with file="{file}", start_line={start_line}, end_line={end_line}
-4. Use `git_history` with file="{file}", start_line={start_line}, end_line={end_line} for detailed blame"#
+            r#"3. Use `analyze` with file="{file}", start_line={start_line}, end_line={end_line}
+4. Use `blame` with file="{file}", start_line={start_line}, end_line={end_line} for detailed blame"#
         )
     } else if !start_line.is_empty() {
         format!(
-            r#"3. Use `analyze_history` with file="{file}", start_line={start_line}
-4. Use `git_history` with file="{file}", start_line={start_line} for detailed blame"#
+            r#"3. Use `analyze` with file="{file}", start_line={start_line}
+4. Use `blame` with file="{file}", start_line={start_line} for detailed blame"#
         )
     } else {
         format!(
-            r#"3. Use `analyze_history` with file="{file}" for full-file analysis
-4. Use `git_history` with file="{file}" for detailed blame on key areas"#
+            r#"3. Use `analyze` with file="{file}" for full-file analysis
+4. Use `blame` with file="{file}" for detailed blame on key areas"#
         )
     };
 
@@ -277,8 +277,8 @@ fn prompt_explain_evolution(args: &serde_json::Value) -> Vec<PromptMessage> {
 
 Follow these steps:
 
-1. Use `get_code_skeleton` to understand the project structure
-2. Use `lookup_symbol` to find the symbols in "{file}" and understand their role
+1. Use `hoist` to understand the project structure
+2. Use `lookup` to find the symbols in "{file}" and understand their role
 
 {line_range_instruction}
 
@@ -307,7 +307,7 @@ Follow these steps:
 - Are there co-change dependencies that should be decoupled?
 - Should tests be added based on the fix frequency?
 
-Important: Base your analysis strictly on the data from `analyze_history` and `git_history`. Do not speculate beyond what the commit data shows."#
+Important: Base your analysis strictly on the data from `analyze` and `blame`. Do not speculate beyond what the commit data shows."#
     );
 
     vec![PromptMessage {
@@ -328,9 +328,9 @@ fn prompt_optimize_hotspots(args: &serde_json::Value) -> Vec<PromptMessage> {
 1. Read `synapseed://telemetry/hotspots` to get the current performance data
 2. Filter hotspots with avg_duration_ms >= {threshold}ms
 3. For each hotspot above the threshold:
-   a. Use `lookup_symbol` to find the function/method in the codebase
-   b. Use `analyze_history` on the file to understand churn and complexity
-   c. Use `get_diagnostics` to check if there are compiler warnings in that area
+   a. Use `lookup` to find the function/method in the codebase
+   b. Use `analyze` on the file to understand churn and complexity
+   c. Use `diagnostics` to check if there are compiler warnings in that area
 4. Read `synapseed://status` for overall project health context
 
 Produce a performance optimization report:
@@ -377,8 +377,8 @@ fn prompt_security_audit(args: &serde_json::Value) -> Vec<PromptMessage> {
 
 1. Read `synapseed://security/policy` to understand active rules
 2. Read `synapseed://status` for project state
-3. Use `get_code_skeleton` to find all source files
-4. For each configuration file found (*.toml, *.yaml, *.json, *.env), use `scan_security` to check for leaked secrets
+3. Use `hoist` to find all source files
+4. For each configuration file found (*.toml, *.yaml, *.json, *.env), use `scan` to check for leaked secrets
 
 Produce a security report:
 - Number of files scanned
@@ -390,11 +390,11 @@ Produce a security report:
 1. Read `synapseed://security/policy` to understand all active rules
 2. Read `synapseed://status` for project state and metrics
 3. Read `synapseed://dna` for DLP level configuration
-4. Use `get_code_skeleton` to index the full project
-5. For each source and config file, use `scan_security` to check content
-6. Use `check_command` to verify common commands used in the project (check CI scripts, Makefiles, package.json scripts)
-7. Use `git_history` on sensitive files (.env, config files, key files) to check if secrets were ever committed
-8. Use `project_diagnose` for overall health check
+4. Use `hoist` to index the full project
+5. For each source and config file, use `scan` to check content
+6. Use `check` to verify common commands used in the project (check CI scripts, Makefiles, package.json scripts)
+7. Use `blame` on sensitive files (.env, config files, key files) to check if secrets were ever committed
+8. Use `diagnose` for overall health check
 
 Produce a comprehensive security report:
 - Executive summary
@@ -410,10 +410,10 @@ Produce a comprehensive security report:
 
 1. Read `synapseed://security/policy` to understand active rules
 2. Read `synapseed://status` for project state
-3. Use `get_code_skeleton` to index the project
-4. For each source and config file, use `scan_security` to check for secrets
-5. Use `check_command` to verify safety of common project commands
-6. Use `project_diagnose` for overall health check
+3. Use `hoist` to index the project
+4. For each source and config file, use `scan` to check for secrets
+5. Use `check` to verify safety of common project commands
+6. Use `diagnose` for overall health check
 
 Produce a security report:
 - DLP Scan Results: files scanned, secrets found (if any)
