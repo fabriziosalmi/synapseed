@@ -89,6 +89,15 @@ pub fn list_resources() -> Vec<ResourceDefinition> {
             ),
             mime_type: Some("application/json".into()),
         },
+        ResourceDefinition {
+            uri: "synapseed://consistency".into(),
+            name: "Consistency Oracle".into(),
+            description: Some(
+                "Cross-references project artifacts (README, Cargo.toml, docs, crate directories) to detect drift and inconsistencies. Returns a consistency score and actionable fixes."
+                    .into(),
+            ),
+            mime_type: Some("application/json".into()),
+        },
     ]
 }
 
@@ -103,6 +112,7 @@ pub fn read_resource(uri: &str, ctx: &SynapseContext) -> Option<ResourceContent>
         "synapseed://telemetry/hotspots" => Some(resource_telemetry_hotspots(ctx)),
         "synapseed://janitor/proposals" => Some(resource_janitor_proposals(ctx)),
         "synapseed://architect/health" => Some(resource_architect_health(ctx)),
+        "synapseed://consistency" => Some(resource_consistency(ctx)),
         _ => None,
     }
 }
@@ -379,6 +389,7 @@ fn resource_architect_health(ctx: &SynapseContext) -> ResourceContent {
                     "avg_instability": report.avg_instability,
                     "avg_complexity": report.avg_complexity,
                     "max_coupling": report.max_coupling,
+                    "topological_density": report.topological_density,
                     "violation_count": report.violations.len(),
                     "violations": violations_summary,
                     "top_recommendations": top_recs,
@@ -400,6 +411,25 @@ fn resource_architect_health(ctx: &SynapseContext) -> ResourceContent {
 
     ResourceContent {
         uri: "synapseed://architect/health".into(),
+        mime_type: Some("application/json".into()),
+        text: Some(text),
+    }
+}
+
+fn resource_consistency(ctx: &SynapseContext) -> ResourceContent {
+    let root = ctx.project_root();
+    let report = synapseed_core::oracle::check_consistency(&root);
+
+    let text = serde_json::to_string_pretty(&json!({
+        "score": report.score,
+        "total_checks": report.total_checks,
+        "inconsistency_count": report.inconsistencies.len(),
+        "inconsistencies": report.inconsistencies,
+    }))
+    .unwrap_or_default();
+
+    ResourceContent {
+        uri: "synapseed://consistency".into(),
         mime_type: Some("application/json".into()),
         text: Some(text),
     }

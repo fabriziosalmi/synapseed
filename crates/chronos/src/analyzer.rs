@@ -84,6 +84,12 @@ pub struct HistoryAnalysis {
     pub last_fix_commit: Option<AnalyzedCommit>,
     pub semantic_summary: SemanticSummary,
     pub co_changes: Vec<CoChange>,
+    /// Convergence rate: 1.0 = stable, lower = stuck in fix cycles.
+    pub convergence_rate: f64,
+    /// Rigidity: fix_chain_count / total_commits. High = repeated rework.
+    pub rigidity: f64,
+    /// Number of fix-chain sequences (consecutive fixes within 48h).
+    pub fix_chain_count: usize,
     pub commits: Vec<AnalyzedCommit>,
 }
 
@@ -178,6 +184,9 @@ impl Historian {
                         risk_indicator: "none".to_string(),
                     },
                     co_changes: Vec::new(),
+                    convergence_rate: 1.0,
+                    rigidity: 0.0,
+                    fix_chain_count: 0,
                     commits: Vec::new(),
                     last_fix_commit: None,
                 });
@@ -302,13 +311,20 @@ impl Historian {
 
             let total = commits.len();
 
-            // Hotspot score: modifications per month, scaled 0-100
+            // Hotspot score: modifications per month, scaled 0-100,
+            // with exponential temporal decay: score × e^(−λ × days_since_newest).
             let hotspot_score = if total > 1 {
                 let newest_epoch = commits.first().map(|c| c.epoch).unwrap_or(0);
                 let oldest_epoch = commits.last().map(|c| c.epoch).unwrap_or(0);
                 let span_days = ((newest_epoch - oldest_epoch) as f64 / 86400.0).max(1.0);
                 let mods_per_month = (total as f64 / span_days) * 30.0;
-                (mods_per_month * 20.0).min(100.0)
+                let raw_score = (mods_per_month * 20.0).min(100.0);
+
+                // Temporal decay: older hotspots cool down.
+                let now_epoch = chrono::Utc::now().timestamp();
+                let days_since_newest = ((now_epoch - newest_epoch) as f64 / 86400.0).max(0.0);
+                let lambda = 0.01; // half-life ≈ 69 days
+                raw_score * (-lambda * days_since_newest).exp()
             } else {
                 total as f64 // 0 or 1
             };
@@ -378,6 +394,37 @@ impl Historian {
                 _ => None,
             };
 
+            // Fix-chain detection: consecutive fix commits within a 48h window.
+            let mut fix_chain_count = 0usize;
+            let mut in_chain = false;
+            for pair in commits.windows(2) {
+                let newer = &pair[0];
+                let older = &pair[1];
+                let both_fix = newer.tags.contains(&CommitTag::Fix)
+                    && older.tags.contains(&CommitTag::Fix);
+                let within_48h = (newer.epoch - older.epoch) < 48 * 3600;
+                if both_fix && within_48h {
+                    if !in_chain {
+                        fix_chain_count += 1;
+                        in_chain = true;
+                    }
+                } else {
+                    in_chain = false;
+                }
+            }
+
+            let convergence_rate = if total > 1 {
+                (1.0 - (fix_chain_count as f64 / total as f64)).max(0.0)
+            } else {
+                1.0
+            };
+
+            let rigidity = if total > 0 {
+                fix_chain_count as f64 / total as f64
+            } else {
+                0.0
+            };
+
             Ok(HistoryAnalysis {
                 file_path: file_path.to_string(),
                 line_range,
@@ -395,6 +442,9 @@ impl Historian {
                     risk_indicator: risk_indicator.to_string(),
                 },
                 co_changes,
+                convergence_rate,
+                rigidity,
+                fix_chain_count,
                 commits: commits.into_iter().take(20).collect(),
             })
         })

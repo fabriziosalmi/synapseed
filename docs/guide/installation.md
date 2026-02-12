@@ -37,11 +37,11 @@ cargo build
 cargo test
 ```
 
-The workspace contains 11 library crates and 1 binary crate. All tests run with:
+The workspace contains 14 library crates and 1 binary crate. All tests run with:
 
 ```bash
 cargo test
-# 31 tests across all crates
+# 89 tests across all crates
 ```
 
 ## Platform Support
@@ -60,13 +60,16 @@ synapseed/
 ├── Cargo.toml              # Workspace root
 ├── bin/synapseed/          # CLI binary
 ├── crates/
-│   ├── core/               # Shared types, traits, event bus
+│   ├── core/               # Shared types, traits, event bus, consistency oracle
 │   ├── cortex/             # AST parsing & code graph
-│   ├── husk/               # DLP & secret detection
+│   ├── husk/               # DLP, secret detection & code pattern scanning
 │   ├── root/               # Command sandbox & sentinel
-│   ├── chronos/            # Git history & blame
-│   ├── search/             # Tantivy semantic search
+│   ├── chronos/            # Git history, temporal decay & convergence
+│   ├── search/             # Tantivy semantic search with temporal boost
 │   ├── shadow-check/       # Background compiler
+│   ├── architect/          # Architecture analysis & density metrics
+│   ├── gym/                # Code evaluation sandbox & adversarial testing
+│   ├── janitor/            # Automated clippy & dependency cleanup
 │   ├── visualizer/         # Live dashboard (Axum + Cytoscape.js)
 │   ├── whisper/            # Intent router
 │   ├── telemetry-sink/     # OTLP gRPC receiver

@@ -24,6 +24,10 @@ pub struct Scenario {
     /// Enable proptest fuzzing: auto-generate property tests for public functions.
     #[serde(default)]
     pub fuzz: bool,
+
+    /// Enable adversarial mutation testing: measure test suite effectiveness.
+    #[serde(default)]
+    pub adversarial: bool,
 }
 
 /// A Cargo dependency to add to the sandbox project.
@@ -49,6 +53,7 @@ impl Scenario {
             dependencies: Vec::new(),
             timeout_secs: default_timeout(),
             fuzz: false,
+            adversarial: false,
         }
     }
 
@@ -77,6 +82,12 @@ impl Scenario {
     /// Enable proptest fuzzing.
     pub fn with_fuzz(mut self, fuzz: bool) -> Self {
         self.fuzz = fuzz;
+        self
+    }
+
+    /// Enable adversarial mutation testing.
+    pub fn with_adversarial(mut self, adversarial: bool) -> Self {
+        self.adversarial = adversarial;
         self
     }
 }

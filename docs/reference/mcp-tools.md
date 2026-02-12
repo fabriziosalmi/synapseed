@@ -30,14 +30,15 @@ Find a symbol by name across the entire project.
 
 ## `scan_security`
 
-Scan text content for sensitive data (API keys, passwords, tokens, PII).
+Scan text content for sensitive data (API keys, passwords, tokens, PII) and/or code vulnerability patterns (SQL injection, XSS, command injection, path traversal).
 
 **Parameters:**
 | Name | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
 | `content` | string | Yes | Text to scan |
+| `mode` | string | No | Scan mode: `all` (default — DLP + patterns), `dlp` (secrets only), `patterns` (code vulnerability patterns only) |
 
-**Returns:** `CLEAN` or `ALERT` with findings and redacted output.
+**Returns:** `CLEAN` or `ALERT` with findings and redacted output. When mode is `all`, combines DLP and code pattern results.
 
 ---
 
@@ -187,15 +188,18 @@ Summarize the intent and direction of recent commits semantically. Groups commit
 
 ## `train_code`
 
-Evaluate Rust code in an isolated sandbox (The Gym). Compiles the code, runs tests, and returns structured feedback.
+Evaluate Rust code in an isolated sandbox (The Gym). Compiles, tests, benchmarks, and optionally runs adversarial mutation testing, returning metrics and a composite score.
 
 **Parameters:**
 | Name | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
-| `code` | string | Yes | Rust source code to evaluate |
-| `test_code` | string | No | Optional test code to run against the code |
+| `source` | string | Yes | Rust source code to evaluate (injected as lib.rs) |
+| `tests` | string | No | Optional test code (injected as tests/eval.rs). Use `use eval_project::*;` to import. |
+| `timeout` | integer | No | Max evaluation time in seconds (default: 60) |
+| `fuzz` | boolean | No | Enable proptest fuzzing: auto-generate property tests for public functions (default: false) |
+| `adversarial` | boolean | No | Enable adversarial mutation testing: apply controlled mutations to measure test suite effectiveness (default: false) |
 
-**Returns:** Compilation status, test results, and detailed diagnostics.
+**Returns:** Compilation status, test results, mutation score (if adversarial), and detailed diagnostics with composite score.
 
 ---
 

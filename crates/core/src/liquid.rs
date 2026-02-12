@@ -70,6 +70,12 @@ pub struct SearchConfig {
     /// Downloads ~22MB model on first use to `.synapseed/models/`.
     #[serde(default)]
     pub embeddings: bool,
+
+    /// Temporal decay λ for search ranking (default: 0.01).
+    /// Higher values penalize older results more aggressively.
+    /// Score formula: bm25 × (0.7 + 0.3 × e^(−λ × age_days)).
+    #[serde(default)]
+    pub temporal_decay_lambda: Option<f64>,
 }
 
 /// Architect module configuration.
@@ -87,6 +93,15 @@ pub struct ArchitectConfig {
     /// Min fan-in to combine with size for god object detection (default: 5).
     #[serde(default)]
     pub god_object_min_fan_in: Option<usize>,
+    /// Topological density above this triggers a warning (default: 0.5).
+    #[serde(default)]
+    pub density_high_threshold: Option<f64>,
+    /// Topological density below this (with enough modules) triggers a warning (default: 0.02).
+    #[serde(default)]
+    pub density_low_threshold: Option<f64>,
+    /// Minimum module count before low-density check kicks in (default: 10).
+    #[serde(default)]
+    pub density_low_min_modules: Option<usize>,
 }
 
 /// HCI (Human-Computer Interaction) configuration.

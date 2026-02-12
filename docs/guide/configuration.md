@@ -48,6 +48,13 @@ dlp_custom_rules:
 # Search index settings
 search:
   persistence: true
+  temporal_decay_lambda: 0.01
+
+# Architect settings
+architect:
+  density_high_threshold: 0.5
+  density_low_threshold: 0.02
+  density_low_min_modules: 10
 
 # Visualizer dashboard port
 visualizer_port: 3000
@@ -111,6 +118,17 @@ Settings for the semantic search index.
 | Field | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `persistence` | boolean | `false` | Persist the Tantivy index to disk at `.synapseed/index/` |
+| `temporal_decay_lambda` | float | `0.01` | Decay rate for temporal search boost. Higher values = stronger recency preference. |
+
+### `architect`
+
+Settings for the architecture analysis engine.
+
+| Field | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `density_high_threshold` | float | `0.5` | Topological density above this triggers a "high density" warning |
+| `density_low_threshold` | float | `0.02` | Topological density below this (with ≥ `density_low_min_modules` modules) triggers a "low density" warning |
+| `density_low_min_modules` | integer | `10` | Minimum module count before low-density warnings apply |
 
 ### `visualizer_port`
 

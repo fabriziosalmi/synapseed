@@ -1,5 +1,6 @@
 use synapseed_core::context::SynapseContext;
 use synapseed_husk::guard::SecurityGuard;
+use synapseed_husk::patterns::CodePatternScanner;
 use synapseed_root::sentinel::Sentinel;
 
 use super::{error_result, text_result};
@@ -14,23 +15,47 @@ pub(super) fn tool_scan_security(
         None => return error_result("Missing required parameter: content".into()),
     };
 
-    // Try shared guard from HuskPlugin, fallback to defaults
-    let default_guard;
-    let guard: &SecurityGuard = if let Some(g) = ctx.get_extension::<SecurityGuard>() {
-        default_guard = g;
-        &default_guard
-    } else {
-        default_guard = std::sync::Arc::new(SecurityGuard::with_defaults());
-        &default_guard
-    };
+    let mode = args
+        .get("mode")
+        .and_then(|v| v.as_str())
+        .unwrap_or("all");
 
-    match guard.check(content) {
-        Ok(()) => text_result("CLEAN: No sensitive data detected.".into()),
-        Err(e) => {
-            let sanitized = guard.redact(content);
-            text_result(format!("ALERT: {e}\n\nSanitized:\n{sanitized}"))
+    let mut output_parts = Vec::new();
+
+    // DLP scan (secrets, tokens, keys)
+    if mode == "all" || mode == "dlp" {
+        let default_guard;
+        let guard: &SecurityGuard = if let Some(g) = ctx.get_extension::<SecurityGuard>() {
+            default_guard = g;
+            &default_guard
+        } else {
+            default_guard = std::sync::Arc::new(SecurityGuard::with_defaults());
+            &default_guard
+        };
+
+        match guard.check(content) {
+            Ok(()) => output_parts.push("DLP: CLEAN — No sensitive data detected.".to_string()),
+            Err(e) => {
+                let sanitized = guard.redact(content);
+                output_parts.push(format!("DLP ALERT: {e}\n\nSanitized:\n{sanitized}"));
+            }
         }
     }
+
+    // Code pattern scan (SQL injection, XSS, command injection, path traversal)
+    if mode == "all" || mode == "patterns" {
+        let scanner = CodePatternScanner::new();
+        let report = scanner.scan(content);
+
+        if report.findings.is_empty() {
+            output_parts.push("Patterns: CLEAN — No security anti-patterns detected.".to_string());
+        } else {
+            let json = serde_json::to_string_pretty(&report).unwrap_or_default();
+            output_parts.push(format!("Patterns: {}\n\n{json}", report.status));
+        }
+    }
+
+    text_result(output_parts.join("\n\n"))
 }
 
 pub(super) fn tool_check_command(

@@ -9,7 +9,7 @@ The `SynapseContext` is the central shared state object, holding:
 - **Project root path** — The filesystem root of the analyzed project
 - **Project state** — Detected state (Virgin, Partial, Healthy, Unknown)
 - **DNA configuration** — Loaded from `.synapseed/dna.yaml`
-- **Broadcast channel** — `tokio::sync::broadcast` with 256-event capacity
+- **Broadcast channel** — `tokio::sync::broadcast` with 4096-event capacity
 - **Metrics** — Thread-safe counters for indexing, DLP, commands, events
 - **Extensions** — Type-erased `HashMap<TypeId, Arc<dyn Any>>` for cross-crate sharing
 

@@ -1,5 +1,63 @@
 # Changelog
 
+## [2.2.0] — 2026-02-13
+
+### "The Physics Engine" Release
+
+SYNAPSEED gains mathematical depth: six new analytical capabilities that quantify
+structural density, temporal decay, convergence dynamics, mutation resilience,
+cross-artifact consistency, and security pattern recognition.
+
+---
+
+### Architecture (15 crates, 19 tools, 9 resources, 6 prompts)
+
+Score: **97/100 (Grade A)** — 131+ modules, 44 edges, 1 remaining violation.
+89 tests passing, 0 failures.
+
+### New Features
+
+- **Topological Density** (#15) — `D = E / (V × (V − 1))` directed graph density
+  metric in `synapseed-architect`. Density anomaly detection in linter (high > 0.5,
+  low < 0.02 with ≥10 modules). Configurable thresholds via DNA. Wired into
+  `synapseed://architect/health` resource and architecture score (−5 penalty for
+  density > 0.5).
+
+- **Temporal Decay** (#16) — Exponential decay on Chronos hotspot scores:
+  `raw_score × e^(−λ × days)` (λ default 0.01). Temporal boost in search results:
+  `score × (0.7 + 0.3 × e^(−λ × age_days))` with `last_modified_epoch` Tantivy
+  field. Configurable `temporal_decay_lambda` via DNA `search` config.
+
+- **Convergence Rate** (#17) — Fix-chain detection in Chronos: consecutive fix
+  commits within 48h window. `convergence_rate = 1.0 − (fix_chains / total)`,
+  `rigidity = fix_chains / total`. Exposed in Whisper `HistoryContext` for
+  intelligent routing.
+
+- **Adversarial Sandbox** (#18) — `Saboteur` mutation engine in `synapseed-gym`
+  with 5 strategies (ArithmeticSwap, BooleanNegate, BoundaryShift, ReturnRemove,
+  StatementDelete). Max 20 mutations per eval. `train_code(adversarial: true)` runs
+  cargo check + cargo test per mutant. `mutation_score = detected / total` blended
+  into Gym report score.
+
+- **Consistency Oracle** (#19) — `synapseed_core::oracle` cross-references
+  Cargo.toml workspace members vs filesystem, README feature mentions, docs index
+  link validity, and crate description completeness. New `synapseed://consistency`
+  MCP resource returning scored consistency report.
+
+- **Security Patterns** (#20) — `CodePatternScanner` in `synapseed-husk` with
+  regex-based detection for SQL injection, XSS, command injection, and path
+  traversal (14 patterns across 4 categories). `scan_security(mode: "all"|"dlp"|"patterns")`
+  MCP tool now supports dual-mode operation combining DLP + code pattern scanning.
+
+### MCP Changes
+
+- New resource: `synapseed://consistency` — project-wide consistency report
+- Updated tool: `scan_security` — added `mode` parameter (all/dlp/patterns)
+- Updated tool: `train_code` — added `adversarial` boolean parameter
+- Updated resource: `synapseed://architect/health` — includes `topological_density`
+
+---
+
 ## [2.1.0] — 2026-02-12
 
 ### "The Hardening" Release

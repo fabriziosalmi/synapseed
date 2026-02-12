@@ -1,6 +1,6 @@
 # MCP Resources
 
-SYNAPSEED exposes 6 read-only resources. Resources provide context data that the LLM can inspect without side effects.
+SYNAPSEED exposes 9 read-only resources. Resources provide context data that the LLM can inspect without side effects.
 
 ## `synapseed://status`
 
@@ -133,3 +133,76 @@ Runtime performance hotspots from OTLP traces.
 ```
 
 Returns `{"status": "inactive"}` if the telemetry sink is not running.
+
+---
+
+## `synapseed://janitor/proposals`
+
+**Name:** Janitor Proposals
+
+Active fix proposals from the most recent Janitor scan.
+
+```json
+{
+  "proposals": [
+    {
+      "id": "a1b2c3d4-...",
+      "kind": "clippy",
+      "file": "src/lib.rs",
+      "description": "unused variable `x`",
+      "risk": "low"
+    }
+  ],
+  "scan_in_progress": false
+}
+```
+
+Returns `{"status": "no_proposals"}` if the Janitor hasn't run yet.
+
+---
+
+## `synapseed://architect/health`
+
+**Name:** Architecture Health
+
+Structural health snapshot from the most recent architect analysis.
+
+```json
+{
+  "score": 97,
+  "grade": "A",
+  "modules": 131,
+  "edges": 44,
+  "topological_density": 0.0026,
+  "violations": 1,
+  "max_coupling": 2,
+  "avg_instability": 0.16
+}
+```
+
+Returns `{"status": "not_analyzed"}` if `architect_analyze` hasn't been called yet.
+
+---
+
+## `synapseed://consistency`
+
+**Name:** Consistency Report
+
+Cross-references workspace members, README, docs, and crate metadata for inconsistencies.
+
+```json
+{
+  "total_checks": 4,
+  "inconsistencies": [
+    {
+      "category": "workspace_members",
+      "severity": "warning",
+      "description": "Crate 'foo' exists on disk but is not listed in workspace members",
+      "suggestion": "Add 'crates/foo' to workspace members in Cargo.toml"
+    }
+  ],
+  "score": 0.92
+}
+```
+
+The `score` is `1.0` when no inconsistencies are found.

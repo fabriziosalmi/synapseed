@@ -60,11 +60,33 @@ pub(crate) struct LayerDefinition {
     pub(crate) modules: Vec<String>,
 }
 
+/// Thresholds for topological density anomaly detection.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct DensityThresholds {
+    /// Density above this triggers a warning (default: 0.5).
+    pub(crate) high: f64,
+    /// Density below this (with enough modules) triggers a warning (default: 0.02).
+    pub(crate) low: f64,
+    /// Minimum module count before low-density check kicks in (default: 10).
+    pub(crate) low_min_modules: usize,
+}
+
+impl Default for DensityThresholds {
+    fn default() -> Self {
+        Self {
+            high: 0.5,
+            low: 0.02,
+            low_min_modules: 10,
+        }
+    }
+}
+
 /// Configuration for the architectural linter.
 #[derive(Debug, Clone, Default)]
 pub struct LinterConfig {
     pub(crate) layers: Vec<LayerDefinition>,
     pub(crate) god_object: GodObjectThresholds,
+    pub(crate) density: DensityThresholds,
 }
 
 impl LinterConfig {
@@ -86,7 +108,17 @@ impl LinterConfig {
             min_fan_in: dna.god_object_min_fan_in.unwrap_or(5),
         };
 
-        Self { layers, god_object }
+        let density = DensityThresholds {
+            high: dna.density_high_threshold.unwrap_or(0.5),
+            low: dna.density_low_threshold.unwrap_or(0.02),
+            low_min_modules: dna.density_low_min_modules.unwrap_or(10),
+        };
+
+        Self {
+            layers,
+            god_object,
+            density,
+        }
     }
 }
 
@@ -96,6 +128,7 @@ pub fn lint(dep_graph: &DependencyGraph, config: &LinterConfig) -> Vec<Violation
     violations.extend(detect_cycles(dep_graph));
     violations.extend(detect_god_objects(dep_graph, &config.god_object));
     violations.extend(detect_layer_violations(dep_graph, &config.layers));
+    violations.extend(detect_density_anomaly(dep_graph, &config.density));
     violations
 }
 
@@ -242,6 +275,56 @@ pub(crate) fn detect_layer_violations(
                 });
             }
         }
+    }
+
+    violations
+}
+
+/// Detect topological density anomalies.
+///
+/// D = E / (V × (V − 1)) for directed graphs.
+/// - D > high → Warning: over-connected graph, hard to evolve.
+/// - D < low (with V ≥ min_modules) → Warning: fragmented, possibly missing deps.
+pub(crate) fn detect_density_anomaly(
+    dep_graph: &DependencyGraph,
+    thresholds: &DensityThresholds,
+) -> Vec<Violation> {
+    let density = dep_graph.topological_density();
+    let v = dep_graph.module_count();
+    let mut violations = Vec::new();
+
+    if density > thresholds.high {
+        violations.push(Violation {
+            rule: "high_density".to_string(),
+            description: format!(
+                "Topological density {density:.4} exceeds threshold {:.2} \
+                 ({} modules, {} edges). The module graph is over-connected.",
+                thresholds.high,
+                v,
+                dep_graph.edge_count(),
+            ),
+            severity: ViolationSeverity::Warning,
+            modules: vec![],
+            suggestion: "Consider splitting tightly-coupled clusters into separate \
+                         sub-graphs or introducing facade modules to reduce cross-dependencies."
+                .to_string(),
+        });
+    } else if v >= thresholds.low_min_modules && density < thresholds.low {
+        violations.push(Violation {
+            rule: "low_density".to_string(),
+            description: format!(
+                "Topological density {density:.4} is below threshold {:.2} \
+                 ({} modules, {} edges). The module graph may be fragmented.",
+                thresholds.low,
+                v,
+                dep_graph.edge_count(),
+            ),
+            severity: ViolationSeverity::Warning,
+            modules: vec![],
+            suggestion: "Review whether isolated modules should share common abstractions \
+                         or whether the project has disconnected clusters that should be unified."
+                .to_string(),
+        });
     }
 
     violations

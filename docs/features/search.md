@@ -24,6 +24,7 @@ For each symbol in the codebase:
 | `file_path` | Source file path | Low |
 | `kind` | Symbol kind (function, struct, etc.) | — |
 | `line_start` / `line_end` | Source location | — |
+| `last_modified_epoch` | File modification timestamp (u64) | — |
 
 ## How It Works
 
@@ -32,7 +33,23 @@ Cortex indexes project → AST symbols
   → Search builds Tantivy index (in-memory or persistent)
   → Query parsed with Tantivy query parser
   → TF-IDF scoring + fuzzy matching
-  → Results ranked by relevance
+  → Temporal boost applied: score × (0.7 + 0.3 × e^(−λ × age_days))
+  → Results ranked by adjusted relevance
+```
+
+## Temporal Boost
+
+Search results are weighted by file recency. Recently modified files score higher than stale ones. The temporal boost formula is:
+
+```
+adjusted_score = raw_score × (0.7 + 0.3 × e^(−λ × age_days))
+```
+
+Where `λ` defaults to `0.01` and is configurable via `search.temporal_decay_lambda` in `dna.yaml`:
+
+```yaml
+search:
+  temporal_decay_lambda: 0.02  # faster decay = stronger recency preference
 ```
 
 ## Disk Persistence

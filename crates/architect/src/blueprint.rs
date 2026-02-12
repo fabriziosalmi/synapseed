@@ -27,6 +27,8 @@ pub struct ArchitectureReport {
     pub avg_complexity: f64,
     /// Maximum coupling weight between any two modules.
     pub max_coupling: usize,
+    /// Topological density: D = E / (V × (V − 1)). Range [0.0, 1.0].
+    pub topological_density: f64,
     /// Per-module metrics.
     pub modules: Vec<ModuleMetrics>,
     /// All detected violations.
@@ -127,7 +129,15 @@ pub fn generate_report(
         .max()
         .unwrap_or(0);
 
-    let score = calculate_score(&violations, avg_instability, avg_complexity, max_coupling);
+    let topological_density = dep_graph.topological_density();
+
+    let score = calculate_score(
+        &violations,
+        avg_instability,
+        avg_complexity,
+        max_coupling,
+        topological_density,
+    );
     let grade = score_to_grade(score);
     let recommendations = generate_recommendations(dep_graph, &violations, metrics);
 
@@ -139,6 +149,7 @@ pub fn generate_report(
         avg_instability,
         avg_complexity,
         max_coupling,
+        topological_density,
         modules: metrics.to_vec(),
         violations,
         recommendations,
@@ -160,6 +171,7 @@ fn calculate_score(
     avg_instability: f64,
     avg_complexity: f64,
     max_coupling: usize,
+    topological_density: f64,
 ) -> u32 {
     let mut score: i32 = 100;
 
@@ -178,6 +190,10 @@ fn calculate_score(
         score -= 5;
     }
     if max_coupling > 15 {
+        score -= 5;
+    }
+    // Density penalty: over-connected graph is hard to evolve.
+    if topological_density > 0.5 {
         score -= 5;
     }
 

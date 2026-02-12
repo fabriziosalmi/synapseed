@@ -7,5 +7,6 @@
 //! Every byte leaving the process passes through the husk.
 
 pub mod guard;
+pub mod patterns;
 pub mod plugin;
 pub(crate) mod scanner;

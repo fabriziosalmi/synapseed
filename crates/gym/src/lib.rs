@@ -20,6 +20,7 @@
 //! println!("Score: {:.2}", report.score());
 //! ```
 
+pub mod adversarial;
 pub mod fuzzer;
 pub mod plugin;
 pub mod report;

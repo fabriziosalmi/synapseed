@@ -18,6 +18,7 @@ pub mod context;
 pub mod error;
 pub mod event;
 pub mod liquid;
+pub mod oracle;
 pub mod plugin;
 pub mod policy;
 pub mod session;

@@ -27,11 +27,14 @@ SYNAPSEED connects to your LLM via the **Model Context Protocol (MCP)** — an o
 ```
 Developer ←→ LLM (Claude/Copilot) ←→ MCP Protocol ←→ SYNAPSEED
                                                          ├── Cortex (AST Engine)
-                                                         ├── Husk (DLP Shield)
+                                                         ├── Husk (DLP Shield + Code Patterns)
                                                          ├── Root (Command Sentinel)
                                                          ├── Chronos (Git Intelligence)
                                                          ├── Search (Tantivy Index)
                                                          ├── Shadow (Live Compiler)
+                                                         ├── Architect (Structural Health)
+                                                         ├── Gym (Code Sandbox + Adversarial)
+                                                         ├── Janitor (Automated Maintenance)
                                                          ├── Visualizer (Dashboard)
                                                          ├── Whisper (Intent Router)
                                                          └── Telemetry (OTLP Receiver)

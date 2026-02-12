@@ -8,18 +8,19 @@ designed to be copy-pasted into your AI coding session.
 
 ---
 
-## Baseline (as of v2.1.0)
+## Baseline (as of v2.2.0)
 
 | Metric | Value |
 |--------|-------|
 | Architecture Score | **97/100 (Grade A)** |
 | Modules | 131 |
 | Edges | 44 |
+| Topological Density | 0.0026 |
 | Violations | 1 (god\_object: `assets::graph` — 81 symbols) |
 | Avg Instability | 0.16 |
 | Max Coupling | 2 |
-| Tests | 93 passing, 0 failing |
-| MCP Surface | 19 tools, 8 resources, 6 prompts |
+| Tests | 89 passing, 0 failing |
+| MCP Surface | 19 tools, 9 resources, 6 prompts |
 
 ---
 
@@ -37,7 +38,7 @@ designed to be copy-pasted into your AI coding session.
 |------|------------|---------|
 | `get_diagnostics` | Before every commit — zero-warning policy. Filter by file or severity. | <100ms |
 | `architect_analyze` | After structural changes — block if new violations appear. Use `refresh: true` to bypass cache. | ~500ms |
-| `scan_security` | Before any code leaves your machine — DLP check on config, env, credentials. | <50ms |
+| `scan_security` | Before any code leaves your machine — DLP + code pattern check. Use `mode` param: `all`, `dlp`, or `patterns`. | <50ms |
 | `check_command` | Before running any shell command — Sentinel policy gate. | <10ms |
 
 ### Tier 3: Deep Analysis (use when investigating)
@@ -64,7 +65,7 @@ designed to be copy-pasted into your AI coding session.
 
 | Tool | When to Use | Latency |
 |------|------------|---------|
-| `train_code` | Evaluate Rust code in isolated sandbox — compile, test, benchmark, fuzz. Use to compare variants. | 5-60s |
+| `train_code` | Evaluate Rust code in isolated sandbox — compile, test, benchmark, fuzz, adversarial mutation testing. Use `adversarial: true` for mutation score. | 5-60s |
 | `reset_telemetry` | Clear OTLP spans/metrics for a fresh observation window. | <10ms |
 | `project_diagnose` | Full project diagnostic: state, build system, git, metrics, plugins. | ~200ms |
 | `consult_architect` | Query the DNA policy — preferred libs, naming, workspace strategy. | <10ms |
@@ -197,7 +198,7 @@ semantic_search(query: "error handling pattern", limit: 5)
 ```
 
 ```
-train_code(source: "<your code>", tests: "<your tests>", fuzz: true)
+train_code(source: "<your code>", tests: "<your tests>", fuzz: true, adversarial: true)
 ```
 
 ### Pre-Commit Checklist

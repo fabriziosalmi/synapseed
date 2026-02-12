@@ -7,9 +7,12 @@
 - **Blame intelligence** — Who changed what line and when
 - **Commit history** — Full log with filtering by file and line range
 - **Churn analysis** — Identifies volatile files and hotspot regions
+- **Temporal decay** — Exponential decay on hotspot scores: `raw_score × e^(−λ × days)` (λ default 0.01). Recent activity weighs more than ancient changes.
 - **Co-change detection** — Finds files that always change together
 - **Semantic classification** — Tags commits as fix, feature, refactor, revert, security
 - **Risk assessment** — Combines churn, fix frequency, and revert history
+- **Convergence rate** — Tracks fix-chains (consecutive fix commits within 48h). `convergence_rate = 1.0 − (fix_chains / total)`. High convergence means the codebase is stabilizing.
+- **Rigidity** — `rigidity = fix_chains / total`. High rigidity signals a file trapped in a fix-break cycle.
 
 ## How It Works
 
@@ -21,8 +24,10 @@ Git Repository (.git/)
   → Blame analysis (line-level attribution)
   → Commit walker (filtered by path/line range)
   → Semantic tagger (regex on commit messages)
-  → Churn calculator (edit frequency over time)
+  → Churn calculator (edit frequency × temporal decay)
   → Co-change detector (files in same commits)
+  → Fix-chain detector (consecutive fixes within 48h)
+  → Convergence & rigidity metrics
 ```
 
 ## Semantic Commit Tags
@@ -40,7 +45,7 @@ Git Repository (.git/)
 | Tool | Description |
 | :--- | :--- |
 | `git_history` | Get blame data for a file and line range |
-| `analyze_history` | Full file analysis: churn, co-changes, risk, semantic tags |
+| `analyze_history` | Full file analysis: churn, co-changes, risk, semantic tags, convergence rate, rigidity |
 
 ## Usage Example
 

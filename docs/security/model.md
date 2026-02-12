@@ -11,7 +11,7 @@ SYNAPSEED enforces a **defense-in-depth** security model with multiple layers of
 
 ## Security Layers
 
-### Layer 1: DLP Shield (Husk)
+### Layer 1: DLP Shield + Code Pattern Scanner (Husk)
 
 Every piece of content leaving SYNAPSEED is scanned for sensitive data:
 
@@ -20,7 +20,9 @@ Every piece of content leaving SYNAPSEED is scanned for sensitive data:
 - Private key material
 - PII patterns
 
-**Engine:** Aho-Corasick multi-pattern matching + regex.
+Additionally, the `CodePatternScanner` detects 14 common vulnerability patterns across 4 categories: SQL injection, XSS, command injection, and path traversal.
+
+**Engine:** Aho-Corasick multi-pattern matching + regex + static pattern analysis.
 **Mode:** Fail-closed. Any finding blocks the operation.
 
 ### Layer 2: Command Sentinel (Root)

@@ -65,6 +65,9 @@ pub struct HistoryContext {
     pub risk: String,
     pub recent_commits: Vec<serde_json::Value>,
     pub top_authors: Vec<(String, usize)>,
+    pub convergence_rate: f64,
+    pub rigidity: f64,
+    pub fix_chain_count: usize,
 }
 
 /// Code structure gathered for the query.

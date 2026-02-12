@@ -84,6 +84,7 @@ fn test_report_store() {
         avg_instability: 0.45,
         avg_complexity: 5.0,
         max_coupling: 3,
+        topological_density: 0.167,
         modules: vec![],
         violations: vec![],
         recommendations: vec![],

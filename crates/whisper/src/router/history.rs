@@ -37,5 +37,8 @@ pub(super) fn gather_history(
         risk: analysis.semantic_summary.risk_indicator.clone(),
         recent_commits,
         top_authors: analysis.top_authors.clone(),
+        convergence_rate: analysis.convergence_rate,
+        rigidity: analysis.rigidity,
+        fix_chain_count: analysis.fix_chain_count,
     })
 }

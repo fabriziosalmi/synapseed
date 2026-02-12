@@ -61,13 +61,18 @@ pub fn list_tools() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "scan_security".into(),
-            description: "LOW-LEVEL — Scan text content for sensitive data (API keys, passwords, tokens, PII). Returns findings or CLEAN status. Called automatically by `ask_synapseed` when security-relevant.".into(),
+            description: "LOW-LEVEL — Scan text content for sensitive data (API keys, passwords, tokens) AND code security anti-patterns (SQL injection, XSS, command injection, path traversal). Returns findings or CLEAN status. Use `mode` to select scan type.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
                     "content": {
                         "type": "string",
-                        "description": "Text content to scan for secrets"
+                        "description": "Text content to scan"
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": ["all", "dlp", "patterns"],
+                        "description": "Scan mode: 'all' (default) = DLP + code patterns, 'dlp' = secrets only, 'patterns' = code anti-patterns only"
                     }
                 },
                 "required": ["content"]
@@ -239,7 +244,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "train_code".into(),
-            description: "SPECIALIZED — Evaluate Rust code in an isolated sandbox (The Gym). Compiles, tests, and benchmarks code, returning metrics (compile time, binary size, test results) and a composite score. Use to compare code variants or validate refactoring safety.".into(),
+            description: "SPECIALIZED — Evaluate Rust code in an isolated sandbox (The Gym). Compiles, tests, benchmarks, and optionally runs adversarial mutation testing, returning metrics (compile time, binary size, test results, mutation score) and a composite score. Use to compare code variants or validate refactoring safety.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -258,7 +263,12 @@ pub fn list_tools() -> Vec<ToolDefinition> {
                     },
                     "fuzz": {
                         "type": "boolean",
-                        "description": "Enable proptest fuzzing: auto-generate property tests for public functions to discover panics and edge cases",
+                        "description": "Enable proptest fuzzing: auto-generate property tests for public functions",
+                        "default": false
+                    },
+                    "adversarial": {
+                        "type": "boolean",
+                        "description": "Enable adversarial mutation testing: apply controlled mutations to measure test suite effectiveness (mutation score)",
                         "default": false
                     }
                 },

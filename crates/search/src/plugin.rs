@@ -48,7 +48,10 @@ impl SynapsePlugin for SearchPlugin {
         let index = if dna.search.persistence {
             let index_dir = root.join(".synapseed").join("index");
             match SemanticIndex::open_or_create(&index_dir) {
-                Ok(idx) => {
+                Ok(mut idx) => {
+                    if let Some(lambda) = dna.search.temporal_decay_lambda {
+                        idx.set_temporal_decay(lambda);
+                    }
                     info!(path = %index_dir.display(), "Search: Using persistent disk index");
                     Arc::new(idx)
                 }
@@ -65,7 +68,12 @@ impl SynapsePlugin for SearchPlugin {
             }
         } else {
             match SemanticIndex::new() {
-                Ok(idx) => Arc::new(idx),
+                Ok(mut idx) => {
+                    if let Some(lambda) = dna.search.temporal_decay_lambda {
+                        idx.set_temporal_decay(lambda);
+                    }
+                    Arc::new(idx)
+                }
                 Err(e) => {
                     warn!(error = %e, "Search: Failed to create Tantivy index");
                     return Ok(()); // Non-fatal — search is optional

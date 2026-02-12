@@ -18,6 +18,9 @@ graph TD
         Tools --> Shadow[Shadow — Compiler]
         Tools --> Whisper[Whisper — Router]
         Tools --> Telemetry[Telemetry — OTLP]
+        Tools --> Architect[Architect — Structural Health]
+        Tools --> Gym[Gym — Code Sandbox]
+        Tools --> Janitor[Janitor — Maintenance]
 
         Cortex --> Core[Core — Event Bus]
         Husk --> Core
@@ -27,6 +30,9 @@ graph TD
         Shadow --> Core
         Whisper --> Core
         Telemetry --> Core
+        Architect --> Core
+        Gym --> Core
+        Janitor --> Core
 
         Core --> Visualizer[Visualizer — Dashboard]
     end
@@ -56,6 +62,9 @@ synapseed-cli (binary)
 │   ├── synapseed-chronos → synapseed-core
 │   ├── synapseed-search → synapseed-core, synapseed-cortex
 │   ├── synapseed-shadow-check → synapseed-core
+│   ├── synapseed-architect → synapseed-core, synapseed-cortex
+│   ├── synapseed-gym → synapseed-core
+│   ├── synapseed-janitor → synapseed-core
 │   ├── synapseed-whisper → synapseed-core, synapseed-cortex, ...
 │   └── synapseed-telemetry-sink → synapseed-core, synapseed-cortex
 ├── synapseed-visualizer → synapseed-core, synapseed-cortex, synapseed-telemetry-sink

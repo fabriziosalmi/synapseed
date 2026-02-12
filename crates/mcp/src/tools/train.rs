@@ -23,7 +23,15 @@ pub(super) fn tool_train_code(args: &serde_json::Value) -> ToolCallResult {
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    let mut scenario = Scenario::new(source).with_timeout(timeout).with_fuzz(fuzz);
+    let adversarial = args
+        .get("adversarial")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    let mut scenario = Scenario::new(source)
+        .with_timeout(timeout)
+        .with_fuzz(fuzz)
+        .with_adversarial(adversarial);
     if !tests.is_empty() {
         scenario = scenario.with_tests(tests);
     }
@@ -49,14 +57,22 @@ pub(super) fn tool_train_code(args: &serde_json::Value) -> ToolCallResult {
                 }
             });
 
+            let adversarial_summary = report.adversarial.as_ref().map_or(String::new(), |a| {
+                format!(
+                    " | Mutations: {}/{} detected (score: {:.2})",
+                    a.detected, a.total_mutations, a.mutation_score
+                )
+            });
+
             text_result(format!(
-                "=== GYM REPORT ===\nScore: {score:.2}/1.00 | Success: {} | Compiled: {} | Warnings: {} | Errors: {}{}{}\n\nCompile: {}ms | Binary: {} bytes | Tests: {}ms\n\n{json}",
+                "=== GYM REPORT ===\nScore: {score:.2}/1.00 | Success: {} | Compiled: {} | Warnings: {} | Errors: {}{}{}{}\n\nCompile: {}ms | Binary: {} bytes | Tests: {}ms\n\n{json}",
                 report.success,
                 report.compilation.compiled,
                 report.compilation.warnings,
                 report.compilation.errors,
                 report.tests.as_ref().map_or(String::new(), |t| format!(" | Tests: {}/{} passed", t.passed, t.total)),
                 fuzz_summary,
+                adversarial_summary,
                 report.metrics.compile_time_ms,
                 report.metrics.binary_size_bytes,
                 report.metrics.test_time_ms,

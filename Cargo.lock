@@ -3428,7 +3428,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-architect"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "petgraph",
  "serde",
@@ -3441,7 +3441,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-chronos"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "chrono",
  "git2",
@@ -3453,7 +3453,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-cli"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -3481,7 +3481,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-core"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "chrono",
  "dirs",
@@ -3503,7 +3503,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-cortex"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "dashmap",
  "ignore",
@@ -3520,7 +3520,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-gym"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "regex",
  "serde",
@@ -3534,7 +3534,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-husk"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "aho-corasick",
  "regex",
@@ -3546,7 +3546,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-janitor"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "chrono",
  "dashmap",
@@ -3563,7 +3563,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-mcp"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3588,7 +3588,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-root"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "regex",
  "serde",
@@ -3601,7 +3601,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-search"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "bincode",
  "fastembed",
@@ -3617,7 +3617,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-shadow-check"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -3628,7 +3628,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-telemetry-sink"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "chrono",
  "opentelemetry-proto",
@@ -3644,7 +3644,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-visualizer"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -3662,7 +3662,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-whisper"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "serde",
  "serde_json",

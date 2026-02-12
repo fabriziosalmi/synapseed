@@ -37,7 +37,30 @@ Input content
 
 | Tool | Description |
 | :--- | :--- |
-| `scan_security` | Scan text content and return CLEAN or ALERT with redacted output |
+| `scan_security` | Scan text content. Supports `mode`: `all` (DLP + patterns), `dlp` (secrets only), `patterns` (code vulnerability patterns only) |
+
+## Code Pattern Scanner
+
+In addition to DLP secret detection, Husk includes a `CodePatternScanner` for static vulnerability detection. It uses regex-based heuristics to identify common security anti-patterns:
+
+| Category | Patterns | Examples |
+| :--- | :--- | :--- |
+| SQL Injection | 3 patterns | `format!("SELECT ... {}")`, string concatenation in queries |
+| XSS | 4 patterns | `innerHTML =`, `document.write()`, `v-html`, `dangerouslySetInnerHTML` |
+| Command Injection | 4 patterns | `Command::new()` with user input, `exec()`, `eval()` |
+| Path Traversal | 3 patterns | `../` sequences, unsanitized path joins |
+
+Each finding includes the category, line number, risk level, confidence score, and a remediation suggestion.
+
+### Usage
+
+```json
+// Scan for code patterns only
+{"method": "tools/call", "params": {"name": "scan_security", "arguments": {"content": "...", "mode": "patterns"}}}
+
+// Scan for everything (DLP + patterns)
+{"method": "tools/call", "params": {"name": "scan_security", "arguments": {"content": "...", "mode": "all"}}}
+```
 
 ## Usage Example
 

@@ -5,6 +5,7 @@ use std::time::Instant;
 use tempfile::TempDir;
 use tracing::{debug, warn};
 
+use crate::adversarial::{AdversarialResult, MutationOutcome, Saboteur};
 use crate::fuzzer;
 use crate::report::{CompilationResult, CompilerMessage, FuzzFailure, FuzzResult, Metrics, Report, TestResult};
 use crate::scenario::Scenario;
@@ -250,6 +251,7 @@ impl Sandbox {
                 compilation,
                 tests: None,
                 fuzz: None,
+                adversarial: None,
                 metrics: Metrics {
                     compile_time_ms,
                     binary_size_bytes: 0,
@@ -278,6 +280,76 @@ impl Sandbox {
         // Step 3: Measure binary size (release build)
         let binary_size_bytes = self.measure_binary_size();
 
+        // Step 4: Adversarial mutation testing (if enabled and tests exist)
+        let adversarial = if scenario.adversarial && has_tests {
+            let mutations = Saboteur::generate_mutations(&scenario.source_code);
+            if mutations.is_empty() {
+                None
+            } else {
+                let mut outcomes = Vec::new();
+                let original_src = std::fs::read_to_string(self.project_path.join("src/lib.rs"))
+                    .unwrap_or_default();
+
+                for mutation in &mutations {
+                    let mutated_source = Saboteur::apply_mutation(&scenario.source_code, mutation);
+
+                    // Inject mutated source
+                    let src_path = self.project_path.join("src/lib.rs");
+                    let _ = std::fs::write(&src_path, &mutated_source);
+
+                    // Quick check: does it compile?
+                    let compiles = Command::new("cargo")
+                        .args(["check", "--quiet"])
+                        .current_dir(&self.project_path)
+                        .output()
+                        .map(|o| o.status.success())
+                        .unwrap_or(false);
+
+                    let detected = if compiles {
+                        // Run tests — if they fail, mutation was detected
+                        let test_output = Command::new("cargo")
+                            .args(["test", "--quiet"])
+                            .current_dir(&self.project_path)
+                            .env("CARGO_TERM_COLOR", "never")
+                            .output();
+                        match test_output {
+                            Ok(o) => !o.status.success(),
+                            Err(_) => true, // error running = detected
+                        }
+                    } else {
+                        true // compile error = mutation detected
+                    };
+
+                    outcomes.push(MutationOutcome {
+                        mutation: mutation.clone(),
+                        detected,
+                    });
+                }
+
+                // Restore original source
+                let _ = std::fs::write(self.project_path.join("src/lib.rs"), &original_src);
+
+                let total = outcomes.len();
+                let detected_count = outcomes.iter().filter(|o| o.detected).count();
+                let survived = total - detected_count;
+                let mutation_score = if total > 0 {
+                    detected_count as f64 / total as f64
+                } else {
+                    1.0
+                };
+
+                Some(AdversarialResult {
+                    total_mutations: total,
+                    detected: detected_count,
+                    survived,
+                    mutation_score,
+                    mutations: outcomes,
+                })
+            }
+        } else {
+            None
+        };
+
         let success = compilation.compiled
             && tests.as_ref().map_or(true, |t| t.failed == 0);
 
@@ -286,6 +358,7 @@ impl Sandbox {
             compilation,
             tests,
             fuzz,
+            adversarial,
             metrics: Metrics {
                 compile_time_ms,
                 binary_size_bytes,

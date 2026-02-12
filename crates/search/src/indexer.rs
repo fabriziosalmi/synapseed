@@ -27,6 +27,7 @@ pub struct SearchResult {
     pub line_end: u64,
     pub signature: String,
     pub snippet: String,
+    pub last_modified_epoch: u64,
 }
 
 /// The semantic search index — wraps Tantivy in a thread-safe handle.
@@ -35,6 +36,7 @@ pub struct SemanticIndex {
     fields: SearchFields,
     reader: IndexReader,
     writer: Arc<std::sync::Mutex<IndexWriter>>,
+    temporal_decay_lambda: f64,
 }
 
 impl SemanticIndex {
@@ -54,6 +56,7 @@ impl SemanticIndex {
             fields,
             reader,
             writer: Arc::new(std::sync::Mutex::new(writer)),
+            temporal_decay_lambda: 0.01,
         })
     }
 
@@ -108,7 +111,16 @@ impl SemanticIndex {
             fields,
             reader,
             writer: Arc::new(std::sync::Mutex::new(writer)),
+            temporal_decay_lambda: 0.01,
         })
+    }
+
+    /// Set the temporal decay parameter λ for search ranking.
+    ///
+    /// Higher values penalize older results more aggressively.
+    /// Default: 0.01 (half-life ≈ 69 days).
+    pub fn set_temporal_decay(&mut self, lambda: f64) {
+        self.temporal_decay_lambda = lambda;
     }
 
     /// Index all symbols from a CodeGraph snapshot.
@@ -127,6 +139,7 @@ impl SemanticIndex {
         for file in files {
             // Read source file for doc comment + body extraction
             let source = self.read_source(file, project_root);
+            let mtime = self.file_mtime(file, project_root);
 
             for sym in &file.symbols {
                 let doc_comment = source
@@ -151,6 +164,7 @@ impl SemanticIndex {
                     self.fields.body_snippet => body_snippet,
                     self.fields.line_start => sym.line_start as u64,
                     self.fields.line_end => sym.line_end as u64,
+                    self.fields.last_modified_epoch => mtime,
                 ));
 
                 count += 1;
@@ -176,8 +190,8 @@ impl SemanticIndex {
         let term = Term::from_field_text(self.fields.file_path, &file.path);
         writer.delete_term(term);
 
-        // Read source for extraction
         let source = self.read_source(file, project_root);
+        let mtime = self.file_mtime(file, project_root);
         let mut count = 0;
 
         for sym in &file.symbols {
@@ -203,6 +217,7 @@ impl SemanticIndex {
                 self.fields.body_snippet => body_snippet,
                 self.fields.line_start => sym.line_start as u64,
                 self.fields.line_end => sym.line_end as u64,
+                self.fields.last_modified_epoch => mtime,
             ));
 
             count += 1;
@@ -271,6 +286,10 @@ impl SemanticIndex {
         };
 
         let mut results = Vec::new();
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
 
         for (score, doc_address) in top_docs {
             let doc: TantivyDocument = match searcher.doc(doc_address) {
@@ -289,8 +308,16 @@ impl SemanticIndex {
                 doc.get_first(field).and_then(|v| v.as_u64()).unwrap_or(0)
             };
 
+            let last_modified = get_u64(self.fields.last_modified_epoch);
+            let age_days = if now_secs > last_modified {
+                (now_secs - last_modified) as f64 / 86400.0
+            } else {
+                0.0
+            };
+            let temporal_boost = 0.7 + 0.3 * (-self.temporal_decay_lambda * age_days).exp();
+
             results.push(SearchResult {
-                score,
+                score: score * temporal_boost as f32,
                 file: get_text(self.fields.file_path),
                 symbol: get_text(self.fields.symbol_name),
                 kind: get_text(self.fields.kind),
@@ -298,9 +325,12 @@ impl SemanticIndex {
                 line_end: get_u64(self.fields.line_end),
                 signature: get_text(self.fields.signature),
                 snippet: get_text(self.fields.body_snippet),
+                last_modified_epoch: last_modified,
             });
         }
 
+        // Re-sort by temporally-adjusted score.
+        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
         results
     }
 
@@ -313,6 +343,22 @@ impl SemanticIndex {
         };
 
         std::fs::read_to_string(&path).ok()
+    }
+
+    /// Get file modification time as Unix epoch seconds.
+    fn file_mtime(&self, file: &FileStructure, project_root: &Path) -> u64 {
+        let path = if Path::new(&file.path).is_absolute() {
+            std::path::PathBuf::from(&file.path)
+        } else {
+            project_root.join(&file.path)
+        };
+
+        std::fs::metadata(&path)
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_secs())
+            .unwrap_or(0)
     }
 }
 

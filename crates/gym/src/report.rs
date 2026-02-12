@@ -19,6 +19,10 @@ pub struct Report {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fuzz: Option<FuzzResult>,
 
+    /// Adversarial mutation testing result (None if not enabled).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub adversarial: Option<crate::adversarial::AdversarialResult>,
+
     /// Raw stderr from cargo (useful for debugging).
     #[serde(default)]
     pub raw_stderr: String,
@@ -121,6 +125,15 @@ impl Report {
         // Fast compile bonus (<5 seconds)
         if self.metrics.compile_time_ms < 5000 {
             score += 0.1;
+        }
+
+        // Adversarial mutation score bonus (if enabled).
+        // Replaces up to 0.1 of the speed bonus with mutation effectiveness.
+        if let Some(ref adv) = self.adversarial {
+            if adv.total_mutations > 0 {
+                // Blend: keep base score, add up to 0.1 for high mutation score.
+                score = (score - 0.1) + 0.1 * adv.mutation_score;
+            }
         }
 
         score

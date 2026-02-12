@@ -44,7 +44,14 @@ The `ask_synapseed` tool returns:
   "smart_context": "Human-readable summary of findings",
   "intent": "bug_fix",
   "diagnostics": [...],
-  "history": {...},
+  "history": {
+    "churn_score": 0.8,
+    "convergence_rate": 0.95,
+    "rigidity": 0.05,
+    "fix_chain_count": 2,
+    "co_changes": [...],
+    "semantic_tags": [...]
+  },
   "code_context": [...],
   "security_status": "CLEAN"
 }

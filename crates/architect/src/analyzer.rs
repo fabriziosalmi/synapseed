@@ -261,6 +261,18 @@ impl DependencyGraph {
         self.graph.edge_count()
     }
 
+    /// Compute topological density: D = E / (V × (V − 1)) for directed graphs.
+    ///
+    /// Range [0.0, 1.0]. Returns 0.0 if the graph has fewer than 2 nodes.
+    pub fn topological_density(&self) -> f64 {
+        let v = self.graph.node_count();
+        if v <= 1 {
+            return 0.0;
+        }
+        let e = self.graph.edge_count();
+        e as f64 / (v as f64 * (v as f64 - 1.0))
+    }
+
     /// Get the raw petgraph (for cycle detection in linter).
     pub(crate) fn raw_graph(&self) -> &DiGraph<ModuleNode, DependencyEdge> {
         &self.graph

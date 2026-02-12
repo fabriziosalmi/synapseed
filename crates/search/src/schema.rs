@@ -25,6 +25,7 @@ pub struct SearchFields {
     pub body_snippet: Field,
     pub line_start: Field,
     pub line_end: Field,
+    pub last_modified_epoch: Field,
 }
 
 /// Build the Tantivy schema and return (schema, field handles).
@@ -67,6 +68,7 @@ pub fn build_schema() -> (Schema, SearchFields) {
 
     let line_start = builder.add_u64_field("line_start", FAST | STORED);
     let line_end = builder.add_u64_field("line_end", FAST | STORED);
+    let last_modified_epoch = builder.add_u64_field("last_modified_epoch", FAST | STORED);
 
     let schema = builder.build();
 
@@ -79,6 +81,7 @@ pub fn build_schema() -> (Schema, SearchFields) {
         body_snippet,
         line_start,
         line_end,
+        last_modified_epoch,
     };
 
     (schema, fields)
@@ -95,5 +98,6 @@ pub fn fields_from_schema(schema: &Schema) -> Option<SearchFields> {
         body_snippet: schema.get_field("body_snippet").ok()?,
         line_start: schema.get_field("line_start").ok()?,
         line_end: schema.get_field("line_end").ok()?,
+        last_modified_epoch: schema.get_field("last_modified_epoch").ok()?,
     })
 }
