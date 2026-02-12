@@ -10,3 +10,38 @@ tests/visualizer/node_modules/
 tests/visualizer/test-results/
 tests/visualizer/playwright-report/
 .vscode/mcp.json
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Node/npm
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build artifacts
+dist/
+build/
+*.o
+*.a
+*.so
+
+# Logs
+*.log
+npm-debug.log*
+
+# Rust
+Cargo.lock
