@@ -2185,6 +2185,7 @@ name = "synapseed-mcp"
 version = "1.0.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "serde",
  "serde_json",
  "synapseed-chronos",

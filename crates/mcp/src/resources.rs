@@ -302,16 +302,23 @@ fn resource_janitor_proposals(ctx: &SynapseContext) -> ResourceContent {
                 .filter(|p| p.status == synapseed_janitor::ProposalStatus::Applied)
                 .collect();
 
-            serde_json::to_string_pretty(&json!({
+            let mut data = json!({
+                "is_scanning": store.is_scanning(),
                 "pending_count": pending.len(),
                 "applied_count": applied.len(),
                 "total_count": store.total_count(),
                 "proposals": pending,
-            }))
-            .unwrap_or_default()
+            });
+
+            if let Some(last) = store.last_scan() {
+                data["last_scan"] = serde_json::to_value(last).unwrap_or_default();
+            }
+
+            serde_json::to_string_pretty(&data).unwrap_or_default()
         }
         None => serde_json::to_string_pretty(&json!({
             "status": "inactive",
+            "is_scanning": false,
             "message": "Janitor plugin not active. Run `janitor_run_now` to scan for issues.",
         }))
         .unwrap_or_default(),

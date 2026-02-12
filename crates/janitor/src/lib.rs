@@ -18,7 +18,7 @@ pub mod plugin;
 pub mod proposal;
 pub mod scanner;
 
-pub use proposal::{Proposal, ProposalCategory, ProposalStatus, ProposalStore};
+pub use proposal::{LastScan, Proposal, ProposalCategory, ProposalStatus, ProposalStore};
 
 use std::path::Path;
 use std::sync::Arc;

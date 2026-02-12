@@ -808,53 +808,56 @@ fn tool_janitor_run_now(ctx: &SynapseContext) -> ToolCallResult {
         None => return error_result("Janitor plugin not active.".into()),
     };
 
-    let janitor = Janitor::new(store);
-    let root = ctx.project_root();
-
-    match janitor.scan(&root) {
-        Ok(result) => {
-            let proposals = janitor.store().pending();
-            let mut output = format!(
-                "=== JANITOR REPORT ===\nClippy issues: {} ({} fixable) | Unused deps: {} | Proposals: {}\n",
-                result.clippy_issues,
-                result.fixable_issues,
-                result.unused_deps.len(),
-                result.proposals_created,
-            );
-
-            if proposals.is_empty() {
-                output.push_str("\nProgetto pulito! Nessuna proposta da fare.");
-            } else {
-                output.push_str("\n--- Proposals ---\n");
-                for p in &proposals {
-                    output.push_str(&format!(
-                        "\n[{}] {} ({})\n  File: {}:{}\n  Lint: {}\n  Fix: {} → {}\n",
-                        p.id,
-                        p.description,
-                        match &p.category {
-                            synapseed_janitor::ProposalCategory::Clippy => "clippy",
-                            synapseed_janitor::ProposalCategory::CompilerWarning => "warning",
-                            synapseed_janitor::ProposalCategory::UnusedDependency => "unused dep",
-                        },
-                        p.file_path,
-                        p.line_start,
-                        p.lint_code,
-                        truncate_code(&p.original_code, 60),
-                        truncate_code(&p.fixed_code, 60),
-                    ));
-                }
-                output.push_str(&format!(
-                    "\nUse `janitor_apply_fix` with a proposal ID to apply a fix."
-                ));
-            }
-
-            let json = serde_json::to_string_pretty(&result).unwrap_or_default();
-            output.push_str(&format!("\n\n{json}"));
-
-            text_result(output)
-        }
-        Err(e) => error_result(format!("Janitor scan failed: {e}")),
+    // Prevent double-scan (atomic compare-exchange)
+    if !store.start_scanning() {
+        return text_result(
+            "Janitor scan already in progress. Check `synapseed://janitor/proposals` for results."
+                .into(),
+        );
     }
+
+    // If there's a previous scan result, include it as context
+    let previous = store.last_scan().map(|s| {
+        format!(
+            " (previous scan: {} issues, {} proposals at {})",
+            s.clippy_issues, s.proposals_created, s.completed_at
+        )
+    });
+
+    let root = ctx.project_root().to_path_buf();
+    let bg_store = store.clone();
+
+    // Run scan in background thread — return immediately
+    std::thread::spawn(move || {
+        let janitor = Janitor::new(bg_store.clone());
+        match janitor.scan(&root) {
+            Ok(result) => {
+                bg_store.finish_scan(synapseed_janitor::LastScan {
+                    completed_at: chrono::Utc::now().to_rfc3339(),
+                    clippy_issues: result.clippy_issues,
+                    fixable_issues: result.fixable_issues,
+                    unused_deps: result.unused_deps.len(),
+                    proposals_created: result.proposals_created,
+                    error: None,
+                });
+            }
+            Err(e) => {
+                bg_store.finish_scan(synapseed_janitor::LastScan {
+                    completed_at: chrono::Utc::now().to_rfc3339(),
+                    clippy_issues: 0,
+                    fixable_issues: 0,
+                    unused_deps: 0,
+                    proposals_created: 0,
+                    error: Some(e.to_string()),
+                });
+            }
+        }
+    });
+
+    text_result(format!(
+        "Janitor scan started in background.{}\n\nResults will appear in `synapseed://janitor/proposals`. You can also call `janitor_run_now` again — it will show the results once the scan completes.",
+        previous.unwrap_or_default()
+    ))
 }
 
 fn tool_janitor_apply_fix(args: &serde_json::Value, ctx: &SynapseContext) -> ToolCallResult {
@@ -874,16 +877,6 @@ fn tool_janitor_apply_fix(args: &serde_json::Value, ctx: &SynapseContext) -> Too
     match janitor.apply(proposal_id, &root) {
         Ok(msg) => text_result(format!("Fix applied successfully.\n{msg}")),
         Err(e) => error_result(format!("Failed to apply fix: {e}")),
-    }
-}
-
-/// Truncate code snippet for display, replacing newlines with spaces.
-fn truncate_code(code: &str, max_len: usize) -> String {
-    let oneline: String = code.chars().map(|c| if c == '\n' { ' ' } else { c }).collect();
-    if oneline.len() > max_len {
-        format!("{}...", &oneline[..max_len])
-    } else {
-        oneline
     }
 }
 

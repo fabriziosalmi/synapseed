@@ -1,3 +1,6 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
+
 use chrono::Utc;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -87,17 +90,63 @@ impl Proposal {
     }
 }
 
+/// Snapshot of the last scan result, stored for async retrieval.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LastScan {
+    pub completed_at: String,
+    pub clippy_issues: usize,
+    pub fixable_issues: usize,
+    pub unused_deps: usize,
+    pub proposals_created: usize,
+    pub error: Option<String>,
+}
+
 /// Thread-safe store for proposals, registered as a context extension.
-#[derive(Debug)]
 pub struct ProposalStore {
     proposals: DashMap<String, Proposal>,
+    scanning: AtomicBool,
+    last_scan: Mutex<Option<LastScan>>,
+}
+
+impl std::fmt::Debug for ProposalStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProposalStore")
+            .field("count", &self.proposals.len())
+            .field("scanning", &self.scanning.load(Ordering::Relaxed))
+            .finish()
+    }
 }
 
 impl ProposalStore {
     pub fn new() -> Self {
         Self {
             proposals: DashMap::new(),
+            scanning: AtomicBool::new(false),
+            last_scan: Mutex::new(None),
         }
+    }
+
+    /// Whether a scan is currently running.
+    pub fn is_scanning(&self) -> bool {
+        self.scanning.load(Ordering::Relaxed)
+    }
+
+    /// Set scanning state. Returns false if already scanning (prevents double-scan).
+    pub fn start_scanning(&self) -> bool {
+        self.scanning
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::Relaxed)
+            .is_ok()
+    }
+
+    /// Mark scan as finished and store the result.
+    pub fn finish_scan(&self, result: LastScan) {
+        *self.last_scan.lock().unwrap() = Some(result);
+        self.scanning.store(false, Ordering::SeqCst);
+    }
+
+    /// Get the last scan result.
+    pub fn last_scan(&self) -> Option<LastScan> {
+        self.last_scan.lock().unwrap().clone()
     }
 
     /// Add a proposal to the store.
