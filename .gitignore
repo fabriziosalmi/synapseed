@@ -3,3 +3,6 @@
 *.pdb
 .DS_Store
 .synapseed/index/
+docs/node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/

@@ -103,32 +103,48 @@
     position: absolute;
     background: #1c2128;
     border: 1px solid #30363d;
-    border-radius: 8px;
-    padding: 10px 14px;
-    font-size: 12px;
+    border-radius: 10px;
+    padding: 16px 20px;
+    font-size: 14px;
     pointer-events: none;
     display: none;
     z-index: 100;
-    max-width: 360px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    max-width: 480px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    line-height: 1.6;
   }
 
-  #tooltip .tt-name { color: #58a6ff; font-weight: 600; font-size: 13px; }
-  #tooltip .tt-kind { color: #8b949e; margin-top: 2px; }
-  #tooltip .tt-loc { color: #7ee787; margin-top: 4px; }
+  #tooltip .tt-name { color: #58a6ff; font-weight: 600; font-size: 16px; }
+  #tooltip .tt-kind { color: #8b949e; margin-top: 4px; font-size: 14px; }
+  #tooltip .tt-loc { color: #7ee787; margin-top: 6px; font-size: 14px; }
+
+  #graph-status {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #484f58;
+    font-size: 15px;
+    text-align: center;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  #graph-status.error { color: #f85149; }
+  #graph-status.hidden { display: none; }
 
   #activity-log {
     position: absolute;
     bottom: 44px;
     right: 16px;
-    width: 280px;
-    max-height: 200px;
+    width: 360px;
+    max-height: 280px;
     overflow-y: auto;
     background: #161b22ee;
     border: 1px solid #30363d;
     border-radius: 8px;
-    padding: 8px;
-    font-size: 11px;
+    padding: 12px;
+    font-size: 13px;
     display: none;
   }
 
@@ -157,6 +173,7 @@
 </header>
 
 <div id="cy"></div>
+<div id="graph-status">Loading graph...</div>
 <div id="tooltip"></div>
 <div id="activity-log"></div>
 

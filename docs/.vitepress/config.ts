@@ -4,6 +4,7 @@ export default defineConfig({
   title: 'SYNAPSEED',
   description: 'High-Performance Semantic AI Middleware — The Thinking Layer Between You and the LLM',
   lang: 'en-US',
+  base: '/synapseed/',
 
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
@@ -23,7 +24,7 @@ export default defineConfig({
       { text: 'Features', link: '/features/cortex' },
       { text: 'Reference', link: '/reference/cli' },
       {
-        text: 'v0.1.0',
+        text: 'v1.0.0',
         items: [
           { text: 'Changelog', link: 'https://github.com/fabriziosalmi/synapseed/releases' },
           { text: 'Contributing', link: 'https://github.com/fabriziosalmi/synapseed' },

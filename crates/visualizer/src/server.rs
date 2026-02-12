@@ -95,8 +95,17 @@ async fn api_graph(State(state): State<AppState>) -> impl IntoResponse {
             })
             .unwrap_or_default();
 
-    // Index the project (CPU-bound, but acceptable for API call)
+    // Try the shared CodeGraph from CortexPlugin (already indexed at startup).
+    // Falls back to building an ephemeral graph if no shared graph is available.
+    let shared_graph = ctx.get_extension::<CodeGraph>();
+
     let graph_result = tokio::task::spawn_blocking(move || {
+        if let Some(ref graph) = shared_graph {
+            if graph.file_count() > 0 {
+                return Ok(build_cytoscape_data(graph, &hotspot_map));
+            }
+        }
+        // Fallback: build ephemeral graph
         let graph = CodeGraph::new();
         if let Err(e) = graph.index_directory(&root) {
             return Err(format!("Index error: {e}"));
@@ -128,7 +137,6 @@ fn build_cytoscape_data(
     hotspot_map: &std::collections::HashMap<String, f64>,
 ) -> serde_json::Value {
     let mut nodes = Vec::new();
-    let mut edges = Vec::new();
 
     for file in graph.all_files() {
         // Shorten the file path for display
@@ -162,17 +170,16 @@ fn build_cytoscape_data(
             }
         }));
 
-        // Symbol nodes (children of file)
+        // Symbol nodes (children of file via "parent" — Cytoscape compound nodes)
         for sym in &file.symbols {
             let sym_id = format!("sym:{}:{}", file.path, sym.name);
             let sym_label = match &sym.signature {
                 Some(sig) => {
-                    let short = if sig.len() > 40 {
+                    if sig.len() > 40 {
                         format!("{}...", &sig[..37])
                     } else {
                         sig.clone()
-                    };
-                    short
+                    }
                 }
                 None => sym.name.clone(),
             };
@@ -196,22 +203,12 @@ fn build_cytoscape_data(
                     "heatMs": sym_heat,
                 }
             }));
-
-            // Edge: file contains symbol
-            edges.push(json!({
-                "data": {
-                    "source": file_id,
-                    "target": sym_id,
-                    "type": "contains",
-                }
-            }));
         }
     }
 
     json!({
         "elements": {
             "nodes": nodes,
-            "edges": edges,
         },
         "stats": {
             "files": graph.file_count(),

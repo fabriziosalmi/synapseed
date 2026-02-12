@@ -17,6 +17,20 @@ const NODE_COLORS = {
 let cy = null;
 let eventCount = 0;
 
+// ── Status Overlay ──────────────────────────────────────────
+
+function setStatus(text, isError) {
+  const el = document.getElementById('graph-status');
+  if (!el) return;
+  if (!text) {
+    el.className = 'hidden';
+    el.textContent = '';
+    return;
+  }
+  el.className = isError ? 'error' : '';
+  el.textContent = text;
+}
+
 // ── Initialize Cytoscape ─────────────────────────────────────
 
 function initCytoscape(elements) {
@@ -33,43 +47,33 @@ function initCytoscape(elements) {
           'border-width': 2,
           'label': 'data(label)',
           'color': '#c9d1d9',
-          'font-size': '11px',
+          'font-size': '12px',
           'font-family': 'SF Mono, Fira Code, monospace',
           'text-valign': 'top',
           'text-halign': 'center',
-          'text-margin-y': 8,
-          'padding': '20px',
+          'text-margin-y': 10,
+          'padding': '24px',
           'shape': 'roundrectangle',
-          'min-width': '120px',
+          'min-width': '140px',
         }
       },
       // Symbol nodes
       {
         selector: 'node[type!="file"]',
         style: {
-          'width': 28,
-          'height': 28,
+          'width': 32,
+          'height': 32,
           'label': 'data(label)',
-          'font-size': '9px',
+          'font-size': '10px',
           'font-family': 'SF Mono, Fira Code, monospace',
           'text-valign': 'bottom',
           'text-halign': 'center',
-          'text-margin-y': 6,
-          'text-max-width': '100px',
+          'text-margin-y': 8,
+          'text-max-width': '120px',
           'text-wrap': 'ellipsis',
           'border-width': 2,
           'transition-property': 'background-color, border-color, width, height',
           'transition-duration': '0.3s',
-        }
-      },
-      // Edges
-      {
-        selector: 'edge',
-        style: {
-          'width': 1,
-          'line-color': '#21262d',
-          'opacity': 0.3,
-          'curve-style': 'bezier',
         }
       },
       // Highlighted nodes (on file change)
@@ -116,14 +120,15 @@ function initCytoscape(elements) {
       name: 'cose',
       animate: true,
       animationDuration: 800,
-      nodeRepulsion: function() { return 8000; },
-      idealEdgeLength: function() { return 80; },
-      gravity: 0.3,
-      padding: 40,
+      nodeRepulsion: function() { return 10000; },
+      idealEdgeLength: function() { return 100; },
+      gravity: 0.25,
+      padding: 50,
       nodeDimensionsIncludeLabels: true,
+      fit: true,
     },
-    minZoom: 0.2,
-    maxZoom: 4,
+    minZoom: 0.1,
+    maxZoom: 5,
     wheelSensitivity: 0.3,
   });
 
@@ -178,8 +183,8 @@ function initCytoscape(elements) {
       <div class="tt-name">${d.name || d.label}</div>
       <div class="tt-kind">${d.kind || d.type}</div>
       <div class="tt-loc">L${d.lineStart}–L${d.lineEnd}</div>
-      <div class="tt-kind" style="margin-top:6px;color:#8b949e;font-size:11px">${filePath}</div>
-      <div class="tt-kind" style="margin-top:2px;color:#58a6ff;font-size:11px">${d.label}</div>
+      <div class="tt-kind" style="margin-top:8px;color:#8b949e">${filePath}</div>
+      <div class="tt-kind" style="margin-top:4px;color:#58a6ff">${d.label}</div>
     `;
     tooltip.style.display = 'block';
     const pos = e.renderedPosition || e.position;
@@ -190,11 +195,12 @@ function initCytoscape(elements) {
   // Click on file node: show full path
   cy.on('tap', 'node[type="file"]', function(e) {
     const d = e.target.data();
+    const childCount = e.target.children().length;
     const tooltip = document.getElementById('tooltip');
     tooltip.innerHTML = `
       <div class="tt-name">${d.label}</div>
-      <div class="tt-kind">${d.language || 'unknown'}</div>
-      <div class="tt-kind" style="margin-top:6px;color:#8b949e;font-size:11px">${d.fullPath}</div>
+      <div class="tt-kind">${d.language || 'unknown'} — ${childCount} symbol${childCount !== 1 ? 's' : ''}</div>
+      <div class="tt-kind" style="margin-top:8px;color:#8b949e">${d.fullPath}</div>
     `;
     tooltip.style.display = 'block';
     const pos = e.renderedPosition || e.position;
@@ -213,23 +219,35 @@ function initCytoscape(elements) {
 // ── Graph Data Loading ───────────────────────────────────────
 
 async function loadGraph() {
+  setStatus('Loading graph...', false);
   try {
     const res = await fetch('/api/graph');
+    if (!res.ok) {
+      const text = await res.text();
+      setStatus(`API error: ${res.status} — ${text}`, true);
+      console.error('API error:', res.status, text);
+      return;
+    }
     const data = await res.json();
 
     document.getElementById('stat-files').textContent = data.stats.files;
     document.getElementById('stat-symbols').textContent = data.stats.symbols;
 
-    const elements = [
-      ...data.elements.nodes,
-      ...data.elements.edges,
-    ];
+    // Compound nodes only — containment is via "parent" field, no edges needed
+    const elements = data.elements.nodes || [];
+
+    if (elements.length === 0) {
+      setStatus('No files indexed — is the project path correct?', true);
+      return;
+    }
 
     if (cy) {
       cy.destroy();
     }
+    setStatus(null);
     initCytoscape(elements);
   } catch (e) {
+    setStatus(`Failed to load graph: ${e.message}`, true);
     console.error('Failed to load graph:', e);
   }
 }
