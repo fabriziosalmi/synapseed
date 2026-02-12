@@ -42,7 +42,7 @@ aho-corasick = "1"
 regex = "1"
 
 # Git integration (Time-Travel)
-git2 = { version = "0.19", default-features = false, features = ["ssh", "https"] }
+git2 = { version = "0.20", default-features = false, features = ["ssh", "https"] }
 
 # Concurrent data structures
 dashmap = "6"
