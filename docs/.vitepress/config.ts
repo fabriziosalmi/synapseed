@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress'
+import { withMermaid } from 'vitepress-plugin-mermaid'
 
-export default defineConfig({
+export default withMermaid(defineConfig({
   title: 'SYNAPSEED',
   description: 'High-Performance Semantic AI Middleware — The Thinking Layer Between You and the LLM',
   lang: 'en-US',
@@ -132,4 +133,4 @@ export default defineConfig({
       text: 'Edit this page on GitHub',
     },
   },
-})
+}))
