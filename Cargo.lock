@@ -2066,7 +2066,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-chronos"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "chrono",
  "git2",
@@ -2078,7 +2078,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-cli"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2105,7 +2105,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-core"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "chrono",
  "dirs",
@@ -2126,7 +2126,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-cortex"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "dashmap",
  "rayon",
@@ -2140,7 +2140,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-gym"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -2153,7 +2153,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-husk"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "aho-corasick",
  "regex",
@@ -2165,7 +2165,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-janitor"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "chrono",
  "dashmap",
@@ -2182,7 +2182,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-mcp"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2205,7 +2205,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-root"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "regex",
  "serde",
@@ -2218,7 +2218,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-search"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -2231,7 +2231,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-shadow-check"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -2242,7 +2242,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-telemetry-sink"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "chrono",
  "opentelemetry-proto",
@@ -2258,7 +2258,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-visualizer"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -2275,7 +2275,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-whisper"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "serde",
  "serde_json",
