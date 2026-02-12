@@ -157,11 +157,11 @@ graph LR
 | `synapseed-gym` | RL sandbox — safe code evaluation with compilation + test feedback |
 | `synapseed-janitor` | Autonomous maintenance — clippy + unused deps, validated proposals |
 | `synapseed-architect` | Dependency graph, coupling metrics, cycle detection, scoring (A-F) |
-| `synapseed-mcp` | MCP protocol handler — 19 tools, 9 resources, 6 prompts |
+| `synapseed-mcp` | MCP protocol handler — 20 tools, 9 resources, 6 prompts |
 
 ---
 
-## MCP Tools (19)
+## MCP Tools (20)
 
 | Tool | Tier | Description |
 | :--- | :--- | :--- |
@@ -183,9 +183,10 @@ graph LR
 | `janitor_run_now` | SPECIALIZED | Scan for clippy warnings and unused deps |
 | `janitor_apply_fix` | SPECIALIZED | Apply a Janitor fix (dry-run preview by default) |
 | `architect_analyze` | SPECIALIZED | Structural health analysis (score, cycles, coupling) |
+| `oracle_fix_docs` | SPECIALIZED | Auto-repair drifted documentation (version, counts) |
 | `semantic_similarity` | SPECIALIZED | Vector embedding similarity search |
 
-## MCP Resources (8)
+## MCP Resources (9)
 
 | URI | Description |
 | :--- | :--- |
@@ -197,6 +198,7 @@ graph LR
 | `synapseed://telemetry/hotspots` | Top-10 performance hotspots from OTLP spans |
 | `synapseed://janitor/proposals` | Janitor fix proposals |
 | `synapseed://architect/health` | Architecture health score and violations |
+| `synapseed://consistency` | Consistency Oracle report (drift detection) |
 
 ## MCP Prompts (6)
 
@@ -327,6 +329,18 @@ dlp_custom_rules:
 ```
 
 Rule actions: `redact` (replace with `[REDACTED]`), `deny` (block entirely), `audit` (log only), `allow` (skip).
+
+### DLP Whitelist
+
+Suppress false-positive DLP findings with regex patterns in `.synapseed/dna.yaml`:
+
+```yaml
+dlp_whitelist:
+  - "(?i)token\\s*[:=]\\s*[A-Z]\\w+"   # CancellationToken, etc.
+  - "(?i)shutdown_token"                 # Rust async shutdown pattern
+```
+
+Built-in defaults already suppress `CancellationToken` and `shutdown_token` patterns common in Rust codebases.
 
 The Sentinel uses a **deny-first** model: any command matching a deny rule is blocked regardless of allow rules. Default deny list includes `rm -rf`, `curl | sh`, `chmod 777`, `mkfs`, and other destructive patterns.
 

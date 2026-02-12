@@ -117,7 +117,7 @@ impl VectorIndex {
         let mut scored: Vec<(f32, usize)> = vectors
             .iter()
             .enumerate()
-            .filter(|(i, _)| entries.get(*i).map_or(false, |e| !e.file_path.is_empty()))
+            .filter(|(i, _)| entries.get(*i).is_some_and(|e| !e.file_path.is_empty()))
             .map(|(i, vec)| (cosine_similarity(query, vec), i))
             .collect();
 

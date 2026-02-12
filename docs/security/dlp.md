@@ -41,6 +41,23 @@ Example: `AKIAIOSFODNN7EXAMPLE`
 | `-----BEGIN OPENSSH PRIVATE KEY-----` | Aho-Corasick |
 | `-----BEGIN PRIVATE KEY-----` | Aho-Corasick |
 
+## Whitelist (False-Positive Suppression)
+
+Findings whose matched text matches a whitelist pattern are silently dropped. Built-in defaults suppress common Rust false positives:
+
+| Pattern | Suppresses |
+| :--- | :--- |
+| `(?i)token\s*[:=]\s*[A-Z]\w+` | Type assignments like `token: CancellationToken` |
+| `(?i)shutdown_token` | Async shutdown patterns |
+
+Add custom whitelist patterns in `.synapseed/dna.yaml`:
+
+```yaml
+dlp_whitelist:
+  - "(?i)token\\s*[:=]\\s*[A-Z]\\w+"
+  - "(?i)shutdown_token"
+```
+
 ## Redaction
 
 When sensitive content is found, SYNAPSEED replaces the sensitive portion with `REDACTED`:

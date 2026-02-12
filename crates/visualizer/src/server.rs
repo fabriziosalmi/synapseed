@@ -285,7 +285,7 @@ fn build_cytoscape_data(
 
         // Check architect annotations
         let file_stem = file.path.rsplit('/').next().unwrap_or(&file.path);
-        let file_stem_no_ext = file_stem.rsplit('.').last().unwrap_or(file_stem);
+        let file_stem_no_ext = file_stem.rsplit('.').next_back().unwrap_or(file_stem);
         let in_cycle = cycle_modules.iter().any(|m| m.ends_with(file_stem_no_ext));
         let instability = instability_map
             .iter()
@@ -510,7 +510,7 @@ async fn api_xray(
                 .next()
                 .unwrap_or(&file_path)
                 .rsplit('.')
-                .last()
+                .next_back()
                 .unwrap_or(&file_path);
             for other in graph.all_files() {
                 if other.path == file_path {

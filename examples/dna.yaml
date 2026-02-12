@@ -55,6 +55,13 @@ dlp_custom_rules:
     pattern: "https://internal\\.corp\\.example\\.com"
     action: audit
 
+# DLP whitelist: regex patterns that suppress false-positive findings.
+# If a finding's matched text contains a whitelist pattern, it is ignored.
+# Built-in defaults already suppress CancellationToken / shutdown_token.
+dlp_whitelist:
+  - "(?i)token\\s*[:=]\\s*[A-Z]\\w+"     # Type assignments (CancellationToken, etc.)
+  - "(?i)shutdown_token"                   # Rust async shutdown pattern
+
 # ── Search Engine ─────────────────────────────────────────────
 search:
   # Persist Tantivy index to .synapseed/index/ on disk.

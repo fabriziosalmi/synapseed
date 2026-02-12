@@ -35,6 +35,9 @@ pub struct SecurityPolicy {
     pub command_rules: Vec<CommandRule>,
     #[serde(default = "default_true")]
     pub fail_closed: bool,
+    /// Regex patterns that suppress false-positive DLP findings.
+    #[serde(default)]
+    pub dlp_whitelist: Vec<String>,
 }
 
 fn default_true() -> bool {
@@ -47,6 +50,7 @@ impl Default for SecurityPolicy {
             dlp_rules: Vec::new(),
             command_rules: Vec::new(),
             fail_closed: true,
+            dlp_whitelist: Vec::new(),
         }
     }
 }

@@ -179,7 +179,7 @@ impl DependencyGraph {
     pub fn compute_metrics(&mut self) {
         let mut metrics = Vec::new();
 
-        for (&ref name, &idx) in &self.node_map {
+        for (name, &idx) in &self.node_map {
             let node = &self.graph[idx];
 
             let efferent: usize = self

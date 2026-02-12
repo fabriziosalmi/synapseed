@@ -54,6 +54,31 @@ pub(super) fn tool_project_diagnose(ctx: &SynapseContext) -> ToolCallResult {
         ));
     }
 
+    // Actionable next step based on project state
+    match &state {
+        ProjectState::VirginRepo => {
+            report.push_str(
+                "\n--- Suggested Next Step ---\n\
+                 This looks like a fresh repository with no build system.\n\
+                 \u{2192} Create a `.synapseed/dna.yaml` with your preferred stack, then run:\n\
+                 \n\
+                   cargo init        # For a Rust project\n\
+                   npm init          # For a Node.js project\n\
+                 \n\
+                 SYNAPSEED will auto-detect the build system on next scan.\n"
+            );
+        }
+        ProjectState::PartialSetup { missing, .. } => {
+            report.push_str(&format!(
+                "\n--- Suggested Next Step ---\n\
+                 Your project is almost ready \u{2014} just missing: {}.\n\
+                 Fix that and SYNAPSEED will unlock full analysis.\n",
+                missing.join(", ")
+            ));
+        }
+        _ => {}
+    }
+
     text_result(report)
 }
 

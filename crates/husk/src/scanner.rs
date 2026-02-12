@@ -8,12 +8,17 @@ use tracing::warn;
 /// Uses a two-pass approach:
 /// 1. Aho-Corasick automaton for static terms (GB/s throughput)
 /// 2. Regex patterns for structured secrets (API keys, tokens)
+///
+/// An optional whitelist suppresses false-positive findings: if the matched
+/// text contains any compiled whitelist pattern, the finding is dropped.
 pub(crate) struct DlpScanner {
     /// Fast multi-pattern matcher for static terms
     static_matcher: Option<AhoCorasick>,
     static_terms: Vec<String>,
     /// Compiled regex patterns for structured secrets
     regex_patterns: Vec<CompiledPattern>,
+    /// Compiled whitelist patterns (suppress findings whose matched text matches)
+    whitelist: Vec<Regex>,
 }
 
 struct CompiledPattern {
@@ -61,6 +66,7 @@ impl DlpScanner {
             static_matcher,
             static_terms,
             regex_patterns,
+            whitelist: Vec::new(),
         }
     }
 
@@ -89,7 +95,37 @@ impl DlpScanner {
             },
         ];
 
-        Self::from_rules(&default_rules)
+        let mut scanner = Self::from_rules(&default_rules);
+
+        // Default whitelist: suppress known false positives in Rust codebases.
+        // "token" in CancellationToken, shutdown_token(), etc. is not a secret.
+        let default_whitelist = vec![
+            r"(?i)token\s*[:=]\s*[A-Z]\w+".to_string(), // Type assignment (e.g. token: CancellationToken)
+            r"(?i)shutdown_token".to_string(),            // Common Rust async pattern
+        ];
+        scanner.set_whitelist(&default_whitelist);
+
+        scanner
+    }
+
+    /// Set whitelist patterns. Findings whose matched text matches any
+    /// whitelist pattern are suppressed (treated as false positives).
+    pub(crate) fn set_whitelist(&mut self, patterns: &[String]) {
+        self.whitelist = patterns
+            .iter()
+            .filter_map(|p| match Regex::new(p) {
+                Ok(re) => Some(re),
+                Err(e) => {
+                    warn!(pattern = %p, error = %e, "Failed to compile DLP whitelist pattern, skipping");
+                    None
+                }
+            })
+            .collect();
+    }
+
+    /// Check if a matched text is suppressed by the whitelist.
+    fn is_whitelisted(&self, matched_text: &str) -> bool {
+        self.whitelist.iter().any(|re| re.is_match(matched_text))
     }
 
     /// Scan content and return all findings.
@@ -99,25 +135,31 @@ impl DlpScanner {
         // Pass 1: Aho-Corasick static terms
         if let Some(ref matcher) = self.static_matcher {
             for mat in matcher.find_iter(content) {
-                findings.push(Finding {
-                    rule_name: format!(
-                        "static_term:{}",
-                        &self.static_terms[mat.pattern().as_usize()]
-                    ),
-                    start: mat.start(),
-                    end: mat.end(),
-                });
+                let matched_text = &content[mat.start()..mat.end()];
+                if !self.is_whitelisted(matched_text) {
+                    findings.push(Finding {
+                        rule_name: format!(
+                            "static_term:{}",
+                            &self.static_terms[mat.pattern().as_usize()]
+                        ),
+                        start: mat.start(),
+                        end: mat.end(),
+                    });
+                }
             }
         }
 
         // Pass 2: Regex patterns
         for pat in &self.regex_patterns {
             for mat in pat.regex.find_iter(content) {
-                findings.push(Finding {
-                    rule_name: pat.name.clone(),
-                    start: mat.start(),
-                    end: mat.end(),
-                });
+                let matched_text = &content[mat.start()..mat.end()];
+                if !self.is_whitelisted(matched_text) {
+                    findings.push(Finding {
+                        rule_name: pat.name.clone(),
+                        start: mat.start(),
+                        end: mat.end(),
+                    });
+                }
             }
         }
 

@@ -351,7 +351,7 @@ impl Sandbox {
         };
 
         let success = compilation.compiled
-            && tests.as_ref().map_or(true, |t| t.failed == 0);
+            && tests.as_ref().is_none_or(|t| t.failed == 0);
 
         Ok(Report {
             success,

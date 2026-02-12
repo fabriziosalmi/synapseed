@@ -96,6 +96,7 @@ impl Sentinel {
                 },
             ],
             fail_closed: true,
+            dlp_whitelist: Vec::new(),
         };
 
         Self::from_policy(&policy)

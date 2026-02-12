@@ -31,6 +31,7 @@ impl HuskPlugin {
             dlp_rules: dna.dlp_custom_rules.clone(),
             command_rules: Vec::new(),
             fail_closed: true,
+            dlp_whitelist: dna.dlp_whitelist.clone(),
         };
         Self {
             guard: Arc::new(SecurityGuard::from_policy(&policy)),

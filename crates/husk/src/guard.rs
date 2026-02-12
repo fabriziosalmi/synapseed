@@ -16,11 +16,15 @@ pub struct SecurityGuard {
 impl SecurityGuard {
     /// Create a guard from a security policy.
     pub fn from_policy(policy: &SecurityPolicy) -> Self {
-        let scanner = if policy.dlp_rules.is_empty() {
+        let mut scanner = if policy.dlp_rules.is_empty() {
             DlpScanner::with_defaults()
         } else {
             DlpScanner::from_rules(&policy.dlp_rules)
         };
+
+        if !policy.dlp_whitelist.is_empty() {
+            scanner.set_whitelist(&policy.dlp_whitelist);
+        }
 
         Self {
             scanner,

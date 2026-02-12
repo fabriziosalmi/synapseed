@@ -90,11 +90,7 @@ impl AstParser {
                 Some(("FIXME", pos, trimmed))
             } else if let Some(pos) = trimmed.find("HACK") {
                 Some(("HACK", pos, trimmed))
-            } else if let Some(pos) = trimmed.find("XXX") {
-                Some(("XXX", pos, trimmed))
-            } else {
-                None
-            };
+            } else { trimmed.find("XXX").map(|pos| ("XXX", pos, trimmed)) };
 
             if let Some((tag, _, line_text)) = marker {
                 // Extract the comment text after the marker

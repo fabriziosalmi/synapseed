@@ -41,6 +41,12 @@ pub struct ProjectDna {
     #[serde(default)]
     pub dlp_custom_rules: Vec<crate::policy::DlpRule>,
 
+    /// DLP whitelist: regex patterns that suppress false-positive findings.
+    /// If a finding's matched text contains any whitelist pattern, it is ignored.
+    /// Example: `"CancellationToken"` suppresses `generic_secret` hits on Rust concurrency types.
+    #[serde(default)]
+    pub dlp_whitelist: Vec<String>,
+
     /// Search index configuration
     #[serde(default)]
     pub search: SearchConfig,
@@ -246,6 +252,7 @@ impl Default for ProjectDna {
             templates: std::collections::HashMap::new(),
             dlp_level: default_dlp_level(),
             dlp_custom_rules: Vec::new(),
+            dlp_whitelist: Vec::new(),
             search: SearchConfig::default(),
             visualizer_port: None,
             architect: ArchitectConfig::default(),
@@ -335,6 +342,9 @@ impl ProjectDna {
         }
         if !other.dlp_custom_rules.is_empty() {
             self.dlp_custom_rules = other.dlp_custom_rules;
+        }
+        if !other.dlp_whitelist.is_empty() {
+            self.dlp_whitelist.extend(other.dlp_whitelist);
         }
         if other.search.persistence {
             self.search.persistence = true;
