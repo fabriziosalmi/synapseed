@@ -34,8 +34,8 @@ use crate::protocol::{ContentBlock, ToolCallResult, ToolDefinition};
 pub fn list_tools() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
-            name: "get_code_skeleton".into(),
-            description: "LOW-LEVEL — Index a project directory and return its AST skeleton (files, symbols, structure). Prefer `ask_synapseed` for holistic queries; use this only when you need raw symbol data.".into(),
+            name: "hoist".into(),
+            description: "LOW-LEVEL — Index a project directory and return its AST skeleton (files, symbols, structure). Prefer `ask` for holistic queries; use this only when you need raw symbol data.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -47,8 +47,8 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "lookup_symbol".into(),
-            description: "LOW-LEVEL — Find a symbol by name across the entire project. Returns file path, line numbers, and signature. Prefer `ask_synapseed` unless you know the exact symbol name.".into(),
+            name: "lookup".into(),
+            description: "LOW-LEVEL — Find a symbol by name across the entire project. Returns file path, line numbers, and signature. Prefer `ask` unless you know the exact symbol name.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -61,7 +61,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "scan_security".into(),
+            name: "scan".into(),
             description: "LOW-LEVEL — Scan text content for sensitive data (API keys, passwords, tokens) AND code security anti-patterns (SQL injection, XSS, command injection, path traversal). Returns findings or CLEAN status. Use `mode` to select scan type.".into(),
             input_schema: json!({
                 "type": "object",
@@ -80,7 +80,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "check_command".into(),
+            name: "check".into(),
             description: "LOW-LEVEL — Evaluate a shell command against the security policy. Returns ALLOWED or DENIED with reason. Always call this before executing any shell command.".into(),
             input_schema: json!({
                 "type": "object",
@@ -94,8 +94,8 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "git_history".into(),
-            description: "LOW-LEVEL — Get git blame/history for a file. Shows who changed what and why. Prefer `analyze_history` for richer insights or `ask_synapseed` for holistic context.".into(),
+            name: "blame".into(),
+            description: "LOW-LEVEL — Get git blame/history for a file. Shows who changed what and why. Prefer `analyze` for richer insights or `ask` for holistic context.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -116,16 +116,16 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "project_diagnose".into(),
-            description: "LOW-LEVEL — Run a full diagnostic on the project: detect state (virgin/partial/healthy), build system, git status, active plugins. Included automatically in `ask_synapseed` responses.".into(),
+            name: "diagnose".into(),
+            description: "LOW-LEVEL — Run a full diagnostic on the project: detect state (virgin/partial/healthy), build system, git status, active plugins. Included automatically in `ask` responses.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {}
             }),
         },
         ToolDefinition {
-            name: "consult_architect".into(),
-            description: "LOW-LEVEL — Consult the project's architecture policy (DNA config). Returns preferred libraries, workspace strategy, naming conventions. Use `architect_analyze` for structural health or `ask_synapseed` for holistic answers.".into(),
+            name: "consult".into(),
+            description: "LOW-LEVEL — Consult the project's architecture policy (DNA config). Returns preferred libraries, workspace strategy, naming conventions. Use `architect` for structural health or `ask` for holistic answers.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -138,8 +138,8 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "semantic_search".into(),
-            description: "LOW-LEVEL — Search for code by concept (Tantivy keyword index). Finds symbols by name, signature, doc comments. Supports fuzzy matching. Prefer `ask_synapseed` for broad queries; use this for targeted symbol search.".into(),
+            name: "search".into(),
+            description: "LOW-LEVEL — Search for code by concept (Tantivy keyword index). Finds symbols by name, signature, doc comments. Supports fuzzy matching. Prefer `ask` for broad queries; use this for targeted symbol search.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -157,8 +157,8 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "get_diagnostics".into(),
-            description: "LOW-LEVEL — Get current compiler diagnostics from the background shadow compiler. Optionally filter by file path and/or severity. Included automatically in `ask_synapseed` responses when relevant.".into(),
+            name: "diagnostics".into(),
+            description: "LOW-LEVEL — Get current compiler diagnostics from the background shadow compiler. Optionally filter by file path and/or severity. Included automatically in `ask` responses when relevant.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -176,8 +176,8 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "analyze_history".into(),
-            description: "LOW-LEVEL — Analyze file history: churn/hotspot score, co-change patterns, semantic commit classification, risk assessment. Use for deep dives into a specific file; `ask_synapseed` includes this automatically when relevant.".into(),
+            name: "analyze".into(),
+            description: "LOW-LEVEL — Analyze file history: churn/hotspot score, co-change patterns, semantic commit classification, risk assessment. Use for deep dives into a specific file; `ask` includes this automatically when relevant.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -198,8 +198,8 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "apply_quick_fix".into(),
-            description: "LOW-LEVEL — Apply a compiler-suggested fix automatically. Only applies 'MachineApplicable' suggestions from rustc. Call `get_diagnostics` first to find the error code.".into(),
+            name: "quickfix".into(),
+            description: "LOW-LEVEL — Apply a compiler-suggested fix automatically. Only applies 'MachineApplicable' suggestions from rustc. Call `diagnostics` first to find the error code.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -216,7 +216,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "ask_synapseed".into(),
+            name: "ask".into(),
             description: "PRIMARY TOOL — Start here. Ask a natural-language question and SYNAPSEED automatically orchestrates all relevant subsystems (compiler, search, history, security, architecture) in a single call. Returns enriched context with diagnostics, history, code context, and security status. Use this FIRST for any question instead of calling individual low-level tools.".into(),
             input_schema: json!({
                 "type": "object",
@@ -230,8 +230,8 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "git_intent_summary".into(),
-            description: "LOW-LEVEL — Summarize the intent and direction of recent commits semantically. Groups by category (fix, feature, refactor, security). Prefer `ask_synapseed` for broad project context.".into(),
+            name: "intent".into(),
+            description: "LOW-LEVEL — Summarize the intent and direction of recent commits semantically. Groups by category (fix, feature, refactor, security). Prefer `ask` for broad project context.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -244,7 +244,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "train_code".into(),
+            name: "train".into(),
             description: "SPECIALIZED — Evaluate Rust code in an isolated sandbox (The Gym). Compiles, tests, benchmarks, and optionally runs adversarial mutation testing, returning metrics (compile time, binary size, test results, mutation score) and a composite score. Use to compare code variants or validate refactoring safety.".into(),
             input_schema: json!({
                 "type": "object",
@@ -277,7 +277,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "reset_telemetry".into(),
+            name: "reset-telemetry".into(),
             description: "LOW-LEVEL — Clear all telemetry data (spans and metrics) from the OTLP receiver. Use to reset the heatmap and start fresh observation.".into(),
             input_schema: json!({
                 "type": "object",
@@ -285,7 +285,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "janitor_run_now".into(),
+            name: "janitor".into(),
             description: "SPECIALIZED — Run the Janitor: scan for clippy warnings and unused dependencies, generate validated fix proposals. Returns findings and actionable proposals.".into(),
             input_schema: json!({
                 "type": "object",
@@ -293,7 +293,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "janitor_apply_fix".into(),
+            name: "janitor-fix".into(),
             description: "SPECIALIZED — Apply a specific Janitor fix proposal by ID. Default: preview only (dry-run). Set `confirm: true` to actually apply. Applied to the actual file, verified with `cargo check`. Automatically reverts if compilation breaks.".into(),
             input_schema: json!({
                 "type": "object",
@@ -312,7 +312,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "architect_analyze".into(),
+            name: "architect".into(),
             description: "SPECIALIZED — Analyze project structural health: dependency graph, coupling metrics, cycle detection, god objects, layer violations. Returns architecture score (A-F), violations, and recommendations.".into(),
             input_schema: json!({
                 "type": "object",
@@ -326,7 +326,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "oracle_fix_docs".into(),
+            name: "oracle".into(),
             description: "SPECIALIZED — Auto-repair drifted documentation. Updates version numbers, crate counts, and MCP tool/resource counts in README.md to match the actual codebase. Returns a list of changes made.".into(),
             input_schema: json!({
                 "type": "object",
@@ -334,7 +334,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "semantic_similarity".into(),
+            name: "similar".into(),
             description: "SPECIALIZED — Find code similar to a natural-language query using vector embeddings (cosine similarity). Requires `search.embeddings: true` in DNA config. Use for meaning-based code search beyond keyword matching.".into(),
             input_schema: json!({
                 "type": "object",
@@ -362,7 +362,114 @@ pub fn list_tools() -> Vec<ToolDefinition> {
 
 // ── Dispatch table ──────────────────────────────────────────────────
 
+/// Canonical tool names (short, CLI-aligned).
+const TOOL_NAMES: &[&str] = &[
+    "hoist", "lookup", "scan", "check", "blame", "diagnose", "consult",
+    "search", "diagnostics", "analyze", "quickfix", "ask", "intent",
+    "train", "reset-telemetry", "janitor", "janitor-fix", "architect",
+    "oracle", "similar",
+];
+
+/// Resolve a tool name: canonical names pass through, legacy names are mapped.
+fn resolve_tool_name(name: &str) -> Option<&'static str> {
+    match name {
+        // ── Canonical (short) names ─────────────────────────────
+        "hoist" => Some("hoist"),
+        "lookup" => Some("lookup"),
+        "scan" => Some("scan"),
+        "check" => Some("check"),
+        "blame" => Some("blame"),
+        "diagnose" => Some("diagnose"),
+        "consult" => Some("consult"),
+        "search" => Some("search"),
+        "diagnostics" => Some("diagnostics"),
+        "analyze" => Some("analyze"),
+        "quickfix" => Some("quickfix"),
+        "ask" => Some("ask"),
+        "intent" => Some("intent"),
+        "train" => Some("train"),
+        "reset-telemetry" => Some("reset-telemetry"),
+        "janitor" => Some("janitor"),
+        "janitor-fix" => Some("janitor-fix"),
+        "architect" => Some("architect"),
+        "oracle" => Some("oracle"),
+        "similar" => Some("similar"),
+        // ── Legacy aliases (backward-compat) ────────────────────
+        "get_code_skeleton" => Some("hoist"),
+        "lookup_symbol" => Some("lookup"),
+        "scan_security" => Some("scan"),
+        "check_command" => Some("check"),
+        "git_history" => Some("blame"),
+        "project_diagnose" => Some("diagnose"),
+        "consult_architect" => Some("consult"),
+        "semantic_search" => Some("search"),
+        "get_diagnostics" => Some("diagnostics"),
+        "analyze_history" => Some("analyze"),
+        "apply_quick_fix" => Some("quickfix"),
+        "ask_synapseed" | "whisper" => Some("ask"),
+        "git_intent_summary" => Some("intent"),
+        "train_code" => Some("train"),
+        "reset_telemetry" => Some("reset-telemetry"),
+        "janitor_run_now" => Some("janitor"),
+        "janitor_apply_fix" => Some("janitor-fix"),
+        "architect_analyze" => Some("architect"),
+        "oracle_fix_docs" => Some("oracle"),
+        "semantic_similarity" => Some("similar"),
+        _ => None,
+    }
+}
+
+/// Execute the handler for a resolved canonical tool name.
+fn dispatch_tool(
+    canonical: &str,
+    args: &serde_json::Value,
+    ctx: &SynapseContext,
+) -> ToolCallResult {
+    match canonical {
+        "hoist" => skeleton::tool_get_code_skeleton(args, ctx),
+        "lookup" => symbol::tool_lookup_symbol(args, ctx),
+        "scan" => security::tool_scan_security(args, ctx),
+        "check" => security::tool_check_command(args, ctx),
+        "blame" => history::tool_git_history(args, ctx),
+        "diagnose" => diagnose::tool_project_diagnose(ctx),
+        "consult" => diagnose::tool_consult_architect(args, ctx),
+        "search" => search::tool_semantic_search(args, ctx),
+        "diagnostics" => diagnostics::tool_get_diagnostics(args, ctx),
+        "analyze" => history::tool_analyze_history(args, ctx),
+        "quickfix" => diagnostics::tool_apply_quick_fix(args, ctx),
+        "ask" => synapseed::tool_ask_synapseed(args, ctx),
+        "intent" => history::tool_git_intent_summary(args, ctx),
+        "train" => train::tool_train_code(args),
+        "reset-telemetry" => telemetry::tool_reset_telemetry(ctx),
+        "janitor" => janitor::tool_janitor_run_now(ctx),
+        "janitor-fix" => janitor::tool_janitor_apply_fix(args, ctx),
+        "architect" => architect::tool_architect_analyze(args, ctx),
+        "oracle" => oracle::tool_oracle_fix_docs(ctx),
+        "similar" => search::tool_semantic_similarity(args, ctx),
+        _ => error_result(format!("Internal dispatch error: unknown canonical tool '{canonical}'")),
+    }
+}
+
+/// Levenshtein edit distance (inline, no external deps).
+fn levenshtein(a: &str, b: &str) -> usize {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    let (m, n) = (a.len(), b.len());
+    let mut prev = (0..=n).collect::<Vec<_>>();
+    let mut curr = vec![0; n + 1];
+    for i in 1..=m {
+        curr[0] = i;
+        for j in 1..=n {
+            let cost = if a[i - 1] == b[j - 1] { 0 } else { 1 };
+            curr[j] = (prev[j] + 1).min(curr[j - 1] + 1).min(prev[j - 1] + cost);
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+    prev[n]
+}
+
 /// Handle a tool call and return the result.
+/// Supports canonical names, legacy aliases, and fuzzy matching.
 pub fn handle_tool_call(
     name: &str,
     args: &serde_json::Value,
@@ -370,34 +477,52 @@ pub fn handle_tool_call(
 ) -> ToolCallResult {
     info!(tool = name, "MCP: Tool call");
 
-    match name {
-        "get_code_skeleton" => skeleton::tool_get_code_skeleton(args, ctx),
-        "lookup_symbol" => symbol::tool_lookup_symbol(args, ctx),
-        "scan_security" => security::tool_scan_security(args, ctx),
-        "check_command" => security::tool_check_command(args, ctx),
-        "git_history" => history::tool_git_history(args, ctx),
-        "project_diagnose" => diagnose::tool_project_diagnose(ctx),
-        "consult_architect" => diagnose::tool_consult_architect(args, ctx),
-        "semantic_search" => search::tool_semantic_search(args, ctx),
-        "analyze_history" => history::tool_analyze_history(args, ctx),
-        "get_diagnostics" => diagnostics::tool_get_diagnostics(args, ctx),
-        "apply_quick_fix" => diagnostics::tool_apply_quick_fix(args, ctx),
-        "ask_synapseed" => synapseed::tool_ask_synapseed(args, ctx),
-        "git_intent_summary" => history::tool_git_intent_summary(args, ctx),
-        "train_code" => train::tool_train_code(args),
-        "reset_telemetry" => telemetry::tool_reset_telemetry(ctx),
-        "janitor_run_now" => janitor::tool_janitor_run_now(ctx),
-        "janitor_apply_fix" => janitor::tool_janitor_apply_fix(args, ctx),
-        "architect_analyze" => architect::tool_architect_analyze(args, ctx),
-        "oracle_fix_docs" => oracle::tool_oracle_fix_docs(ctx),
-        "semantic_similarity" => search::tool_semantic_similarity(args, ctx),
-        _ => ToolCallResult {
-            content: vec![ContentBlock::Text {
-                text: format!("Unknown tool: {name}"),
-            }],
-            is_error: Some(true),
-        },
+    // 1. Exact match (canonical or legacy alias)
+    if let Some(canonical) = resolve_tool_name(name) {
+        if canonical != name {
+            info!(alias = name, resolved = canonical, "MCP: Resolved legacy alias");
+        }
+        return dispatch_tool(canonical, args, ctx);
     }
+
+    // 2. Fuzzy match — find closest canonical name
+    let mut best: Option<(&str, usize)> = None;
+    for &tool in TOOL_NAMES {
+        let dist = levenshtein(name, tool);
+        if best.map_or(true, |(_, d)| dist < d) {
+            best = Some((tool, dist));
+        }
+    }
+
+    if let Some((suggestion, dist)) = best {
+        if dist <= 3 {
+            info!(
+                typo = name,
+                resolved = suggestion,
+                distance = dist,
+                "MCP: Fuzzy-resolved tool name"
+            );
+            let mut result = dispatch_tool(suggestion, args, ctx);
+            // Prepend "Did you mean..." to the output
+            let prefix = format!(
+                "Did you mean '{suggestion}'? (resolved from '{name}', edit distance: {dist})\n\n"
+            );
+            if let Some(ContentBlock::Text { text }) = result.content.first_mut() {
+                *text = format!("{prefix}{text}");
+            }
+            return result;
+        }
+        // Distance too large — suggest but don't auto-execute
+        return error_result(format!(
+            "Unknown tool: '{name}'. Did you mean '{suggestion}'?\n\nAvailable tools: {}",
+            TOOL_NAMES.join(", ")
+        ));
+    }
+
+    error_result(format!(
+        "Unknown tool: '{name}'. Available tools: {}",
+        TOOL_NAMES.join(", ")
+    ))
 }
 
 // ── Shared helpers ──────────────────────────────────────────────────

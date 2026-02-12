@@ -1,5 +1,77 @@
 # Changelog
 
+## [3.1.0] — 2026-02-12
+
+### "Fuzzy & Resilient" Release
+
+CLI and MCP tool names are now perfectly aligned. Every MCP tool has a CLI
+counterpart, every legacy name works as an alias, and typos are auto-corrected.
+
+---
+
+### Architecture (15 crates, 20 tools, 9 resources, 6 prompts)
+
+Score: **97/100 (Grade A)** — 161 modules, 58 edges.
+78 tests passing, 0 failures.
+
+### Breaking Changes (MCP tool names)
+
+All 20 MCP tools have been renamed to short, CLI-aligned canonical names.
+Legacy names continue to work as backward-compatible aliases.
+
+| Old Name | New Name |
+| :--- | :--- |
+| `get_code_skeleton` | `hoist` |
+| `lookup_symbol` | `lookup` |
+| `scan_security` | `scan` |
+| `check_command` | `check` |
+| `git_history` | `blame` |
+| `project_diagnose` | `diagnose` |
+| `consult_architect` | `consult` |
+| `semantic_search` | `search` |
+| `get_diagnostics` | `diagnostics` |
+| `analyze_history` | `analyze` |
+| `apply_quick_fix` | `quickfix` |
+| `ask_synapseed` | `ask` |
+| `git_intent_summary` | `intent` |
+| `train_code` | `train` |
+| `reset_telemetry` | `reset-telemetry` |
+| `janitor_run_now` | `janitor` |
+| `janitor_apply_fix` | `janitor-fix` |
+| `architect_analyze` | `architect` |
+| `oracle_fix_docs` | `oracle` |
+| `semantic_similarity` | `similar` |
+
+### New Features
+
+- **13 new CLI subcommands** — Every MCP-only tool now has a CLI counterpart:
+  `ask`, `search`, `diagnostics`, `analyze`, `quickfix`, `intent`, `train`,
+  `reset-telemetry`, `janitor`, `janitor-fix`, `architect`, `consult`,
+  `oracle`, `similar`. Uses `handle_tool_call()` bridge for zero logic
+  duplication.
+
+- **CLI aliases** — All 7 existing CLI commands accept their MCP tool name
+  as alias (e.g. `synapseed get_code_skeleton` = `synapseed hoist`).
+  Extra mnemonic: `synapseed whisper` = `synapseed ask`.
+
+- **Fuzzy tool dispatch** — Levenshtein-based auto-correction in MCP
+  `handle_tool_call()`. Edit distance ≤ 3: auto-executes with
+  "Did you mean 'X'?" prefix. Distance > 3: error with suggestion +
+  full available tool list. No external dependencies.
+
+- **`init_full_context()` helper** — Extracted from `cmd_serve()` to
+  initialize all 12 plugins for CLI-to-MCP bridge commands.
+
+### Technical Details
+
+- **Files changed**: 3 (`crates/mcp/src/tools/mod.rs`,
+  `bin/synapseed/src/main.rs`, `bin/synapseed/tests/integration_mcp.rs`)
+- **Dispatch architecture**: `resolve_tool_name()` → `dispatch_tool()` with
+  `TOOL_NAMES` const array for canonical names
+- **Zero new dependencies**: Levenshtein implemented inline (~15 lines)
+
+---
+
 ## [2.2.1] — 2026-02-12
 
 ### Security & Hardening Patch

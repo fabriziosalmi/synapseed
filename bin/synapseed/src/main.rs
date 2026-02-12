@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use serde_json::json;
 use tracing::info;
 
 use synapseed_core::context::SynapseContext;
@@ -27,12 +28,17 @@ use synapseed_janitor::plugin::JanitorPlugin;
 use synapseed_architect::plugin::ArchitectPlugin;
 use synapseed_whisper::plugin::WhisperPlugin;
 
+use synapseed_mcp::protocol::ContentBlock;
+use synapseed_mcp::tools::handle_tool_call;
+
 #[derive(Parser)]
 #[command(
     name = "synapseed",
     about = "High-Performance Semantic AI Middleware — The Thinking Layer Between You and the LLM",
     version,
-    after_help = "SYNAPSEED: Where intelligence meets infrastructure."
+    after_help = "SYNAPSEED: Where intelligence meets infrastructure.\n\n\
+        Every MCP tool is available as a CLI command. Legacy names (e.g. ask_synapseed, \
+        get_code_skeleton) are accepted as aliases."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -45,16 +51,21 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    // ── Existing commands (with MCP aliases) ────────────────────────
+
     /// Index a project and display its code graph skeleton
+    #[command(alias = "get_code_skeleton")]
     Hoist,
 
     /// Look up a symbol by name across the indexed project
+    #[command(alias = "lookup_symbol")]
     Lookup {
         /// Symbol name to search for
         name: String,
     },
 
     /// Scan content for sensitive data (DLP check)
+    #[command(alias = "scan_security")]
     Scan {
         /// Text to scan (reads from stdin if not provided)
         #[arg(short, long)]
@@ -62,12 +73,14 @@ enum Commands {
     },
 
     /// Evaluate a command against the security sentinel
+    #[command(alias = "check_command")]
     Check {
         /// Command to evaluate
         command: String,
     },
 
     /// Run full system diagnostic — detect state, load plugins, report
+    #[command(alias = "project_diagnose")]
     Diagnose,
 
     /// Show git history summary and recent commits
@@ -78,6 +91,7 @@ enum Commands {
     },
 
     /// Show blame information for a file
+    #[command(alias = "git_history")]
     Blame {
         /// File path (relative to project root)
         file: String,
@@ -97,6 +111,135 @@ enum Commands {
 
     /// Start MCP server (JSON-RPC 2.0 over stdio) — connect to Claude Desktop
     Serve,
+
+    // ── New commands (MCP-only tools exposed to CLI) ────────────────
+
+    /// Ask a natural-language question — SYNAPSEED orchestrates all subsystems
+    #[command(alias = "ask_synapseed", alias = "whisper")]
+    Ask {
+        /// Natural-language question
+        query: String,
+    },
+
+    /// Search for code by concept (Tantivy keyword index)
+    #[command(alias = "semantic_search")]
+    Search {
+        /// Search query
+        query: String,
+        /// Maximum number of results
+        #[arg(short, long, default_value = "5")]
+        limit: usize,
+    },
+
+    /// Show compiler diagnostics from the shadow compiler
+    #[command(alias = "get_diagnostics")]
+    Diagnostics {
+        /// Filter by file path
+        #[arg(short, long)]
+        file: Option<String>,
+        /// Minimum severity: info, warning, error
+        #[arg(short, long, default_value = "warning")]
+        min_severity: String,
+    },
+
+    /// Analyze file history: churn, hotspots, co-change patterns, risk
+    #[command(alias = "analyze_history")]
+    Analyze {
+        /// File path (relative to project root)
+        file: String,
+        /// Start line (optional scope)
+        #[arg(short, long)]
+        start: Option<usize>,
+        /// End line (optional scope)
+        #[arg(short, long)]
+        end: Option<usize>,
+    },
+
+    /// Apply a compiler-suggested quick fix
+    #[command(alias = "apply_quick_fix")]
+    Quickfix {
+        /// File path containing the error
+        file: String,
+        /// Error/warning code (e.g. unused_variables, E0425)
+        error_code: String,
+    },
+
+    /// Summarize the intent of recent commits semantically
+    #[command(alias = "git_intent_summary")]
+    Intent {
+        /// Number of recent commits to analyze
+        #[arg(short, long, default_value = "20")]
+        limit: usize,
+    },
+
+    /// Evaluate Rust code in the Gym sandbox
+    #[command(alias = "train_code")]
+    Train {
+        /// Path to Rust source file (or - for stdin)
+        source: String,
+        /// Path to test file
+        #[arg(short, long)]
+        tests: Option<String>,
+        /// Timeout in seconds
+        #[arg(long, default_value = "60")]
+        timeout: usize,
+        /// Enable proptest fuzzing
+        #[arg(long)]
+        fuzz: bool,
+        /// Enable adversarial mutation testing
+        #[arg(long)]
+        adversarial: bool,
+    },
+
+    /// Clear all telemetry data (OTLP spans and metrics)
+    #[command(alias = "reset_telemetry")]
+    ResetTelemetry,
+
+    /// Run Janitor: scan clippy warnings and unused dependencies
+    #[command(alias = "janitor_run_now")]
+    Janitor,
+
+    /// Apply a Janitor fix proposal by ID
+    #[command(alias = "janitor_apply_fix")]
+    JanitorFix {
+        /// UUID of the proposal to apply
+        proposal_id: String,
+        /// Actually apply (default: preview only)
+        #[arg(long)]
+        confirm: bool,
+    },
+
+    /// Analyze project structural health (architecture score, coupling, cycles)
+    #[command(alias = "architect_analyze")]
+    Architect {
+        /// Force fresh analysis (skip cache)
+        #[arg(long)]
+        refresh: bool,
+    },
+
+    /// Consult the project's architecture policy (DNA config)
+    #[command(alias = "consult_architect")]
+    Consult {
+        /// Architecture question
+        query: String,
+    },
+
+    /// Auto-repair drifted documentation (versions, counts)
+    #[command(alias = "oracle_fix_docs")]
+    Oracle,
+
+    /// Find code similar to a query using vector embeddings
+    #[command(alias = "semantic_similarity")]
+    Similar {
+        /// Natural-language query
+        query: String,
+        /// Number of results
+        #[arg(short = 'k', long, default_value = "5")]
+        top_k: usize,
+        /// Minimum cosine similarity threshold
+        #[arg(short, long, default_value = "0.3")]
+        min_similarity: f64,
+    },
 }
 
 #[tokio::main]
@@ -114,6 +257,7 @@ async fn main() -> Result<()> {
     let project_root = std::fs::canonicalize(&cli.project)?;
 
     match cli.command {
+        // ── Existing commands ───────────────────────────────────────
         Commands::Hoist => cmd_hoist(&project_root)?,
         Commands::Lookup { name } => cmd_lookup(&name, &project_root)?,
         Commands::Scan { text } => cmd_scan(text.as_deref())?,
@@ -124,10 +268,131 @@ async fn main() -> Result<()> {
         Commands::Status => cmd_status(&project_root).await?,
         Commands::Init => cmd_init(&project_root).await?,
         Commands::Serve => cmd_serve(&project_root).await?,
+
+        // ── MCP-bridged commands ────────────────────────────────────
+        Commands::Ask { query } => {
+            cmd_mcp(&project_root, "ask", json!({"query": query})).await?
+        }
+        Commands::Search { query, limit } => {
+            cmd_mcp(&project_root, "search", json!({"query": query, "limit": limit})).await?
+        }
+        Commands::Diagnostics { file, min_severity } => {
+            let mut args = json!({"min_severity": min_severity});
+            if let Some(f) = file {
+                args["file"] = json!(f);
+            }
+            cmd_mcp(&project_root, "diagnostics", args).await?
+        }
+        Commands::Analyze { file, start, end } => {
+            let mut args = json!({"file": file});
+            if let Some(s) = start { args["start_line"] = json!(s); }
+            if let Some(e) = end { args["end_line"] = json!(e); }
+            cmd_mcp(&project_root, "analyze", args).await?
+        }
+        Commands::Quickfix { file, error_code } => {
+            cmd_mcp(&project_root, "quickfix", json!({"file": file, "error_code": error_code})).await?
+        }
+        Commands::Intent { limit } => {
+            cmd_mcp(&project_root, "intent", json!({"limit": limit})).await?
+        }
+        Commands::Train { source, tests, timeout, fuzz, adversarial } => {
+            let src = read_source_or_stdin(&source)?;
+            let mut args = json!({"source": src, "timeout": timeout, "fuzz": fuzz, "adversarial": adversarial});
+            if let Some(t) = tests {
+                args["tests"] = json!(std::fs::read_to_string(&t)?);
+            }
+            cmd_mcp(&project_root, "train", args).await?
+        }
+        Commands::ResetTelemetry => {
+            cmd_mcp(&project_root, "reset-telemetry", json!({})).await?
+        }
+        Commands::Janitor => {
+            cmd_mcp(&project_root, "janitor", json!({})).await?
+        }
+        Commands::JanitorFix { proposal_id, confirm } => {
+            cmd_mcp(&project_root, "janitor-fix", json!({"proposal_id": proposal_id, "confirm": confirm})).await?
+        }
+        Commands::Architect { refresh } => {
+            cmd_mcp(&project_root, "architect", json!({"refresh": refresh})).await?
+        }
+        Commands::Consult { query } => {
+            cmd_mcp(&project_root, "consult", json!({"query": query})).await?
+        }
+        Commands::Oracle => {
+            cmd_mcp(&project_root, "oracle", json!({})).await?
+        }
+        Commands::Similar { query, top_k, min_similarity } => {
+            cmd_mcp(&project_root, "similar", json!({"query": query, "top_k": top_k, "min_similarity": min_similarity})).await?
+        }
     }
 
     Ok(())
 }
+
+// ── Shared helpers ──────────────────────────────────────────────────
+
+/// Build a fully-initialized SynapseContext with all plugins (same as serve mode).
+async fn init_full_context(path: &Path) -> Result<SynapseContext> {
+    let state = ProjectState::detect(path);
+    let dna = ProjectDna::load(path);
+    let ctx = SynapseContext::new(path.to_path_buf(), state, dna.clone());
+
+    let mut plugins: Vec<Box<dyn SynapsePlugin>> = vec![
+        Box::new(HuskPlugin::from_dna(&dna)),
+        Box::new(RootPlugin::new()),
+        Box::new(CortexPlugin::new()),
+        Box::new(ChronosPlugin::new()),
+        Box::new(ShadowCheckPlugin::new()),
+        Box::new(SearchPlugin::new()),
+        Box::new(TelemetrySinkPlugin::new()),
+        Box::new(VisualizerPlugin::from_config(&dna)),
+        Box::new(ArchitectPlugin::new()),
+        Box::new(WhisperPlugin::new()),
+        Box::new(GymPlugin::new()),
+        Box::new(JanitorPlugin::new()),
+    ];
+    plugins.sort_by_key(|p| p.priority());
+
+    for plugin in &mut plugins {
+        if let Err(e) = plugin.on_init(&ctx) {
+            eprintln!("[WARN] {} failed to init: {e}", plugin.name());
+        }
+    }
+
+    Ok(ctx)
+}
+
+/// Generic MCP tool bridge: init context, call tool, print result.
+async fn cmd_mcp(path: &Path, tool: &str, args: serde_json::Value) -> Result<()> {
+    let ctx = init_full_context(path).await?;
+    let result = handle_tool_call(tool, &args, &ctx);
+
+    for block in &result.content {
+        match block {
+            ContentBlock::Text { text } => println!("{text}"),
+        }
+    }
+
+    if result.is_error == Some(true) {
+        std::process::exit(1);
+    }
+
+    Ok(())
+}
+
+/// Read source from a file path, or from stdin if path is "-".
+fn read_source_or_stdin(path: &str) -> Result<String> {
+    if path == "-" {
+        use std::io::Read;
+        let mut buf = String::new();
+        std::io::stdin().read_to_string(&mut buf)?;
+        Ok(buf)
+    } else {
+        Ok(std::fs::read_to_string(path)?)
+    }
+}
+
+// ── Existing command handlers ───────────────────────────────────────
 
 fn cmd_hoist(path: &Path) -> Result<()> {
     let graph = CodeGraph::new();

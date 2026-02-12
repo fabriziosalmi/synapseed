@@ -163,28 +163,28 @@ graph LR
 
 ## MCP Tools (20)
 
-| Tool | Tier | Description |
-| :--- | :--- | :--- |
-| `ask_synapseed` | PRIMARY | Intent-based orchestration — start here for any question |
-| `get_code_skeleton` | LOW-LEVEL | Parse project AST and return symbol graph |
-| `lookup_symbol` | LOW-LEVEL | Find function/struct/trait by name |
-| `semantic_search` | LOW-LEVEL | Concept-based code search via Tantivy |
-| `scan_security` | LOW-LEVEL | DLP scan for secrets (API keys, passwords, private keys) |
-| `check_command` | LOW-LEVEL | Evaluate shell command against security policy |
-| `git_history` | LOW-LEVEL | Semantic git blame and file history |
-| `analyze_history` | LOW-LEVEL | Churn analysis, risk scoring, change patterns |
-| `git_intent_summary` | LOW-LEVEL | Summarize recent commit intent by category |
-| `get_diagnostics` | LOW-LEVEL | Live compiler errors and warnings |
-| `apply_quick_fix` | LOW-LEVEL | Auto-apply compiler-suggested fixes |
-| `consult_architect` | LOW-LEVEL | Architecture guidance from project DNA config |
-| `project_diagnose` | LOW-LEVEL | Full system diagnostic across all subsystems |
-| `reset_telemetry` | LOW-LEVEL | Clear telemetry span store and metrics |
-| `train_code` | SPECIALIZED | Evaluate Rust code in isolated sandbox (The Gym) |
-| `janitor_run_now` | SPECIALIZED | Scan for clippy warnings and unused deps |
-| `janitor_apply_fix` | SPECIALIZED | Apply a Janitor fix (dry-run preview by default) |
-| `architect_analyze` | SPECIALIZED | Structural health analysis (score, cycles, coupling) |
-| `oracle_fix_docs` | SPECIALIZED | Auto-repair drifted documentation (version, counts) |
-| `semantic_similarity` | SPECIALIZED | Vector embedding similarity search |
+| Tool | Tier | CLI Alias | Description |
+| :--- | :--- | :--- | :--- |
+| `ask` | PRIMARY | `ask_synapseed`, `whisper` | Intent-based orchestration — start here for any question |
+| `hoist` | LOW-LEVEL | `get_code_skeleton` | Parse project AST and return symbol graph |
+| `lookup` | LOW-LEVEL | `lookup_symbol` | Find function/struct/trait by name |
+| `search` | LOW-LEVEL | `semantic_search` | Concept-based code search via Tantivy |
+| `scan` | LOW-LEVEL | `scan_security` | DLP scan for secrets (API keys, passwords, private keys) |
+| `check` | LOW-LEVEL | `check_command` | Evaluate shell command against security policy |
+| `blame` | LOW-LEVEL | `git_history` | Semantic git blame and file history |
+| `analyze` | LOW-LEVEL | `analyze_history` | Churn analysis, risk scoring, change patterns |
+| `intent` | LOW-LEVEL | `git_intent_summary` | Summarize recent commit intent by category |
+| `diagnostics` | LOW-LEVEL | `get_diagnostics` | Live compiler errors and warnings |
+| `quickfix` | LOW-LEVEL | `apply_quick_fix` | Auto-apply compiler-suggested fixes |
+| `consult` | LOW-LEVEL | `consult_architect` | Architecture guidance from project DNA config |
+| `diagnose` | LOW-LEVEL | `project_diagnose` | Full system diagnostic across all subsystems |
+| `reset-telemetry` | LOW-LEVEL | `reset_telemetry` | Clear telemetry span store and metrics |
+| `train` | SPECIALIZED | `train_code` | Evaluate Rust code in isolated sandbox (The Gym) |
+| `janitor` | SPECIALIZED | `janitor_run_now` | Scan for clippy warnings and unused deps |
+| `janitor-fix` | SPECIALIZED | `janitor_apply_fix` | Apply a Janitor fix (dry-run preview by default) |
+| `architect` | SPECIALIZED | `architect_analyze` | Structural health analysis (score, cycles, coupling) |
+| `oracle` | SPECIALIZED | `oracle_fix_docs` | Auto-repair drifted documentation (version, counts) |
+| `similar` | SPECIALIZED | `semantic_similarity` | Vector embedding similarity search |
 
 ## MCP Resources (9)
 
@@ -213,17 +213,46 @@ graph LR
 
 ## CLI Commands
 
+Every MCP tool is available as a CLI command. Legacy MCP names (e.g. `ask_synapseed`, `get_code_skeleton`) are accepted as aliases.
+
 ```bash
+# ── Server & System ──
 synapseed serve --project .          # Start MCP server (stdio)
+synapseed init --project .           # Initialize all plugins and broadcast event
+synapseed status --project .         # Runtime metrics and system status
+synapseed diagnose --project .       # Full system diagnostic
+
+# ── Code Analysis ──
 synapseed hoist --project .          # Index project and print AST skeleton
 synapseed lookup <name> --project .  # Find symbol by name across the project
-synapseed scan --text "secret_key=..." # DLP scan for sensitive data
+synapseed search "auth login" -l 10  # Semantic search via Tantivy
+synapseed similar "error handling"   # Vector embedding similarity search
+synapseed ask "why is login broken?" # Ask SYNAPSEED (orchestrates everything)
+
+# ── Security ──
+synapseed scan --text "secret=..."   # DLP scan for sensitive data
 synapseed check "cargo test"         # Evaluate command against security policy
+
+# ── Git ──
 synapseed history --limit 20         # Git history with semantic commit tags
 synapseed blame <file> -s 1 -e 30   # Git blame for file line range
-synapseed diagnose --project .       # Full system diagnostic
-synapseed status --project .         # Runtime metrics and system status
-synapseed init --project .           # Initialize all plugins and broadcast event
+synapseed analyze <file>             # Churn analysis, hotspots, risk scoring
+synapseed intent --limit 10          # Semantic commit intent summary
+
+# ── Compiler & Maintenance ──
+synapseed diagnostics                # Live compiler errors and warnings
+synapseed quickfix <file> <code>     # Auto-apply compiler-suggested fix
+synapseed janitor                    # Scan clippy warnings + unused deps
+synapseed janitor-fix <id> --confirm # Apply a janitor fix proposal
+
+# ── Architecture ──
+synapseed architect --refresh        # Structural health analysis (A-F score)
+synapseed consult "which runtime?"   # Consult architecture policy (DNA)
+synapseed oracle                     # Auto-repair drifted documentation
+
+# ── Sandbox ──
+synapseed train src.rs --adversarial # Evaluate Rust code in the Gym sandbox
+synapseed reset-telemetry            # Clear OTLP telemetry data
 ```
 
 ---

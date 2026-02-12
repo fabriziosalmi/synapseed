@@ -112,28 +112,28 @@ fn test_mcp_full_lifecycle() {
     let tools = tools_list["result"]["tools"].as_array().unwrap();
     assert_eq!(tools.len(), 20, "Expected 20 tools, got {}", tools.len());
 
-    // Verify all tool names are present
+    // Verify all tool names are present (short canonical names since v3.1)
     let tool_names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
-    assert!(tool_names.contains(&"get_code_skeleton"));
-    assert!(tool_names.contains(&"lookup_symbol"));
-    assert!(tool_names.contains(&"scan_security"));
-    assert!(tool_names.contains(&"check_command"));
-    assert!(tool_names.contains(&"git_history"));
-    assert!(tool_names.contains(&"project_diagnose"));
-    assert!(tool_names.contains(&"consult_architect"));
-    assert!(tool_names.contains(&"semantic_search"));
-    assert!(tool_names.contains(&"get_diagnostics"));
-    assert!(tool_names.contains(&"analyze_history"));
-    assert!(tool_names.contains(&"apply_quick_fix"));
-    assert!(tool_names.contains(&"ask_synapseed"));
-    assert!(tool_names.contains(&"git_intent_summary"));
-    assert!(tool_names.contains(&"train_code"));
-    assert!(tool_names.contains(&"reset_telemetry"));
-    assert!(tool_names.contains(&"janitor_run_now"));
-    assert!(tool_names.contains(&"janitor_apply_fix"));
-    assert!(tool_names.contains(&"architect_analyze"));
-    assert!(tool_names.contains(&"oracle_fix_docs"));
-    assert!(tool_names.contains(&"semantic_similarity"));
+    assert!(tool_names.contains(&"hoist"));
+    assert!(tool_names.contains(&"lookup"));
+    assert!(tool_names.contains(&"scan"));
+    assert!(tool_names.contains(&"check"));
+    assert!(tool_names.contains(&"blame"));
+    assert!(tool_names.contains(&"diagnose"));
+    assert!(tool_names.contains(&"consult"));
+    assert!(tool_names.contains(&"search"));
+    assert!(tool_names.contains(&"diagnostics"));
+    assert!(tool_names.contains(&"analyze"));
+    assert!(tool_names.contains(&"quickfix"));
+    assert!(tool_names.contains(&"ask"));
+    assert!(tool_names.contains(&"intent"));
+    assert!(tool_names.contains(&"train"));
+    assert!(tool_names.contains(&"reset-telemetry"));
+    assert!(tool_names.contains(&"janitor"));
+    assert!(tool_names.contains(&"janitor-fix"));
+    assert!(tool_names.contains(&"architect"));
+    assert!(tool_names.contains(&"oracle"));
+    assert!(tool_names.contains(&"similar"));
 
     // ── 3. check_command "ls" → ALLOWED ──
     let check_ls = &responses[2];
