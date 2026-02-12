@@ -43,8 +43,10 @@ pub(super) fn tool_scan_security(
     }
 
     // Code pattern scan (SQL injection, XSS, command injection, path traversal)
-    if mode == "all" || mode == "patterns" {
-        let scanner = CodePatternScanner::new();
+    let patterns_enabled = ctx.dna().security_patterns.enabled;
+    if (mode == "all" || mode == "patterns") && patterns_enabled {
+        let dna_categories = &ctx.dna().security_patterns.categories;
+        let scanner = CodePatternScanner::from_categories(dna_categories);
         let report = scanner.scan(content);
 
         if report.findings.is_empty() {

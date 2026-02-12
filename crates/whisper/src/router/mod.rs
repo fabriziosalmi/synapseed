@@ -395,6 +395,17 @@ fn build_smart_context(
                 "- **History** ({}): {} commit(s), hotspot {:.1}, risk: {}",
                 hist.file, hist.total_commits, hist.hotspot_score, hist.risk
             ));
+            if hist.rigidity > 0.5 {
+                let effort = if hist.convergence_rate > 0.0 {
+                    format!("{:.1}x", 1.0 / hist.convergence_rate)
+                } else {
+                    "high".to_string()
+                };
+                parts.push(format!(
+                    "- **High Rigidity** ({}): {:.0}% — changes historically require ~{} the normal effort",
+                    hist.file, hist.rigidity * 100.0, effort
+                ));
+            }
             section_count += 1;
         }
     }

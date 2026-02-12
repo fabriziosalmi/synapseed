@@ -185,6 +185,10 @@ function buildCytoscapeStyles() {
     { selector: '.physics-rigid', style: { 'border-color': '#f0883e', 'border-width': 8, 'border-style': 'double' } },
     { selector: '.physics-gaseous', style: { 'opacity': 0.4, 'border-style': 'dashed', 'border-color': '#484f58' } },
     { selector: '.physics-fluid', style: { 'border-color': '#58a6ff', 'border-width': 3 } },
+    // ── Rigidity levels (from Chronos git history) ──
+    { selector: '.rigidity-high', style: { 'border-width': 8, 'border-color': '#f85149', 'border-style': 'double' } },
+    { selector: '.rigidity-medium', style: { 'border-width': 4, 'border-color': '#d29922' } },
+    { selector: '.rigidity-low', style: { 'border-width': 2 } },
     // ── Selected ──
     { selector: ':selected', style: { 'border-color': '#58a6ff', 'border-width': 4 } },
   ];

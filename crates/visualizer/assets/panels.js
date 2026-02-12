@@ -62,6 +62,11 @@ function showFilePanel(node) {
       <div class="panel-label">HEAT</div>
       <div class="panel-value ${d.heatLevel === 'hot' ? 'orange' : 'green'}">${esc(d.heatLevel)} (${d.heatMs.toFixed(1)}ms avg)</div>
     </div>` : ''}
+    ${d.rigidity > 0 ? `
+    <div class="panel-section">
+      <div class="panel-label">PHYSICS</div>
+      <div class="panel-value ${d.rigidity > 0.5 ? 'orange' : ''}">${(d.rigidity * 100).toFixed(0)}% rigidity — ${d.rigidity > 0.5 ? 'Hard to change' : d.rigidity > 0.2 ? 'Normal resistance' : 'Easy to change'}</div>
+    </div>` : ''}
   `;
 
   panel.classList.add('visible');

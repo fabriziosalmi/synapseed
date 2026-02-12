@@ -323,7 +323,7 @@ impl Historian {
                 // Temporal decay: older hotspots cool down.
                 let now_epoch = chrono::Utc::now().timestamp();
                 let days_since_newest = ((now_epoch - newest_epoch) as f64 / 86400.0).max(0.0);
-                let lambda = 0.01; // half-life ≈ 69 days
+                let lambda = 0.05; // half-life ≈ 14 days
                 raw_score * (-lambda * days_since_newest).exp()
             } else {
                 total as f64 // 0 or 1

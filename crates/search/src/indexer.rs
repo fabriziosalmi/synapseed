@@ -56,7 +56,7 @@ impl SemanticIndex {
             fields,
             reader,
             writer: Arc::new(std::sync::Mutex::new(writer)),
-            temporal_decay_lambda: 0.01,
+            temporal_decay_lambda: 0.05,
         })
     }
 
@@ -111,14 +111,14 @@ impl SemanticIndex {
             fields,
             reader,
             writer: Arc::new(std::sync::Mutex::new(writer)),
-            temporal_decay_lambda: 0.01,
+            temporal_decay_lambda: 0.05,
         })
     }
 
     /// Set the temporal decay parameter λ for search ranking.
     ///
     /// Higher values penalize older results more aggressively.
-    /// Default: 0.01 (half-life ≈ 69 days).
+    /// Default: 0.05 (half-life ≈ 14 days).
     pub fn set_temporal_decay(&mut self, lambda: f64) {
         self.temporal_decay_lambda = lambda;
     }

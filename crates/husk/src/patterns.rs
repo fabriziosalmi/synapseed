@@ -91,6 +91,28 @@ impl CodePatternScanner {
         }
     }
 
+    /// Create a scanner filtered by active categories.
+    /// Empty `categories` = all active (same as `new()`).
+    pub fn from_categories(categories: &[String]) -> Self {
+        if categories.is_empty() {
+            return Self::new();
+        }
+        let mut scanner = Self::new();
+        if !categories.iter().any(|c| c == "sql_injection") {
+            scanner.sql_patterns.clear();
+        }
+        if !categories.iter().any(|c| c == "xss") {
+            scanner.xss_patterns.clear();
+        }
+        if !categories.iter().any(|c| c == "command_injection") {
+            scanner.cmd_patterns.clear();
+        }
+        if !categories.iter().any(|c| c == "path_traversal") {
+            scanner.path_patterns.clear();
+        }
+        scanner
+    }
+
     /// Scan source code for security anti-patterns.
     pub fn scan(&self, content: &str) -> CodePatternReport {
         let lines: Vec<&str> = content.lines().collect();

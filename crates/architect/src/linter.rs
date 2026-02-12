@@ -156,7 +156,7 @@ pub(crate) fn detect_cycles(dep_graph: &DependencyGraph) -> Vec<Violation> {
                 severity: ViolationSeverity::Error,
                 modules: module_names.clone(),
                 suggestion: format!(
-                    "Break the loop: extract the shared types that {} and {} both need \
+                    "Action: Break the loop — extract the shared types that {} and {} both need \
                      into a new module, or use a trait (dependency inversion) so one side \
                      depends on an abstraction instead of the concrete implementation.",
                     module_names.first().unwrap_or(&String::new()),
@@ -207,7 +207,7 @@ pub(crate) fn detect_god_objects(
                     severity: ViolationSeverity::Warning,
                     modules: vec![m.module_name.clone()],
                     suggestion: format!(
-                        "Split {} into smaller, focused modules — each doing ONE thing well. \
+                        "Action: Split {} into smaller, focused modules — each doing ONE thing well. \
                          Look for logical clusters of functions and extract them.",
                         m.module_name
                     ),
@@ -275,7 +275,7 @@ pub(crate) fn detect_layer_violations(
                     severity: ViolationSeverity::Error,
                     modules: vec![source.clone(), target.clone()],
                     suggestion: format!(
-                        "Either move the needed logic down to {src_layer}, \
+                        "Action: Move the needed logic down to {src_layer}, \
                          or define a trait in {src_layer} that {tgt_layer} implements — \
                          so the dependency arrow points downward, not upward."
                     ),
@@ -313,7 +313,7 @@ pub(crate) fn detect_density_anomaly(
             ),
             severity: ViolationSeverity::Warning,
             modules: vec![],
-            suggestion: "Introduce facade modules as chokepoints: group related modules \
+            suggestion: "Action: Introduce facade modules as chokepoints — group related modules \
                          behind a single public API, reducing cross-dependencies. \
                          Think \"firewall between neighborhoods\"."
                 .to_string(),
@@ -331,7 +331,7 @@ pub(crate) fn detect_density_anomaly(
             ),
             severity: ViolationSeverity::Warning,
             modules: vec![],
-            suggestion: "Look for repeated patterns across modules and extract shared \
+            suggestion: "Action: Look for repeated patterns across modules and extract shared \
                          abstractions. If modules truly have nothing in common, \
                          consider whether they belong in the same project."
                 .to_string(),

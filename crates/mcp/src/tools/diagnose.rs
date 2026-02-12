@@ -36,6 +36,24 @@ pub(super) fn tool_project_diagnose(ctx: &SynapseContext) -> ToolCallResult {
         metrics.files_indexed, metrics.symbols_found, metrics.dlp_blocks, metrics.events_broadcast,
     ));
 
+    // Consistency Oracle
+    let consistency = synapseed_core::oracle::check_consistency(&root);
+    let passed = consistency.total_checks - consistency.inconsistencies.len();
+    report.push_str(&format!(
+        "\n--- Consistency ---\n{} passed, {} failed (score: {:.0}%)\n",
+        passed,
+        consistency.inconsistencies.len(),
+        consistency.score * 100.0,
+    ));
+    for issue in &consistency.inconsistencies {
+        report.push_str(&format!(
+            "  {}: {} — {}\n",
+            issue.severity.to_uppercase(),
+            issue.description,
+            issue.suggestion,
+        ));
+    }
+
     text_result(report)
 }
 

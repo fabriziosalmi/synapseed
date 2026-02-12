@@ -45,7 +45,13 @@ function setupTooltips() {
     const d = e.target.data();
     const n = e.target.children().length;
     var extra = '';
-    if (d.instability != null) extra += '<div class="tt-kind">Instability: ' + d.instability.toFixed(2) + '</div>'; if (d.coupling > 0) extra += '<div class="tt-kind">Coupling: ' + d.coupling + ' (' + d.physicsClass + ')</div>'; if (d.inCycle) extra += '<div class="tt-kind" style="color:#f85149">In dependency cycle</div>';
+    if (d.instability != null) extra += '<div class="tt-kind">Instability: ' + d.instability.toFixed(2) + '</div>';
+    if (d.coupling > 0) extra += '<div class="tt-kind">Coupling: ' + d.coupling + ' (' + esc(d.physicsClass) + ')</div>';
+    if (d.rigidity > 0) {
+      var label = d.rigidity > 0.5 ? 'Hard to change' : d.rigidity > 0.2 ? 'Normal' : 'Easy to change';
+      extra += '<div class="tt-kind">Rigidity: ' + (d.rigidity * 100).toFixed(0) + '% — ' + esc(label) + '</div>';
+    }
+    if (d.inCycle) extra += '<div class="tt-kind" style="color:#f85149">In dependency cycle</div>';
     showTooltip(e, `
       <div class="tt-name">${esc(d.label)}</div>
       <div class="tt-kind">${esc(d.language || 'unknown')} — ${n} symbol${n !== 1 ? 's' : ''}</div>
@@ -130,6 +136,17 @@ function applyPhysics() {
     if (pc === 'rigid') node.addClass('physics-rigid');
     else if (pc === 'gaseous') node.addClass('physics-gaseous');
     else if (pc === 'fluid') node.addClass('physics-fluid');
+  });
+}
+
+function applyRigidity() {
+  if (!__cy) return;
+  __cy.nodes('[type="file"]').forEach(function (node) {
+    var r = node.data('rigidity') || 0;
+    node.removeClass('rigidity-high rigidity-medium rigidity-low');
+    if (r > 0.5) node.addClass('rigidity-high');
+    else if (r > 0.2) node.addClass('rigidity-medium');
+    else if (r > 0) node.addClass('rigidity-low');
   });
 }
 

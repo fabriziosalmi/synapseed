@@ -13,6 +13,7 @@ use serde_json::json;
 use tracing::{debug, info, warn};
 
 use synapseed_architect::ReportStore;
+use synapseed_chronos::historian::Historian;
 use synapseed_core::context::SynapseContext;
 use synapseed_core::symbol::SymbolKind;
 use synapseed_cortex::graph::CodeGraph;
@@ -157,9 +158,29 @@ async fn api_graph(State(state): State<AppState>) -> impl IntoResponse {
     let shared_graph = ctx.get_extension::<CodeGraph>();
 
     let graph_result = tokio::task::spawn_blocking(move || {
+        // Build per-file rigidity map from git history (best-effort)
+        let rigidity_map: std::collections::HashMap<String, f64> =
+            if let Ok(historian) = Historian::open(&root) {
+                let files: Vec<String> = shared_graph
+                    .as_ref()
+                    .map(|g| g.all_files().iter().map(|f| f.path.clone()).collect())
+                    .unwrap_or_default();
+                files
+                    .iter()
+                    .filter_map(|f| {
+                        historian
+                            .analyze_history(f, None, None)
+                            .ok()
+                            .map(|a| (f.clone(), a.rigidity))
+                    })
+                    .collect()
+            } else {
+                std::collections::HashMap::new()
+            };
+
         if let Some(ref graph) = shared_graph {
             if graph.file_count() > 0 {
-                return Ok(build_cytoscape_data(graph, &hotspot_map, architect_report.as_ref()));
+                return Ok(build_cytoscape_data(graph, &hotspot_map, architect_report.as_ref(), &rigidity_map));
             }
         }
         // Fallback: build ephemeral graph
@@ -167,7 +188,7 @@ async fn api_graph(State(state): State<AppState>) -> impl IntoResponse {
         if let Err(e) = graph.index_directory(&root) {
             return Err(format!("Index error: {e}"));
         }
-        Ok(build_cytoscape_data(&graph, &hotspot_map, architect_report.as_ref()))
+        Ok(build_cytoscape_data(&graph, &hotspot_map, architect_report.as_ref(), &rigidity_map))
     })
     .await;
 
@@ -190,10 +211,12 @@ async fn api_graph(State(state): State<AppState>) -> impl IntoResponse {
 /// Convert the CodeGraph into Cytoscape.js elements format.
 /// `hotspot_map` maps "file:symbol" keys to average duration in ms.
 /// `architect_report` adds dependency edges and cycle annotations when available.
+/// `rigidity_map` maps file paths to historical modification rigidity (0.0–1.0).
 fn build_cytoscape_data(
     graph: &CodeGraph,
     hotspot_map: &std::collections::HashMap<String, f64>,
     architect_report: Option<&synapseed_architect::ArchitectureReport>,
+    rigidity_map: &std::collections::HashMap<String, f64>,
 ) -> serde_json::Value {
     let mut nodes = Vec::new();
     let mut edges = Vec::new();
@@ -277,6 +300,9 @@ fn build_cytoscape_data(
         let total_coupling = coupling.map(|(ce, ca)| ce + ca).unwrap_or(0);
         let physics_class = physics_level(total_coupling, instability.unwrap_or(0.5));
 
+        // Per-file rigidity from Chronos git history (0.0 = easy, 1.0 = rigid)
+        let rigidity = rigidity_map.get(&file.path).copied().unwrap_or(0.0);
+
         // File node (compound parent)
         let mut file_data = json!({
             "id": file_id,
@@ -290,6 +316,7 @@ fn build_cytoscape_data(
             "instability": instability,
             "coupling": total_coupling,
             "physicsClass": physics_class,
+            "rigidity": rigidity,
         });
 
         // Group unknown-language files under a "Unrecognized" compound node

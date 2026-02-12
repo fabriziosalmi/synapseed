@@ -25,7 +25,7 @@ export default withMermaid(defineConfig({
       { text: 'Features', link: '/features/cortex' },
       { text: 'Reference', link: '/reference/cli' },
       {
-        text: 'v1.0.0',
+        text: 'v2.2.0',
         items: [
           { text: 'Changelog', link: 'https://github.com/fabriziosalmi/synapseed/releases' },
           { text: 'Contributing', link: 'https://github.com/fabriziosalmi/synapseed' },

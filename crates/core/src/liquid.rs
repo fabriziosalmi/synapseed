@@ -56,6 +56,10 @@ pub struct ProjectDna {
     /// HCI (Human-Computer Interaction) configuration.
     #[serde(default)]
     pub hci: HciConfig,
+
+    /// Code security pattern scanning configuration.
+    #[serde(default)]
+    pub security_patterns: SecurityPatternsConfig,
 }
 
 /// Search index configuration.
@@ -142,6 +146,28 @@ impl Default for HciConfig {
     }
 }
 
+/// Code security pattern scanning configuration.
+/// Controls which vulnerability categories are checked by the `scan_security` tool.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityPatternsConfig {
+    /// Enable code pattern scanning (default: true).
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Active categories: "sql_injection", "xss", "command_injection", "path_traversal".
+    /// Empty = all categories active (default).
+    #[serde(default)]
+    pub categories: Vec<String>,
+}
+
+impl Default for SecurityPatternsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            categories: Vec::new(), // empty = all active
+        }
+    }
+}
+
 fn default_true() -> bool {
     true
 }
@@ -224,6 +250,7 @@ impl Default for ProjectDna {
             visualizer_port: None,
             architect: ArchitectConfig::default(),
             hci: HciConfig::default(),
+            security_patterns: SecurityPatternsConfig::default(),
         }
     }
 }
@@ -348,6 +375,13 @@ impl ProjectDna {
         }
         if other.hci.memory_ceiling_files.is_some() {
             self.hci.memory_ceiling_files = other.hci.memory_ceiling_files;
+        }
+        // Security patterns: override if explicitly disabled or categories provided
+        if !other.security_patterns.enabled {
+            self.security_patterns.enabled = false;
+        }
+        if !other.security_patterns.categories.is_empty() {
+            self.security_patterns.categories = other.security_patterns.categories;
         }
     }
 }

@@ -9,6 +9,7 @@ description = "Live architecture visualization — interactive code graph dashbo
 synapseed-core = { workspace = true }
 synapseed-cortex = { workspace = true }
 synapseed-architect = { workspace = true }
+synapseed-chronos = { workspace = true }
 synapseed-telemetry-sink = { workspace = true }
 axum = { workspace = true }
 rust-embed = { workspace = true }
