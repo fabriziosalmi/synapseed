@@ -157,7 +157,7 @@ graph LR
 | `synapseed-gym` | RL sandbox — safe code evaluation with compilation + test feedback |
 | `synapseed-janitor` | Autonomous maintenance — clippy + unused deps, validated proposals |
 | `synapseed-architect` | Dependency graph, coupling metrics, cycle detection, scoring (A-F) |
-| `synapseed-mcp` | MCP protocol handler — 19 tools, 8 resources, 6 prompts |
+| `synapseed-mcp` | MCP protocol handler — 19 tools, 9 resources, 6 prompts |
 
 ---
 
