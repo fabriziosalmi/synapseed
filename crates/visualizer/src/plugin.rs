@@ -67,7 +67,10 @@ impl SynapsePlugin for VisualizerPlugin {
         // 2. Start file watcher on a background thread
         start_file_watcher(&root, ctx.clone());
 
-        info!(port = port, "Visualizer: Dashboard at http://localhost:{port}");
+        info!(
+            port = port,
+            "Visualizer: Dashboard at http://localhost:{port}"
+        );
         Ok(())
     }
 

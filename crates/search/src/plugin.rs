@@ -117,8 +117,7 @@ impl SynapsePlugin for SearchPlugin {
                                     if let Ok(file_structure) =
                                         parser.parse_file(file_path, &source)
                                     {
-                                        let count =
-                                            index.reindex_file(&file_structure, &root);
+                                        let count = index.reindex_file(&file_structure, &root);
                                         debug!(
                                             file = path,
                                             symbols = count,

@@ -15,10 +15,7 @@ pub enum SynapseEvent {
         state: ProjectState,
     },
     /// A file was modified (or created)
-    FileChanged {
-        path: String,
-        kind: FileChangeKind,
-    },
+    FileChanged { path: String, kind: FileChangeKind },
     /// A symbol was resolved by the cortex
     SymbolResolved {
         name: String,
@@ -32,14 +29,9 @@ pub enum SynapseEvent {
         context: String,
     },
     /// A command was evaluated by the sentinel
-    CommandEvaluated {
-        command: String,
-        allowed: bool,
-    },
+    CommandEvaluated { command: String, allowed: bool },
     /// User requested a scaffold/bootstrap
-    ScaffoldRequested {
-        template: String,
-    },
+    ScaffoldRequested { template: String },
     /// Git state changed (new commit, branch switch, etc.)
     GitStateChanged {
         head: String,

@@ -106,10 +106,7 @@ pub fn get_prompt(name: &str, args: &serde_json::Value) -> Option<Vec<PromptMess
 }
 
 fn prompt_describe_architecture(args: &serde_json::Value) -> Vec<PromptMessage> {
-    let path = args
-        .get("path")
-        .and_then(|v| v.as_str())
-        .unwrap_or(".");
+    let path = args.get("path").and_then(|v| v.as_str()).unwrap_or(".");
     let depth = args
         .get("depth")
         .and_then(|v| v.as_str())
@@ -170,10 +167,7 @@ Produce a detailed architectural overview:
 }
 
 fn prompt_visualize_architecture(args: &serde_json::Value) -> Vec<PromptMessage> {
-    let focus = args
-        .get("focus")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let focus = args.get("focus").and_then(|v| v.as_str()).unwrap_or("");
 
     let focus_instruction = if focus.is_empty() {
         String::new()
@@ -259,10 +253,7 @@ fn prompt_explain_evolution(args: &serde_json::Value) -> Vec<PromptMessage> {
         .get("start_line")
         .and_then(|v| v.as_str())
         .unwrap_or("");
-    let end_line = args
-        .get("end_line")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let end_line = args.get("end_line").and_then(|v| v.as_str()).unwrap_or("");
 
     let line_range_instruction = if !start_line.is_empty() && !end_line.is_empty() {
         format!(

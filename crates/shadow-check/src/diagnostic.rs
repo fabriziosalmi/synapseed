@@ -141,11 +141,7 @@ pub(crate) fn parse_cargo_line(line: &str) -> Vec<Diagnostic> {
     for child in &compiler_msg.children {
         for span in &child.spans {
             if let Some(ref replacement) = span.suggested_replacement {
-                let applicability = match span
-                    .suggestion_applicability
-                    .as_deref()
-                    .unwrap_or("")
-                {
+                let applicability = match span.suggestion_applicability.as_deref().unwrap_or("") {
                     "MachineApplicable" => Applicability::MachineApplicable,
                     "MaybeIncorrect" => Applicability::MaybeIncorrect,
                     "HasPlaceholders" => Applicability::HasPlaceholders,

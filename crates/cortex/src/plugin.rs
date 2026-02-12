@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use synapseed_core::context::SynapseContext;
 use synapseed_core::error::Result;
-use synapseed_core::event::{SynapseEvent, FileChangeKind};
+use synapseed_core::event::{FileChangeKind, SynapseEvent};
 use synapseed_core::plugin::SynapsePlugin;
 use tracing::info;
 
@@ -76,12 +76,9 @@ impl SynapsePlugin for CortexPlugin {
                 } => {
                     let file_path = std::path::Path::new(path);
                     if std::fs::read_to_string(file_path).is_ok() {
-                        let symbols = self.graph.lookup(
-                            file_path
-                                .file_stem()
-                                .and_then(|s| s.to_str())
-                                .unwrap_or(""),
-                        );
+                        let symbols = self
+                            .graph
+                            .lookup(file_path.file_stem().and_then(|s| s.to_str()).unwrap_or(""));
                         if !symbols.is_empty() {
                             info!(
                                 file = %path,

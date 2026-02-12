@@ -34,24 +34,20 @@ pub fn build_schema() -> (Schema, SearchFields) {
     let file_path = builder.add_text_field("file_path", STRING | STORED);
 
     // symbol_name: heavily indexed for name matching
-    let name_opts = TextOptions::default()
-        .set_stored()
-        .set_indexing_options(
-            TextFieldIndexing::default()
-                .set_tokenizer("en_stem")
-                .set_index_option(IndexRecordOption::WithFreqsAndPositions),
-        );
+    let name_opts = TextOptions::default().set_stored().set_indexing_options(
+        TextFieldIndexing::default()
+            .set_tokenizer("en_stem")
+            .set_index_option(IndexRecordOption::WithFreqsAndPositions),
+    );
     let symbol_name = builder.add_text_field("symbol_name", name_opts);
 
     let kind = builder.add_text_field("kind", STRING | STORED);
 
-    let sig_opts = TextOptions::default()
-        .set_stored()
-        .set_indexing_options(
-            TextFieldIndexing::default()
-                .set_tokenizer("en_stem")
-                .set_index_option(IndexRecordOption::WithFreqsAndPositions),
-        );
+    let sig_opts = TextOptions::default().set_stored().set_indexing_options(
+        TextFieldIndexing::default()
+            .set_tokenizer("en_stem")
+            .set_index_option(IndexRecordOption::WithFreqsAndPositions),
+    );
     let signature = builder.add_text_field("signature", sig_opts);
 
     // doc_comment: indexed for semantic search, not stored (saves space)
@@ -62,13 +58,11 @@ pub fn build_schema() -> (Schema, SearchFields) {
     );
     let doc_comment = builder.add_text_field("doc_comment", doc_opts);
 
-    let body_opts = TextOptions::default()
-        .set_stored()
-        .set_indexing_options(
-            TextFieldIndexing::default()
-                .set_tokenizer("en_stem")
-                .set_index_option(IndexRecordOption::WithFreqs),
-        );
+    let body_opts = TextOptions::default().set_stored().set_indexing_options(
+        TextFieldIndexing::default()
+            .set_tokenizer("en_stem")
+            .set_index_option(IndexRecordOption::WithFreqs),
+    );
     let body_snippet = builder.add_text_field("body_snippet", body_opts);
 
     let line_start = builder.add_u64_field("line_start", FAST | STORED);

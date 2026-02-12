@@ -100,7 +100,10 @@ impl DlpScanner {
         if let Some(ref matcher) = self.static_matcher {
             for mat in matcher.find_iter(content) {
                 findings.push(Finding {
-                    rule_name: format!("static_term:{}", &self.static_terms[mat.pattern().as_usize()]),
+                    rule_name: format!(
+                        "static_term:{}",
+                        &self.static_terms[mat.pattern().as_usize()]
+                    ),
                     start: mat.start(),
                     end: mat.end(),
                     matched_text: content[mat.start()..mat.end()].to_string(),

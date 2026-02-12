@@ -28,24 +28,24 @@ impl AstParser {
 
     /// Parse a file and extract its structural skeleton (symbols only, no bodies).
     pub fn parse_file(&mut self, path: &Path, source: &str) -> Result<FileStructure> {
-        let ext = path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("");
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
         let lang = Language::from_extension(ext).ok_or_else(|| SynapseedError::Parse {
             file: path.display().to_string(),
             reason: format!("Unsupported file extension: .{ext}"),
         })?;
 
-        let parser = self.parsers.get_mut(&lang).ok_or_else(|| {
-            SynapseedError::Internal(format!("No parser for {lang}"))
-        })?;
+        let parser = self
+            .parsers
+            .get_mut(&lang)
+            .ok_or_else(|| SynapseedError::Internal(format!("No parser for {lang}")))?;
 
-        let tree = parser.parse(source, None).ok_or_else(|| SynapseedError::Parse {
-            file: path.display().to_string(),
-            reason: "Tree-sitter parse returned None".into(),
-        })?;
+        let tree = parser
+            .parse(source, None)
+            .ok_or_else(|| SynapseedError::Parse {
+                file: path.display().to_string(),
+                reason: "Tree-sitter parse returned None".into(),
+            })?;
 
         let mut symbols = Vec::new();
         Self::extract_symbols(tree.root_node(), source, &mut symbols, lang);

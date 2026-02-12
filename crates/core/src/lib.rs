@@ -14,12 +14,12 @@
 //! - `telemetry` — Structured logging and metrics setup
 //! - `event` — Domain events for plugin communication
 
-pub mod symbol;
-pub mod error;
-pub mod policy;
-pub mod plugin;
 pub mod context;
-pub mod liquid;
-pub mod state;
-pub mod telemetry;
+pub mod error;
 pub mod event;
+pub mod liquid;
+pub mod plugin;
+pub mod policy;
+pub mod state;
+pub mod symbol;
+pub mod telemetry;

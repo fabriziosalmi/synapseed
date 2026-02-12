@@ -34,8 +34,7 @@ impl CodeGraph {
         // Fill in file_path for all symbols and build the index
         for (i, sym) in structure.symbols.iter_mut().enumerate() {
             sym.file_path = path.display().to_string();
-            self.symbol_index
-                .insert(sym.id, (path.to_path_buf(), i));
+            self.symbol_index.insert(sym.id, (path.to_path_buf(), i));
         }
 
         self.files.insert(path.to_path_buf(), structure);
@@ -79,7 +78,10 @@ impl CodeGraph {
 
     /// Get all indexed files with their symbol structures.
     pub fn all_files(&self) -> Vec<FileStructure> {
-        self.files.iter().map(|entry| entry.value().clone()).collect()
+        self.files
+            .iter()
+            .map(|entry| entry.value().clone())
+            .collect()
     }
 
     /// Index all supported files in a directory tree.

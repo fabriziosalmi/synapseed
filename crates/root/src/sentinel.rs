@@ -103,7 +103,10 @@ impl Sentinel {
                         return Ok(PolicyAction::Allow);
                     }
                     PolicyAction::Audit => {
-                        warn!(command = trimmed, "Sentinel AUDIT: command permitted but logged");
+                        warn!(
+                            command = trimmed,
+                            "Sentinel AUDIT: command permitted but logged"
+                        );
                         return Ok(PolicyAction::Audit);
                     }
                     PolicyAction::Redact => {
@@ -115,12 +118,18 @@ impl Sentinel {
 
         // No rule matched
         if self.fail_closed {
-            warn!(command = trimmed, "Sentinel: no matching rule, DENYING (fail-closed)");
+            warn!(
+                command = trimmed,
+                "Sentinel: no matching rule, DENYING (fail-closed)"
+            );
             Err(SynapseedError::PolicyDenied {
                 command: trimmed.to_string(),
             })
         } else {
-            info!(command = trimmed, "Sentinel: no matching rule, allowing (fail-open)");
+            info!(
+                command = trimmed,
+                "Sentinel: no matching rule, allowing (fail-open)"
+            );
             Ok(PolicyAction::Allow)
         }
     }

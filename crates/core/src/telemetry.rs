@@ -4,10 +4,7 @@ use tracing_subscriber::EnvFilter;
 
 /// Check if self-telemetry is enabled via `SYNAPSEED_SELF_TELEMETRY=1`.
 fn self_telemetry_enabled() -> bool {
-    std::env::var("SYNAPSEED_SELF_TELEMETRY")
-        .ok()
-        .as_deref()
-        == Some("1")
+    std::env::var("SYNAPSEED_SELF_TELEMETRY").ok().as_deref() == Some("1")
 }
 
 /// Build the optional OTLP tracing layer for self-instrumentation.
@@ -19,7 +16,10 @@ fn self_telemetry_enabled() -> bool {
 /// Returns None if disabled or if setup fails (graceful degradation).
 fn build_otel_layer<S>() -> Option<Box<dyn tracing_subscriber::Layer<S> + Send + Sync + 'static>>
 where
-    S: tracing::Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span> + Send + Sync,
+    S: tracing::Subscriber
+        + for<'span> tracing_subscriber::registry::LookupSpan<'span>
+        + Send
+        + Sync,
 {
     if !self_telemetry_enabled() {
         return None;

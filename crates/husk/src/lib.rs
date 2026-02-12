@@ -6,6 +6,6 @@
 //!
 //! Every byte leaving the process passes through the husk.
 
-pub mod scanner;
 pub mod guard;
 pub mod plugin;
+pub mod scanner;

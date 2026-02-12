@@ -84,16 +84,16 @@ async fn api_graph(State(state): State<AppState>) -> impl IntoResponse {
     let root = ctx.project_root();
 
     // Collect heatmap data from telemetry store (if available)
-    let hotspot_map: std::collections::HashMap<String, f64> =
-        ctx.get_extension::<SpanStore>()
-            .map(|store| {
-                store
-                    .hotspots()
-                    .into_iter()
-                    .map(|m| (m.key.clone(), m.avg_duration_ms))
-                    .collect()
-            })
-            .unwrap_or_default();
+    let hotspot_map: std::collections::HashMap<String, f64> = ctx
+        .get_extension::<SpanStore>()
+        .map(|store| {
+            store
+                .hotspots()
+                .into_iter()
+                .map(|m| (m.key.clone(), m.avg_duration_ms))
+                .collect()
+        })
+        .unwrap_or_default();
 
     // Try the shared CodeGraph from CortexPlugin (already indexed at startup).
     // Falls back to building an ephemeral graph if no shared graph is available.
@@ -232,10 +232,7 @@ fn heat_level(avg_ms: f64) -> &'static str {
 
 // ── WebSocket Handler ────────────────────────────────────────────
 
-async fn ws_upgrade(
-    ws: WebSocketUpgrade,
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+async fn ws_upgrade(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
     ws.on_upgrade(move |socket| handle_ws(socket, state))
 }
 

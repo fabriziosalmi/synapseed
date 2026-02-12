@@ -119,12 +119,10 @@ impl ProjectState {
     /// Generate a diagnostic string for LLM context injection.
     pub fn diagnostic(&self) -> String {
         match self {
-            Self::VirginRepo => {
-                "STATUS: UNINITIALIZED (Virgin Repository)\n\
+            Self::VirginRepo => "STATUS: UNINITIALIZED (Virgin Repository)\n\
                  DETECTED: No build system found.\n\
                  RECOMMENDED: Bootstrap project structure using `scaffold` command."
-                    .into()
-            }
+                .into(),
             Self::PartialSetup {
                 has_build_file,
                 has_src,
@@ -150,11 +148,9 @@ impl ProjectState {
                      READY: Full analysis available."
                 )
             }
-            Self::Unknown => {
-                "STATUS: UNKNOWN PROJECT TYPE\n\
+            Self::Unknown => "STATUS: UNKNOWN PROJECT TYPE\n\
                  RECOMMENDED: Manual configuration via synapseed.toml."
-                    .into()
-            }
+                .into(),
         }
     }
 }

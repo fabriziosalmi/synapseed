@@ -49,30 +49,30 @@ impl Historian {
     /// Open a repository at the given path.
     #[instrument(skip_all, fields(path = %root.display()))]
     pub fn open(root: &Path) -> Result<Self> {
-        let repo = Repository::discover(root).map_err(|e| {
-            SynapseedError::Internal(format!("Failed to open git repo: {e}"))
-        })?;
+        let repo = Repository::discover(root)
+            .map_err(|e| SynapseedError::Internal(format!("Failed to open git repo: {e}")))?;
         Ok(Self {
             repo: Mutex::new(repo),
         })
     }
 
     pub(crate) fn with_repo<T, F: FnOnce(&Repository) -> Result<T>>(&self, f: F) -> Result<T> {
-        let repo = self.repo.lock().map_err(|e| {
-            SynapseedError::Internal(format!("Repo mutex poisoned: {e}"))
-        })?;
+        let repo = self
+            .repo
+            .lock()
+            .map_err(|e| SynapseedError::Internal(format!("Repo mutex poisoned: {e}")))?;
         f(&repo)
     }
 
     /// Get the current HEAD commit ID.
     pub fn head_id(&self) -> Result<String> {
         self.with_repo(|repo| {
-            let head = repo.head().map_err(|e| {
-                SynapseedError::Internal(format!("Failed to read HEAD: {e}"))
-            })?;
-            let oid = head.target().ok_or_else(|| {
-                SynapseedError::Internal("HEAD has no target".into())
-            })?;
+            let head = repo
+                .head()
+                .map_err(|e| SynapseedError::Internal(format!("Failed to read HEAD: {e}")))?;
+            let oid = head
+                .target()
+                .ok_or_else(|| SynapseedError::Internal("HEAD has no target".into()))?;
             Ok(oid.to_string())
         })
     }
@@ -80,9 +80,9 @@ impl Historian {
     /// Get the current branch name.
     pub fn current_branch(&self) -> Option<String> {
         self.with_repo(|repo| {
-            let head = repo.head().map_err(|e| {
-                SynapseedError::Internal(format!("Failed to read HEAD: {e}"))
-            })?;
+            let head = repo
+                .head()
+                .map_err(|e| SynapseedError::Internal(format!("Failed to read HEAD: {e}")))?;
             Ok(head.shorthand().map(String::from))
         })
         .ok()
@@ -125,9 +125,9 @@ impl Historian {
     #[instrument(skip(self))]
     pub fn recent_commits(&self, limit: usize) -> Result<Vec<CommitInfo>> {
         self.with_repo(|repo| {
-            let mut revwalk = repo.revwalk().map_err(|e| {
-                SynapseedError::Internal(format!("Failed to walk commits: {e}"))
-            })?;
+            let mut revwalk = repo
+                .revwalk()
+                .map_err(|e| SynapseedError::Internal(format!("Failed to walk commits: {e}")))?;
             // Empty repos have no HEAD — return empty list instead of error
             if revwalk.push_head().is_err() {
                 return Ok(Vec::new());
@@ -136,12 +136,11 @@ impl Historian {
             let mut commits = Vec::new();
 
             for oid in revwalk.take(limit) {
-                let oid = oid.map_err(|e| {
-                    SynapseedError::Internal(format!("Revwalk error: {e}"))
-                })?;
-                let commit = repo.find_commit(oid).map_err(|e| {
-                    SynapseedError::Internal(format!("Failed to find commit: {e}"))
-                })?;
+                let oid =
+                    oid.map_err(|e| SynapseedError::Internal(format!("Revwalk error: {e}")))?;
+                let commit = repo
+                    .find_commit(oid)
+                    .map_err(|e| SynapseedError::Internal(format!("Failed to find commit: {e}")))?;
 
                 let author = commit.author();
                 let timestamp = chrono::DateTime::from_timestamp(commit.time().seconds(), 0)
@@ -220,9 +219,9 @@ impl Historian {
 
     fn count_commits(&self) -> Result<usize> {
         self.with_repo(|repo| {
-            let mut revwalk = repo.revwalk().map_err(|e| {
-                SynapseedError::Internal(format!("Failed to walk commits: {e}"))
-            })?;
+            let mut revwalk = repo
+                .revwalk()
+                .map_err(|e| SynapseedError::Internal(format!("Failed to walk commits: {e}")))?;
             if revwalk.push_head().is_err() {
                 return Ok(0);
             }

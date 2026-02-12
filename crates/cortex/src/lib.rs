@@ -6,7 +6,7 @@
 //!
 //! The cortex never exposes raw text lines — only structured symbols.
 
-pub mod parser;
 pub mod graph;
 pub mod language;
+pub mod parser;
 pub mod plugin;

@@ -6,6 +6,6 @@
 //!
 //! No command reaches the OS without passing through the sentinel.
 
-pub mod sentinel;
 pub mod executor;
 pub mod plugin;
+pub mod sentinel;

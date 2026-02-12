@@ -12,11 +12,7 @@ use std::process::{Command, Stdio};
 fn run_mcp_session(messages: &[&str]) -> Vec<serde_json::Value> {
     // Get the workspace root from CARGO_MANIFEST_DIR (bin/synapseed/) -> ../..
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let workspace_root = manifest_dir
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap();
+    let workspace_root = manifest_dir.parent().unwrap().parent().unwrap();
 
     let mut child = Command::new(env!("CARGO_BIN_EXE_synapseed"))
         .args(["serve", "--project", workspace_root.to_str().unwrap()])
@@ -48,7 +44,10 @@ fn run_mcp_session(messages: &[&str]) -> Vec<serde_json::Value> {
         .collect();
 
     let status = child.wait().expect("Failed to wait for child");
-    assert!(status.success(), "synapseed serve exited with error: {status}");
+    assert!(
+        status.success(),
+        "synapseed serve exited with error: {status}"
+    );
 
     responses
 }
@@ -114,10 +113,7 @@ fn test_mcp_full_lifecycle() {
     assert_eq!(tools.len(), 14, "Expected 14 tools, got {}", tools.len());
 
     // Verify all tool names are present
-    let tool_names: Vec<&str> = tools
-        .iter()
-        .map(|t| t["name"].as_str().unwrap())
-        .collect();
+    let tool_names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert!(tool_names.contains(&"get_code_skeleton"));
     assert!(tool_names.contains(&"lookup_symbol"));
     assert!(tool_names.contains(&"scan_security"));
@@ -178,13 +174,23 @@ fn test_mcp_full_lifecycle() {
     let res_list = &responses[6];
     assert_eq!(res_list["id"], 7);
     let resources = res_list["result"]["resources"].as_array().unwrap();
-    assert_eq!(resources.len(), 6, "Expected 6 resources, got {}", resources.len());
+    assert_eq!(
+        resources.len(),
+        6,
+        "Expected 6 resources, got {}",
+        resources.len()
+    );
 
     // ── 8. prompts/list — 4 prompts ──
     let prompts_list = &responses[7];
     assert_eq!(prompts_list["id"], 8);
     let prompts = prompts_list["result"]["prompts"].as_array().unwrap();
-    assert_eq!(prompts.len(), 6, "Expected 6 prompts, got {}", prompts.len());
+    assert_eq!(
+        prompts.len(),
+        6,
+        "Expected 6 prompts, got {}",
+        prompts.len()
+    );
 
     // ── 9. ping ──
     let ping = &responses[8];
@@ -209,8 +215,14 @@ fn test_mcp_dlp_detection() {
     let scan = &responses[1];
     assert_eq!(scan["id"], 2);
     let text = scan["result"]["content"][0]["text"].as_str().unwrap();
-    assert!(text.contains("ALERT"), "Expected ALERT for AWS key, got: {text}");
-    assert!(text.contains("REDACTED"), "Expected REDACTED in sanitized output, got: {text}");
+    assert!(
+        text.contains("ALERT"),
+        "Expected ALERT for AWS key, got: {text}"
+    );
+    assert!(
+        text.contains("REDACTED"),
+        "Expected REDACTED in sanitized output, got: {text}"
+    );
 }
 
 // ── Test: Error Handling — Unknown Tool ──────────────────────────────
@@ -258,21 +270,21 @@ fn test_mcp_unknown_method() {
 #[test]
 fn test_mcp_reject_before_init() {
     // Send tools/list WITHOUT initialize first
-    let responses = run_mcp_session(&[
-        r#"{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}"#,
-    ]);
+    let responses =
+        run_mcp_session(&[r#"{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}"#]);
 
     assert_eq!(responses.len(), 1);
     let err = &responses[0];
     assert_eq!(err["id"], 1);
-    assert!(err["error"].is_object(), "Expected error for pre-init request");
-    assert_eq!(err["error"]["code"], -32600); // INVALID_REQUEST
     assert!(
-        err["error"]["message"]
-            .as_str()
-            .unwrap()
-            .contains("not initialized"),
+        err["error"].is_object(),
+        "Expected error for pre-init request"
     );
+    assert_eq!(err["error"]["code"], -32600); // INVALID_REQUEST
+    assert!(err["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("not initialized"),);
 }
 
 // ── Test: Resource Read ──────────────────────────────────────────────
@@ -320,6 +332,9 @@ fn test_mcp_prompt_get() {
     assert_eq!(messages[0]["role"], "user");
 
     let text = messages[0]["content"]["text"].as_str().unwrap();
-    assert!(text.contains("scan_security"), "Prompt should reference scan_security tool");
+    assert!(
+        text.contains("scan_security"),
+        "Prompt should reference scan_security tool"
+    );
     assert!(text.contains("CLEAN"), "Prompt should mention risk levels");
 }

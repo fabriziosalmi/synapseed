@@ -18,10 +18,8 @@ use std::time::Duration;
 /// Create a temporary Cargo project with the broken login file + git repo.
 /// Returns the path to the temp directory.
 fn setup_broken_login_project() -> PathBuf {
-    let temp_dir = std::env::temp_dir().join(format!(
-        "synapseed-broken-login-{}",
-        std::process::id()
-    ));
+    let temp_dir =
+        std::env::temp_dir().join(format!("synapseed-broken-login-{}", std::process::id()));
 
     // Clean up any previous run
     let _ = std::fs::remove_dir_all(&temp_dir);
@@ -33,7 +31,11 @@ fn setup_broken_login_project() -> PathBuf {
         .current_dir(&temp_dir)
         .output()
         .expect("Failed to run cargo init");
-    assert!(output.status.success(), "cargo init failed: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "cargo init failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     // Write src/login.rs — syntax error + hardcoded password
     let login_rs = r#"pub fn login() {
@@ -41,8 +43,7 @@ fn setup_broken_login_project() -> PathBuf {
     let x = )
 }
 "#;
-    std::fs::write(temp_dir.join("src/login.rs"), login_rs)
-        .expect("Failed to write login.rs");
+    std::fs::write(temp_dir.join("src/login.rs"), login_rs).expect("Failed to write login.rs");
 
     // Update src/main.rs to include the login module
     let main_rs = r#"mod login;
@@ -51,8 +52,7 @@ fn main() {
     println!("Hello, world!");
 }
 "#;
-    std::fs::write(temp_dir.join("src/main.rs"), main_rs)
-        .expect("Failed to write main.rs");
+    std::fs::write(temp_dir.join("src/main.rs"), main_rs).expect("Failed to write main.rs");
 
     // Git init + configure + commit
     run_git(&temp_dir, &["init"]);

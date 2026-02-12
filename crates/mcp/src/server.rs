@@ -101,21 +101,16 @@ async fn handle_request(
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
-            let arguments = req
-                .params
-                .get("arguments")
-                .cloned()
-                .unwrap_or(json!({}));
+            let arguments = req.params.get("arguments").cloned().unwrap_or(json!({}));
 
             match tokio::task::spawn_blocking(move || {
                 tools::handle_tool_call(&name, &arguments, &ctx)
             })
             .await
             {
-                Ok(result) => JsonRpcResponse::success(
-                    id,
-                    serde_json::to_value(result).unwrap_or_default(),
-                ),
+                Ok(result) => {
+                    JsonRpcResponse::success(id, serde_json::to_value(result).unwrap_or_default())
+                }
                 Err(e) => {
                     error!(error = %e, "Tool task panicked");
                     JsonRpcResponse::error(
@@ -133,11 +128,7 @@ async fn handle_request(
             JsonRpcResponse::success(req.id.clone(), json!({ "resources": resources }))
         }
         "resources/read" => {
-            let uri = req
-                .params
-                .get("uri")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            let uri = req.params.get("uri").and_then(|v| v.as_str()).unwrap_or("");
             match resources::read_resource(uri, ctx) {
                 Some(content) => {
                     JsonRpcResponse::success(req.id.clone(), json!({ "contents": [content] }))
@@ -161,11 +152,7 @@ async fn handle_request(
                 .get("name")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
-            let arguments = req
-                .params
-                .get("arguments")
-                .cloned()
-                .unwrap_or(json!({}));
+            let arguments = req.params.get("arguments").cloned().unwrap_or(json!({}));
             match prompts::get_prompt(name, &arguments) {
                 Some(messages) => {
                     JsonRpcResponse::success(req.id.clone(), json!({ "messages": messages }))
@@ -193,11 +180,7 @@ async fn handle_request(
     }
 }
 
-fn handle_notification(
-    notif: &JsonRpcNotification,
-    _ctx: &SynapseContext,
-    initialized: &mut bool,
-) {
+fn handle_notification(notif: &JsonRpcNotification, _ctx: &SynapseContext, initialized: &mut bool) {
     info!(method = %notif.method, "MCP: Notification");
 
     match notif.method.as_str() {
@@ -286,7 +269,10 @@ fn build_instructions(ctx: &SynapseContext) -> String {
                 missing.join(", ")
             ));
         }
-        ProjectState::HealthyWorkspace { build_system, file_count } => {
+        ProjectState::HealthyWorkspace {
+            build_system,
+            file_count,
+        } => {
             instructions.push_str(&format!(
                 "✅ HEALTHY WORKSPACE — Build system: {build_system:?}, Files: {file_count}\n\n\
                  RECOMMENDED WORKFLOW:\n\

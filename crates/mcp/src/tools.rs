@@ -5,17 +5,17 @@
 use serde_json::json;
 use tracing::info;
 
+use synapseed_chronos::historian::Historian;
 use synapseed_core::context::SynapseContext;
+use synapseed_core::state::ProjectState;
 use synapseed_cortex::graph::CodeGraph;
 use synapseed_husk::guard::SecurityGuard;
 use synapseed_root::sentinel::Sentinel;
-use synapseed_chronos::historian::Historian;
-use synapseed_core::state::ProjectState;
 use synapseed_search::indexer::SemanticIndex;
 use synapseed_shadow_check::runner::DiagnosticStore;
 use synapseed_telemetry_sink::store::SpanStore;
 
-use crate::protocol::{ToolDefinition, ToolCallResult, ContentBlock};
+use crate::protocol::{ContentBlock, ToolCallResult, ToolDefinition};
 
 /// Return all available tool definitions.
 pub fn list_tools() -> Vec<ToolDefinition> {
@@ -388,7 +388,9 @@ fn tool_check_command(args: &serde_json::Value, ctx: &SynapseContext) -> ToolCal
 }
 
 /// Get the shared Historian from context, or open a fresh one as fallback.
-fn get_historian(ctx: &SynapseContext) -> std::result::Result<std::sync::Arc<Historian>, ToolCallResult> {
+fn get_historian(
+    ctx: &SynapseContext,
+) -> std::result::Result<std::sync::Arc<Historian>, ToolCallResult> {
     if let Some(h) = ctx.get_extension::<Historian>() {
         return Ok(h);
     }
@@ -477,7 +479,10 @@ fn tool_consult_architect(args: &serde_json::Value, ctx: &SynapseContext) -> Too
         .join("\n");
 
     let state_summary = match &state {
-        ProjectState::HealthyWorkspace { build_system, file_count } => {
+        ProjectState::HealthyWorkspace {
+            build_system,
+            file_count,
+        } => {
             format!("Healthy ({build_system:?}, {file_count} files)")
         }
         ProjectState::VirginRepo => "Virgin repository (no code yet)".into(),
@@ -513,9 +518,18 @@ fn tool_consult_architect(args: &serde_json::Value, ctx: &SynapseContext) -> Too
         dna.dlp_level,
         dna.plugins.join(", "),
         dna.workspace_strategy,
-        dna.preferred_libs.get("async").map(|s| s.as_str()).unwrap_or("tokio"),
-        dna.preferred_libs.get("error").map(|s| s.as_str()).unwrap_or("thiserror"),
-        dna.preferred_libs.get("json").map(|s| s.as_str()).unwrap_or("serde_json"),
+        dna.preferred_libs
+            .get("async")
+            .map(|s| s.as_str())
+            .unwrap_or("tokio"),
+        dna.preferred_libs
+            .get("error")
+            .map(|s| s.as_str())
+            .unwrap_or("thiserror"),
+        dna.preferred_libs
+            .get("json")
+            .map(|s| s.as_str())
+            .unwrap_or("serde_json"),
         dna.dlp_level,
     );
 
@@ -527,10 +541,7 @@ fn tool_semantic_search(args: &serde_json::Value, ctx: &SynapseContext) -> ToolC
         Some(q) => q,
         None => return error_result("Missing required parameter: query".into()),
     };
-    let limit = args
-        .get("limit")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(5) as usize;
+    let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
 
     // Try to use the persistent index from SearchPlugin
     let results = if let Some(index) = ctx.get_extension::<SemanticIndex>() {
@@ -568,8 +579,14 @@ fn tool_analyze_history(args: &serde_json::Value, ctx: &SynapseContext) -> ToolC
         Some(f) => f,
         None => return error_result("Missing required parameter: file".into()),
     };
-    let start_line = args.get("start_line").and_then(|v| v.as_u64()).map(|v| v as usize);
-    let end_line = args.get("end_line").and_then(|v| v.as_u64()).map(|v| v as usize);
+    let start_line = args
+        .get("start_line")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as usize);
+    let end_line = args
+        .get("end_line")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as usize);
 
     let historian = match get_historian(ctx) {
         Ok(h) => h,
@@ -664,10 +681,7 @@ fn tool_ask_whisperer(args: &serde_json::Value, ctx: &SynapseContext) -> ToolCal
 }
 
 fn tool_git_intent_summary(args: &serde_json::Value, ctx: &SynapseContext) -> ToolCallResult {
-    let limit = args
-        .get("limit")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(20) as usize;
+    let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(20) as usize;
 
     let historian = match get_historian(ctx) {
         Ok(h) => h,

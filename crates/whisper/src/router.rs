@@ -133,23 +133,52 @@ pub fn ask(query: &str, ctx: &SynapseContext) -> WhisperResult {
 // ── Intent Classification ──────────────────────────────────────────────
 
 const BUG_KEYWORDS: &[&str] = &[
-    "fix", "error", "broken", "bug", "crash", "fail", "wrong", "issue",
-    "rott", "compile", "panic", "cannot", "errore", "rotto", "problema",
+    "fix", "error", "broken", "bug", "crash", "fail", "wrong", "issue", "rott", "compile", "panic",
+    "cannot", "errore", "rotto", "problema",
 ];
 
 const SECURITY_KEYWORDS: &[&str] = &[
-    "security", "audit", "secret", "password", "vuln", "leak", "token",
-    "key", "cve", "xss", "injection", "sicurezza", "segreto",
+    "security",
+    "audit",
+    "secret",
+    "password",
+    "vuln",
+    "leak",
+    "token",
+    "key",
+    "cve",
+    "xss",
+    "injection",
+    "sicurezza",
+    "segreto",
 ];
 
 const EXPLAIN_KEYWORDS: &[&str] = &[
-    "explain", "what is", "how does", "why", "understand", "describe",
-    "what does", "cos'è", "perché", "come funziona", "spiega",
+    "explain",
+    "what is",
+    "how does",
+    "why",
+    "understand",
+    "describe",
+    "what does",
+    "cos'è",
+    "perché",
+    "come funziona",
+    "spiega",
 ];
 
 const REFACTOR_KEYWORDS: &[&str] = &[
-    "refactor", "clean", "improve", "optimize", "restructure",
-    "simplify", "extract", "rename", "move", "migliora", "pulisci",
+    "refactor",
+    "clean",
+    "improve",
+    "optimize",
+    "restructure",
+    "simplify",
+    "extract",
+    "rename",
+    "move",
+    "migliora",
+    "pulisci",
 ];
 
 fn classify_intent(query: &str) -> Intent {
@@ -157,9 +186,18 @@ fn classify_intent(query: &str) -> Intent {
 
     // Score each intent by keyword matches (first match wins for ties)
     let bug_score = BUG_KEYWORDS.iter().filter(|k| lower.contains(**k)).count();
-    let sec_score = SECURITY_KEYWORDS.iter().filter(|k| lower.contains(**k)).count();
-    let exp_score = EXPLAIN_KEYWORDS.iter().filter(|k| lower.contains(**k)).count();
-    let ref_score = REFACTOR_KEYWORDS.iter().filter(|k| lower.contains(**k)).count();
+    let sec_score = SECURITY_KEYWORDS
+        .iter()
+        .filter(|k| lower.contains(**k))
+        .count();
+    let exp_score = EXPLAIN_KEYWORDS
+        .iter()
+        .filter(|k| lower.contains(**k))
+        .count();
+    let ref_score = REFACTOR_KEYWORDS
+        .iter()
+        .filter(|k| lower.contains(**k))
+        .count();
 
     let max = bug_score.max(sec_score).max(exp_score).max(ref_score);
 
@@ -183,10 +221,9 @@ fn classify_intent(query: &str) -> Intent {
 
 /// Words to ignore when searching for symbols.
 const STOP_WORDS: &[&str] = &[
-    "the", "is", "a", "an", "in", "on", "at", "to", "for", "of", "and",
-    "or", "why", "how", "what", "fix", "broken", "error", "explain",
-    "security", "audit", "this", "that", "my", "code", "file", "it",
-    "perché", "come", "cosa", "dove", "il", "la", "un", "una",
+    "the", "is", "a", "an", "in", "on", "at", "to", "for", "of", "and", "or", "why", "how", "what",
+    "fix", "broken", "error", "explain", "security", "audit", "this", "that", "my", "code", "file",
+    "it", "perché", "come", "cosa", "dove", "il", "la", "un", "una",
 ];
 
 fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> {
@@ -195,7 +232,8 @@ fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> {
 
     // Pass 1: Explicit file references (contain extension)
     for word in &words {
-        let clean = word.trim_matches(|c: char| !c.is_alphanumeric() && c != '.' && c != '/' && c != '_');
+        let clean =
+            word.trim_matches(|c: char| !c.is_alphanumeric() && c != '.' && c != '/' && c != '_');
         if clean.contains('.')
             && (clean.ends_with(".rs")
                 || clean.ends_with(".py")
@@ -267,7 +305,10 @@ fn gather_diagnostics(
 
     let store = ctx.get_extension::<DiagnosticStore>()?;
 
-    let file_paths: Vec<&str> = targets.iter().filter_map(|t| t.file_path.as_deref()).collect();
+    let file_paths: Vec<&str> = targets
+        .iter()
+        .filter_map(|t| t.file_path.as_deref())
+        .collect();
 
     let diagnostics = if file_paths.is_empty() {
         store.snapshot().diagnostics
@@ -275,8 +316,14 @@ fn gather_diagnostics(
         file_paths.iter().flat_map(|f| store.for_file(f)).collect()
     };
 
-    let error_count = diagnostics.iter().filter(|d| d.level == DiagnosticLevel::Error).count();
-    let warning_count = diagnostics.iter().filter(|d| d.level == DiagnosticLevel::Warning).count();
+    let error_count = diagnostics
+        .iter()
+        .filter(|d| d.level == DiagnosticLevel::Error)
+        .count();
+    let warning_count = diagnostics
+        .iter()
+        .filter(|d| d.level == DiagnosticLevel::Warning)
+        .count();
 
     let items: Vec<serde_json::Value> = diagnostics
         .iter()
@@ -473,35 +520,74 @@ mod tests {
 
     #[test]
     fn test_classify_bug_fix() {
-        assert!(matches!(classify_intent("fix the broken login"), Intent::BugFix));
-        assert!(matches!(classify_intent("why is this error happening"), Intent::BugFix));
-        assert!(matches!(classify_intent("the code fails to compile"), Intent::BugFix));
+        assert!(matches!(
+            classify_intent("fix the broken login"),
+            Intent::BugFix
+        ));
+        assert!(matches!(
+            classify_intent("why is this error happening"),
+            Intent::BugFix
+        ));
+        assert!(matches!(
+            classify_intent("the code fails to compile"),
+            Intent::BugFix
+        ));
     }
 
     #[test]
     fn test_classify_security() {
-        assert!(matches!(classify_intent("run a security audit"), Intent::Security));
-        assert!(matches!(classify_intent("check for leaked secrets"), Intent::Security));
-        assert!(matches!(classify_intent("is there a password in the code"), Intent::Security));
+        assert!(matches!(
+            classify_intent("run a security audit"),
+            Intent::Security
+        ));
+        assert!(matches!(
+            classify_intent("check for leaked secrets"),
+            Intent::Security
+        ));
+        assert!(matches!(
+            classify_intent("is there a password in the code"),
+            Intent::Security
+        ));
     }
 
     #[test]
     fn test_classify_explain() {
-        assert!(matches!(classify_intent("explain the authentication flow"), Intent::Explain));
-        assert!(matches!(classify_intent("what is SynapseContext"), Intent::Explain));
-        assert!(matches!(classify_intent("how does the router work"), Intent::Explain));
+        assert!(matches!(
+            classify_intent("explain the authentication flow"),
+            Intent::Explain
+        ));
+        assert!(matches!(
+            classify_intent("what is SynapseContext"),
+            Intent::Explain
+        ));
+        assert!(matches!(
+            classify_intent("how does the router work"),
+            Intent::Explain
+        ));
     }
 
     #[test]
     fn test_classify_refactor() {
-        assert!(matches!(classify_intent("refactor the parser module"), Intent::Refactor));
-        assert!(matches!(classify_intent("optimize the search index"), Intent::Refactor));
+        assert!(matches!(
+            classify_intent("refactor the parser module"),
+            Intent::Refactor
+        ));
+        assert!(matches!(
+            classify_intent("optimize the search index"),
+            Intent::Refactor
+        ));
     }
 
     #[test]
     fn test_classify_general() {
-        assert!(matches!(classify_intent("list all modules"), Intent::General));
-        assert!(matches!(classify_intent("show me the project structure"), Intent::General));
+        assert!(matches!(
+            classify_intent("list all modules"),
+            Intent::General
+        ));
+        assert!(matches!(
+            classify_intent("show me the project structure"),
+            Intent::General
+        ));
     }
 
     #[test]
@@ -515,7 +601,13 @@ mod tests {
 
     #[test]
     fn test_classify_italian() {
-        assert!(matches!(classify_intent("perché la login è rotta"), Intent::BugFix));
-        assert!(matches!(classify_intent("spiega come funziona il router"), Intent::Explain));
+        assert!(matches!(
+            classify_intent("perché la login è rotta"),
+            Intent::BugFix
+        ));
+        assert!(matches!(
+            classify_intent("spiega come funziona il router"),
+            Intent::Explain
+        ));
     }
 }

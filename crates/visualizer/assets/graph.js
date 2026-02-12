@@ -161,20 +161,10 @@ function initCytoscape(elements) {
           }
         },
       ],
-      layout: {
-        name: 'cose',
-        animate: true,
-        animationDuration: 600,
-        nodeRepulsion: function() { return 10000; },
-        idealEdgeLength: function() { return 100; },
-        gravity: 0.25,
-        padding: 40,
-        nodeDimensionsIncludeLabels: true,
-        fit: true,
-      },
+      layout: { name: 'preset' },
       minZoom: 0.1,
-      maxZoom: 5,
-      wheelSensitivity: 0.3,
+      maxZoom: 5.0,
+      wheelSensitivity: 0.2,
     });
 
     // Apply individual symbol colors
@@ -243,10 +233,53 @@ function initCytoscape(elements) {
       }
     });
 
+    // ── Auto-resize handler ──
+    window.addEventListener('resize', function() {
+      if (__cy) {
+        __cy.resize();
+        __cy.fit(__cy.elements(), 50);
+      }
+    });
+
+    // Run the force-directed layout after all setup is done
+    runLayout();
+
   } catch (err) {
     console.error('Cytoscape init failed:', err);
     setStatus('Graph init failed: ' + err.message, true);
   }
+}
+
+// ── Run Layout ───────────────────────────────────────────
+
+function runLayout() {
+  if (!__cy) return;
+  var layout = __cy.layout({
+    name: 'cose',
+    animate: true,
+    animationDuration: 1000,
+    // Physics — aggressive containment
+    componentSpacing: 40,
+    nodeRepulsion: function() { return 2048; },
+    idealEdgeLength: function() { return 32; },
+    edgeElasticity: function() { return 32; },
+    nestingFactor: 1.2,
+    gravity: 1.5,
+    numIter: 1000,
+    initialTemp: 1000,
+    coolingFactor: 0.99,
+    minTemp: 1.0,
+    nodeDimensionsIncludeLabels: true,
+    // Viewport
+    fit: true,
+    padding: 50,
+    // Force fit + center when layout finishes
+    stop: function() {
+      __cy.fit(__cy.elements(), 50);
+      __cy.center();
+    }
+  });
+  layout.run();
 }
 
 // ── Tooltip Helper ────────────────────────────────────────
