@@ -37,6 +37,304 @@ function setStatus(text, isError) {
   el.textContent = text;
 }
 
+// ── Cytoscape Stylesheet ─────────────────────────────────────
+
+function buildCytoscapeStyles() {
+  return [
+    // ── Base node (all nodes inherit) ──
+    {
+      selector: 'node',
+      style: {
+        'label': 'data(label)',
+        'color': '#ffffff',
+        'text-valign': 'bottom',
+        'text-halign': 'center',
+        'text-margin-y': 6,
+        'font-size': '12px',
+        'font-family': 'SF Mono, Fira Code, JetBrains Mono, monospace',
+        'background-color': '#444',
+        'border-width': 2,
+        'border-color': '#555',
+        'overlay-padding': '6px',
+        'z-index': 10,
+        'transition-property': 'background-color, border-color, border-width, opacity',
+        'transition-duration': '0.3s',
+      }
+    },
+    // ── FILE nodes (compound parents) — large rounded rectangles ──
+    {
+      selector: 'node[type="file"]',
+      style: {
+        'shape': 'round-rectangle',
+        'width': 60,
+        'height': 60,
+        'background-color': '#0d1117',
+        'border-color': '#58a6ff',
+        'border-width': 3,
+        'font-size': '14px',
+        'font-weight': 'bold',
+        'text-valign': 'top',
+        'text-halign': 'center',
+        'text-margin-y': 10,
+        'text-background-opacity': 1,
+        'text-background-color': '#0d1117',
+        'text-background-padding': '4px',
+        'text-background-shape': 'round-rectangle',
+        'padding': '24px',
+        'min-width': '140px',
+      }
+    },
+    // Collapsed file nodes — readable labeled boxes
+    {
+      selector: 'node[type="file"].collapsed',
+      style: {
+        'width': 180,
+        'height': 44,
+        'padding': '6px',
+        'min-width': '180px',
+        'min-height': '44px',
+        'border-style': 'solid',
+        'border-width': 2,
+        'border-color': '#58a6ff',
+        'background-color': '#161b22',
+        'text-valign': 'center',
+        'text-halign': 'center',
+        'text-margin-y': 0,
+        'font-size': '13px',
+      }
+    },
+    // ── SYMBOL nodes — colored circles by type ──
+    {
+      selector: 'node[type="function"], node[type="method"]',
+      style: {
+        'shape': 'ellipse',
+        'width': 24,
+        'height': 24,
+        'background-color': '#238636',
+        'border-color': '#7ee787',
+        'border-width': 2,
+      }
+    },
+    {
+      selector: 'node[type="struct"], node[type="class"], node[type="interface"]',
+      style: {
+        'shape': 'ellipse',
+        'width': 24,
+        'height': 24,
+        'background-color': '#1158c7',
+        'border-color': '#58a6ff',
+        'border-width': 2,
+      }
+    },
+    {
+      selector: 'node[type="enum"]',
+      style: {
+        'shape': 'ellipse',
+        'width': 24,
+        'height': 24,
+        'background-color': '#6e40c9',
+        'border-color': '#d2a8ff',
+        'border-width': 2,
+      }
+    },
+    {
+      selector: 'node[type="module"], node[type="constant"]',
+      style: {
+        'shape': 'ellipse',
+        'width': 24,
+        'height': 24,
+        'background-color': '#9e6a03',
+        'border-color': '#f0883e',
+        'border-width': 2,
+      }
+    },
+    {
+      selector: 'node[type="variable"], node[type="import"]',
+      style: {
+        'shape': 'ellipse',
+        'width': 20,
+        'height': 20,
+        'background-color': '#333',
+        'border-color': '#8b949e',
+        'border-width': 1,
+      }
+    },
+    // ── EDGES — subtle bezier arrows ──
+    {
+      selector: 'edge',
+      style: {
+        'width': 2,
+        'curve-style': 'bezier',
+        'line-color': '#30363d',
+        'target-arrow-shape': 'triangle',
+        'target-arrow-color': '#30363d',
+        'arrow-scale': 0.8,
+        'opacity': 0.5,
+      }
+    },
+    // ── Cycle edges — red dashed ──
+    {
+      selector: 'edge[type="cycle"]',
+      style: {
+        'line-color': '#f85149',
+        'target-arrow-color': '#f85149',
+        'line-style': 'dashed',
+        'width': 3,
+        'opacity': 0.8,
+        'arrow-scale': 1.0,
+      }
+    },
+    // ── Cycle-involved nodes — red border ──
+    {
+      selector: 'node[inCycle]',
+      style: {
+        'border-color': '#f85149',
+        'border-width': 4,
+      }
+    },
+    // ── CLUSTER compound node (Unrecognized files group) ──
+    {
+      selector: 'node[type="cluster"]',
+      style: {
+        'shape': 'round-rectangle',
+        'background-color': '#21262d',
+        'border-color': '#484f58',
+        'border-width': 2,
+        'border-style': 'dashed',
+        'font-size': '13px',
+        'color': '#8b949e',
+        'text-valign': 'top',
+        'text-halign': 'center',
+        'text-margin-y': 10,
+        'padding': '20px',
+        'min-width': '120px',
+      }
+    },
+    // ── State classes ──
+    { selector: '.sym-hidden', style: { 'display': 'none' } },
+    { selector: '.search-dimmed', style: { 'opacity': 0.1, 'z-index': 0 } },
+    { selector: '.search-match', style: { 'border-color': '#f0883e', 'border-width': 6, 'z-index': 999 } },
+    { selector: '.highlighted', style: { 'border-color': '#f0883e', 'border-width': 5, 'z-index': 999 } },
+    { selector: '.pulse', style: { 'border-color': '#f85149', 'background-color': '#550000', 'border-width': 5 } },
+    // ── Heatmap ──
+    { selector: '.heat-hot', style: { 'border-color': '#ff4433', 'border-width': 6, 'background-color': '#550000' } },
+    { selector: '.heat-warm', style: { 'border-color': '#d29922', 'border-width': 4 } },
+    { selector: '.heat-cool', style: { 'border-color': '#3fb950', 'border-width': 4 } },
+    // ── Selected ──
+    { selector: ':selected', style: { 'border-color': '#58a6ff', 'border-width': 4 } },
+  ];
+}
+
+// ── Collapse State ───────────────────────────────────────────
+
+function applyCollapseState(autoCollapse) {
+  if (!__cy) return;
+  if (autoCollapse) {
+    __cy.nodes('[type="file"]').forEach(function(fileNode) {
+      __collapsedFiles.add(fileNode.id());
+      fileNode.addClass('collapsed');
+      fileNode.children().addClass('sym-hidden');
+    });
+  } else {
+    __collapsedFiles.forEach(fileId => {
+      const fileNode = __cy.getElementById(fileId);
+      if (fileNode.length) {
+        fileNode.addClass('collapsed');
+        fileNode.children().addClass('sym-hidden');
+      }
+    });
+  }
+}
+
+// ── Hover Animations (HCI Req 7) ─────────────────────────────
+
+function setupHoverAnimations() {
+  if (!__cy) return;
+  __cy.on('mouseover', 'node', function(e) {
+    var node = e.target;
+    if (node.isParent() && node.data('type') === 'cluster') return;
+    node.stop();
+    node.animate({
+      style: {
+        'border-width': (node.data('type') === 'file' ? 5 : 4),
+        'overlay-opacity': 0.08,
+      }
+    }, { duration: 150, easing: 'ease-out-cubic' });
+  });
+  __cy.on('mouseout', 'node', function(e) {
+    var node = e.target;
+    if (node.isParent() && node.data('type') === 'cluster') return;
+    node.stop();
+    node.animate({
+      style: {
+        'border-width': (node.data('type') === 'file' ? 3 : 2),
+        'overlay-opacity': 0,
+      }
+    }, { duration: 200, easing: 'ease-in-cubic' });
+  });
+}
+
+// ── Tooltips ─────────────────────────────────────────────────
+
+function setupTooltips() {
+  if (!__cy) return;
+  __cy.on('mouseover', 'node[type!="file"]', function(e) {
+    const d = e.target.data();
+    showTooltip(e, `
+      <div class="tt-name">${esc(d.name || d.label)}</div>
+      <div class="tt-kind">${esc(d.kind || d.type)}</div>
+      <div class="tt-loc">L${d.lineStart}–L${d.lineEnd}</div>
+    `);
+  });
+
+  __cy.on('mouseover', 'node[type="file"]', function(e) {
+    const d = e.target.data();
+    const n = e.target.children().length;
+    var extra = '';
+    if (d.instability != null) extra += '<div class="tt-kind">Instability: ' + d.instability.toFixed(2) + '</div>';
+    if (d.inCycle) extra += '<div class="tt-kind" style="color:#f85149">In dependency cycle</div>';
+    showTooltip(e, `
+      <div class="tt-name">${esc(d.label)}</div>
+      <div class="tt-kind">${esc(d.language || 'unknown')} — ${n} symbol${n !== 1 ? 's' : ''}</div>
+      ${extra}
+    `);
+  });
+
+  __cy.on('mouseout', 'node', function() {
+    document.getElementById('tooltip').style.display = 'none';
+  });
+}
+
+// ── Click Handlers ───────────────────────────────────────────
+
+function setupClickHandlers() {
+  if (!__cy) return;
+  __cy.on('tap', 'node[type="file"]', function(e) {
+    showFilePanel(e.target);
+  });
+
+  __cy.on('tap', 'node[type!="file"]', function(e) {
+    showSymbolPanel(e.target);
+  });
+
+  __cy.on('dbltap', 'node[type="file"]', function(e) {
+    toggleFileCollapse(e.target);
+  });
+
+  __cy.on('tap', function(e) {
+    if (e.target === __cy) {
+      document.getElementById('tooltip').style.display = 'none';
+    }
+  });
+
+  window.addEventListener('resize', function() {
+    if (__cy) {
+      __cy.resize();
+      __cy.fit(__cy.elements(), 50);
+    }
+  });
+}
+
 // ── Initialize Cytoscape ─────────────────────────────────────
 
 function initCytoscape(elements, autoCollapse) {
@@ -44,300 +342,19 @@ function initCytoscape(elements, autoCollapse) {
     __cy = cytoscape({
       container: document.getElementById('cy'),
       elements: elements,
-      style: [
-        // ── Base node (all nodes inherit) ──
-        {
-          selector: 'node',
-          style: {
-            'label': 'data(label)',
-            'color': '#ffffff',
-            'text-valign': 'bottom',
-            'text-halign': 'center',
-            'text-margin-y': 6,
-            'font-size': '12px',
-            'font-family': 'SF Mono, Fira Code, JetBrains Mono, monospace',
-            'background-color': '#444',
-            'border-width': 2,
-            'border-color': '#555',
-            'overlay-padding': '6px',
-            'z-index': 10,
-            'transition-property': 'background-color, border-color, border-width, opacity',
-            'transition-duration': '0.3s',
-          }
-        },
-        // ── FILE nodes (compound parents) — large rounded rectangles ──
-        {
-          selector: 'node[type="file"]',
-          style: {
-            'shape': 'round-rectangle',
-            'width': 60,
-            'height': 60,
-            'background-color': '#0d1117',
-            'border-color': '#58a6ff',
-            'border-width': 3,
-            'font-size': '14px',
-            'font-weight': 'bold',
-            'text-valign': 'top',
-            'text-halign': 'center',
-            'text-margin-y': 10,
-            'text-background-opacity': 1,
-            'text-background-color': '#0d1117',
-            'text-background-padding': '4px',
-            'text-background-shape': 'round-rectangle',
-            'padding': '24px',
-            'min-width': '140px',
-          }
-        },
-        // Collapsed file nodes — readable labeled boxes
-        {
-          selector: 'node[type="file"].collapsed',
-          style: {
-            'width': 180,
-            'height': 44,
-            'padding': '6px',
-            'min-width': '180px',
-            'min-height': '44px',
-            'border-style': 'solid',
-            'border-width': 2,
-            'border-color': '#58a6ff',
-            'background-color': '#161b22',
-            'text-valign': 'center',
-            'text-halign': 'center',
-            'text-margin-y': 0,
-            'font-size': '13px',
-          }
-        },
-        // ── SYMBOL nodes — colored circles by type ──
-        {
-          selector: 'node[type="function"], node[type="method"]',
-          style: {
-            'shape': 'ellipse',
-            'width': 24,
-            'height': 24,
-            'background-color': '#238636',
-            'border-color': '#7ee787',
-            'border-width': 2,
-          }
-        },
-        {
-          selector: 'node[type="struct"], node[type="class"], node[type="interface"]',
-          style: {
-            'shape': 'ellipse',
-            'width': 24,
-            'height': 24,
-            'background-color': '#1158c7',
-            'border-color': '#58a6ff',
-            'border-width': 2,
-          }
-        },
-        {
-          selector: 'node[type="enum"]',
-          style: {
-            'shape': 'ellipse',
-            'width': 24,
-            'height': 24,
-            'background-color': '#6e40c9',
-            'border-color': '#d2a8ff',
-            'border-width': 2,
-          }
-        },
-        {
-          selector: 'node[type="module"], node[type="constant"]',
-          style: {
-            'shape': 'ellipse',
-            'width': 24,
-            'height': 24,
-            'background-color': '#9e6a03',
-            'border-color': '#f0883e',
-            'border-width': 2,
-          }
-        },
-        {
-          selector: 'node[type="variable"], node[type="import"]',
-          style: {
-            'shape': 'ellipse',
-            'width': 20,
-            'height': 20,
-            'background-color': '#333',
-            'border-color': '#8b949e',
-            'border-width': 1,
-          }
-        },
-        // ── EDGES — subtle bezier arrows ──
-        {
-          selector: 'edge',
-          style: {
-            'width': 2,
-            'curve-style': 'bezier',
-            'line-color': '#30363d',
-            'target-arrow-shape': 'triangle',
-            'target-arrow-color': '#30363d',
-            'arrow-scale': 0.8,
-            'opacity': 0.5,
-          }
-        },
-        // ── Cycle edges — red dashed ──
-        {
-          selector: 'edge[type="cycle"]',
-          style: {
-            'line-color': '#f85149',
-            'target-arrow-color': '#f85149',
-            'line-style': 'dashed',
-            'width': 3,
-            'opacity': 0.8,
-            'arrow-scale': 1.0,
-          }
-        },
-        // ── Cycle-involved nodes — red border ──
-        {
-          selector: 'node[inCycle]',
-          style: {
-            'border-color': '#f85149',
-            'border-width': 4,
-          }
-        },
-        // ── CLUSTER compound node (Unrecognized files group) ──
-        {
-          selector: 'node[type="cluster"]',
-          style: {
-            'shape': 'round-rectangle',
-            'background-color': '#21262d',
-            'border-color': '#484f58',
-            'border-width': 2,
-            'border-style': 'dashed',
-            'font-size': '13px',
-            'color': '#8b949e',
-            'text-valign': 'top',
-            'text-halign': 'center',
-            'text-margin-y': 10,
-            'padding': '20px',
-            'min-width': '120px',
-          }
-        },
-        // ── State classes ──
-        { selector: '.sym-hidden', style: { 'display': 'none' } },
-        { selector: '.search-dimmed', style: { 'opacity': 0.1, 'z-index': 0 } },
-        { selector: '.search-match', style: { 'border-color': '#f0883e', 'border-width': 6, 'z-index': 999 } },
-        { selector: '.highlighted', style: { 'border-color': '#f0883e', 'border-width': 5, 'z-index': 999 } },
-        { selector: '.pulse', style: { 'border-color': '#f85149', 'background-color': '#550000', 'border-width': 5 } },
-        // ── Heatmap ──
-        { selector: '.heat-hot', style: { 'border-color': '#ff4433', 'border-width': 6, 'background-color': '#550000' } },
-        { selector: '.heat-warm', style: { 'border-color': '#d29922', 'border-width': 4 } },
-        { selector: '.heat-cool', style: { 'border-color': '#3fb950', 'border-width': 4 } },
-        // ── Selected ──
-        { selector: ':selected', style: { 'border-color': '#58a6ff', 'border-width': 4 } },
-      ],
+      style: buildCytoscapeStyles(),
       layout: { name: 'preset' },
       minZoom: 0.2,
       maxZoom: 4.0,
       wheelSensitivity: 0.3,
     });
 
-    // Auto-collapse all files on large graphs (reduces 900+ nodes to ~56)
-    if (autoCollapse) {
-      __cy.nodes('[type="file"]').forEach(function(fileNode) {
-        __collapsedFiles.add(fileNode.id());
-        fileNode.addClass('collapsed');
-        fileNode.children().addClass('sym-hidden');
-      });
-    } else {
-      // Re-apply collapsed state from previous render
-      __collapsedFiles.forEach(fileId => {
-        const fileNode = __cy.getElementById(fileId);
-        if (fileNode.length) {
-          fileNode.addClass('collapsed');
-          fileNode.children().addClass('sym-hidden');
-        }
-      });
-    }
-
-    // Apply telemetry heatmap from data
+    applyCollapseState(autoCollapse);
     applyHeatmap();
-
-    // ── HCI Req 7: Hover animations — subtle scale + glow ──
-    __cy.on('mouseover', 'node', function(e) {
-      var node = e.target;
-      if (node.isParent() && node.data('type') === 'cluster') return;
-      node.stop(); // cancel any running animation
-      node.animate({
-        style: {
-          'border-width': (node.data('type') === 'file' ? 5 : 4),
-          'overlay-opacity': 0.08,
-        }
-      }, { duration: 150, easing: 'ease-out-cubic' });
-    });
-    __cy.on('mouseout', 'node', function(e) {
-      var node = e.target;
-      if (node.isParent() && node.data('type') === 'cluster') return;
-      node.stop();
-      node.animate({
-        style: {
-          'border-width': (node.data('type') === 'file' ? 3 : 2),
-          'overlay-opacity': 0,
-        }
-      }, { duration: 200, easing: 'ease-in-cubic' });
-    });
-
-    // ── Hover tooltip ──
-    __cy.on('mouseover', 'node[type!="file"]', function(e) {
-      const d = e.target.data();
-      showTooltip(e, `
-        <div class="tt-name">${esc(d.name || d.label)}</div>
-        <div class="tt-kind">${esc(d.kind || d.type)}</div>
-        <div class="tt-loc">L${d.lineStart}–L${d.lineEnd}</div>
-      `);
-    });
-
-    __cy.on('mouseover', 'node[type="file"]', function(e) {
-      const d = e.target.data();
-      const n = e.target.children().length;
-      var extra = '';
-      if (d.instability != null) extra += '<div class="tt-kind">Instability: ' + d.instability.toFixed(2) + '</div>';
-      if (d.inCycle) extra += '<div class="tt-kind" style="color:#f85149">In dependency cycle</div>';
-      showTooltip(e, `
-        <div class="tt-name">${esc(d.label)}</div>
-        <div class="tt-kind">${esc(d.language || 'unknown')} — ${n} symbol${n !== 1 ? 's' : ''}</div>
-        ${extra}
-      `);
-    });
-
-    __cy.on('mouseout', 'node', function() {
-      document.getElementById('tooltip').style.display = 'none';
-    });
-
-    // ── Single click → detail panel ──
-    __cy.on('tap', 'node[type="file"]', function(e) {
-      showFilePanel(e.target);
-    });
-
-    __cy.on('tap', 'node[type!="file"]', function(e) {
-      showSymbolPanel(e.target);
-    });
-
-    // ── Double click → collapse/expand file ──
-    __cy.on('dbltap', 'node[type="file"]', function(e) {
-      toggleFileCollapse(e.target);
-    });
-
-    // ── Click background → dismiss ──
-    __cy.on('tap', function(e) {
-      if (e.target === __cy) {
-        document.getElementById('tooltip').style.display = 'none';
-      }
-    });
-
-    // ── Auto-resize handler ──
-    window.addEventListener('resize', function() {
-      if (__cy) {
-        __cy.resize();
-        __cy.fit(__cy.elements(), 50);
-      }
-    });
-
-    // Run the force-directed layout after all setup is done
+    setupHoverAnimations();
+    setupTooltips();
+    setupClickHandlers();
     runLayout();
-
-    // Initialize X-Ray Mode (Shift+hover)
     initXray();
 
   } catch (err) {
@@ -482,7 +499,7 @@ function showFilePanel(node) {
     ${d.heatLevel !== 'none' ? `
     <div class="panel-section">
       <div class="panel-label">HEAT</div>
-      <div class="panel-value ${d.heatLevel === 'hot' ? 'orange' : 'green'}">${d.heatLevel} (${d.heatMs.toFixed(1)}ms avg)</div>
+      <div class="panel-value ${d.heatLevel === 'hot' ? 'orange' : 'green'}">${esc(d.heatLevel)} (${d.heatMs.toFixed(1)}ms avg)</div>
     </div>` : ''}
   `;
 
@@ -520,7 +537,7 @@ function showSymbolPanel(node) {
     ${d.heatLevel !== 'none' ? `
     <div class="panel-section">
       <div class="panel-label">HEAT</div>
-      <div class="panel-value ${d.heatLevel === 'hot' ? 'orange' : 'green'}">${d.heatLevel} (${d.heatMs.toFixed(1)}ms avg)</div>
+      <div class="panel-value ${d.heatLevel === 'hot' ? 'orange' : 'green'}">${esc(d.heatLevel)} (${d.heatMs.toFixed(1)}ms avg)</div>
     </div>` : ''}
   `;
 
@@ -794,7 +811,7 @@ function addLogEntry(path, kind) {
   entry.className = 'log-entry';
   var time = new Date().toLocaleTimeString();
   var shortPath = path.split('/').slice(-2).join('/');
-  entry.innerHTML = '<span class="log-time">' + time + '</span> <span class="log-kind">' + kind + '</span> <span class="log-path">' + shortPath + '</span>';
+  entry.innerHTML = '<span class="log-time">' + esc(time) + '</span> <span class="log-kind">' + esc(kind) + '</span> <span class="log-path">' + esc(shortPath) + '</span>';
   log.prepend(entry);
 
   while (log.children.length > 50) {

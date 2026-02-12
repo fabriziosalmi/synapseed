@@ -11,7 +11,7 @@
 
 Most AI coding agents treat your codebase as flat text — `grep` for search, `cat` for reading, zero security. This leads to hallucinations, broken imports, and leaked secrets.
 
-**SYNAPSEED** parses code into an **AST**, indexes it semantically, scans for secrets in real-time, tracks git history with semantic tags, compiles in the background, analyzes architecture health, and visualizes everything live — all in a single **<12 MB Rust binary** with **zero network calls**.
+**SYNAPSEED** parses code into an **AST**, indexes it semantically, scans for secrets in real-time, tracks git history with semantic tags, compiles in the background, analyzes architecture health, and visualizes everything live — all in a **single Rust binary** with **zero network calls**.
 
 | Capability | Standard LLM Context | SYNAPSEED |
 | :--- | :--- | :--- |
@@ -117,7 +117,7 @@ See the [full integration guides](docs/integration/) for system prompt templates
 │  └─────────┘  └──────┘  └────────┘  └─────┘  └────────┘  └─────┘ │
 │                                                                      │
 └──────────────────────────────────────────────────────────────────────┘
-   14 crates · Plugin architecture · Priority-based init · HCI-tuned
+   15 crates · Plugin architecture · Priority-based init · HCI-tuned
 ```
 
 ```mermaid

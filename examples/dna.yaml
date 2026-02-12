@@ -67,6 +67,16 @@ search:
 # Can also be set via SYNAPSEED_VISUALIZER_PORT env var.
 visualizer_port: 3000
 
+# ── HCI (Human-Computer Interaction) ───────────────────────────
+# Tune the human experience. All fields default to true/None.
+hci:
+  background_indexing: true   # Non-blocking startup (Cortex indexes in background)
+  port_retry: true            # Visualizer auto-retries next port if taken
+  adaptive_linting: true      # Shadow-check debounce escalates during rapid edits
+  mentor_mode: true           # Response depth adapts to query complexity
+  session_persistence: true   # Resume context across MCP restarts
+  # memory_ceiling_files: 10000  # Cap indexed files to limit memory (default: unlimited)
+
 # ── Scaffold Templates ────────────────────────────────────────
 # Custom file templates for code generation (key: template name).
 templates:
