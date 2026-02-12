@@ -6,7 +6,7 @@
 
 Most AI coding agents treat your codebase as a pile of text files, using `grep` and `cat` to understand logic. This leads to hallucinations, broken imports, and security leaks.
 
-**SYNAPSEED is different.** It parses your code into an **AST (Abstract Syntax Tree)**, indexes it semantically, scans for secrets in real-time, and visualizes the architecture live — all in a single **<12MB Rust binary**.
+**SYNAPSEED is different.** It parses your code into an **AST (Abstract Syntax Tree)**, indexes it semantically, scans for secrets in real-time, and visualizes the architecture live — all in a single **Rust binary**.
 
 ## The Problem
 

@@ -32,7 +32,7 @@ function showFilePanel(node) {
     const cd = child.data();
     const color = (NODE_COLORS[cd.type] || NODE_COLORS.function).border;
     symbolsHtml += `
-      <li data-id="${esc(child.id())}" onclick="focusNode('${esc(child.id())}')">
+      <li data-id="${esc(child.id())}" data-focus-node="${esc(child.id())}">
         <span class="sym-dot" style="background:${color}"></span>
         <span>${esc(cd.name || cd.label)}</span>
         <span class="sym-lines">L${cd.lineStart}–L${cd.lineEnd}</span>
@@ -113,6 +113,12 @@ function showSymbolPanel(node) {
 function closePanel() {
   document.getElementById('detail-panel').classList.remove('visible');
 }
+
+// Event delegation for symbol list clicks (avoids inline onclick XSS risk).
+document.getElementById('panel-body').addEventListener('click', function(e) {
+  const li = e.target.closest('[data-focus-node]');
+  if (li) focusNode(li.getAttribute('data-focus-node'));
+});
 
 function focusNode(nodeId) {
   if (!__cy) return;

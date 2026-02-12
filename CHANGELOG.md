@@ -1,5 +1,41 @@
 # Changelog
 
+## [2.2.1] — 2026-02-12
+
+### Security & Hardening Patch
+
+10 fixes across 9 crates — security vulnerabilities, logic bugs, and documentation drift.
+
+---
+
+### Security Fixes
+
+- **CRITICAL: XSS in Visualizer** — Replaced inline `onclick` attribute in `panels.js` with
+  event delegation (`data-focus-node` + `addEventListener`), preventing quote injection in
+  symbol IDs.
+- **Sentinel hardening** — Added 4 deny rules: `sudo`, `eval`, `curl|bash`, `LD_PRELOAD`.
+- **Security pattern scanner** — Added `outerHTML`, `insertAdjacentHTML`, `writeln` to XSS
+  detection; tightened path traversal `.join()` regex to require path-like context.
+
+### Bug Fixes
+
+- **Proptest fuzzer** — Replaced invalid `\PC{0,100}` regex strategy with `any::<String>()`.
+- **Sandbox corruption** — `unwrap_or_default()` on source read replaced with proper error
+  propagation, preventing silent state corruption during adversarial mutation testing.
+- **Oracle doc fixer** — `replace()` → `replace_all()` for crate/tool/resource count patching;
+  silent `unwrap_or("0.0.0")` fallback replaced with `warn!()` + early return.
+- **Epoch subtraction** — `newer.epoch - older.epoch` → `saturating_sub()` to prevent panic
+  on git clock skew.
+- **Dead code cleanup** — Removed unused `matched_text` field from DLP `Finding` struct
+  (eliminated compiler warning).
+
+### Documentation
+
+- Removed stale "<12MB binary" claims from 4 files (index.md, introduction.md, installation.md,
+  CHANGELOG.md).
+
+---
+
 ## [2.2.0] — 2026-02-13
 
 ### "The Physics Engine" Release
@@ -197,7 +233,7 @@ for real-world codebases.
 ### Technical Details
 
 - **Dependencies added**: `rayon = "1"` (workspace + cortex crate)
-- **Binary size**: <12 MB (release profile: opt-level 3, LTO, single codegen unit, stripped)
+- **Release profile**: opt-level 3, LTO, single codegen unit, stripped
 - **Zero network calls**: All processing local, all servers bound to 127.0.0.1
 - **Minimum Rust version**: 1.75+
 

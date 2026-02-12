@@ -61,10 +61,12 @@ impl CodePatternScanner {
                 r#"(?i)query\s*\(\s*&?format!\s*\("#,
             ]),
             xss_patterns: compile_patterns(&[
-                // innerHTML assignment with variable
-                r#"\.innerHTML\s*=\s*[^"']"#,
+                // innerHTML/outerHTML assignment with variable (not string literal)
+                r#"\.(innerHTML|outerHTML)\s*=\s*[^"'\s;]"#,
                 // document.write with variable
-                r#"document\.write\s*\("#,
+                r#"document\.write(ln)?\s*\("#,
+                // insertAdjacentHTML with variable
+                r#"\.insertAdjacentHTML\s*\("#,
                 // Unescaped template literal in HTML context
                 r#"<[a-zA-Z][^>]*\$\{[^}]*\}[^>]*>"#,
                 // format_args with HTML tags and variables
@@ -81,8 +83,8 @@ impl CodePatternScanner {
                 r#"`[^`]*\$\{[^}]*\}[^`]*`"#,
             ]),
             path_patterns: compile_patterns(&[
-                // Path join with unvalidated user input containing ..
-                r#"\.join\s*\(\s*&?\w+\)\s*(?:;|\.)"#,
+                // Path/PathBuf join with unvalidated user input
+                r#"(?:path|root|dir|base|prefix)\S*\.join\s*\(\s*&?\w+\)"#,
                 // Direct ".." in path construction
                 r#"Path::new\s*\(\s*&?format!\s*\("#,
                 // Filesystem ops with format! paths

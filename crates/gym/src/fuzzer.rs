@@ -150,7 +150,7 @@ fn type_to_strategy_opt(ty: &str) -> Option<String> {
             return Some(format!("any::<{ty}>()"));
         }
         "String" => {
-            return Some("\"\\PC{0,100}\".prop_map(String::from)".to_string());
+            return Some("any::<String>()".to_string());
         }
         _ => {}
     }
@@ -208,7 +208,7 @@ pub fn greet(name: String) -> String {
 "#;
         let result = generate_fuzz_tests(source).unwrap();
         assert!(result.contains("fn fuzz_greet"));
-        assert!(result.contains("prop_map(String::from)"));
+        assert!(result.contains("any::<String>()"));
     }
 
     #[test]

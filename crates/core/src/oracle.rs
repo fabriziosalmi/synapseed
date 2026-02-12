@@ -75,12 +75,17 @@ pub fn fix_docs(project_root: &Path) -> Vec<String> {
         Ok(c) => c,
         Err(_) => return changes,
     };
-    let version = cargo_content
+    let version = match cargo_content
         .lines()
         .find(|l| l.trim().starts_with("version") && l.contains('='))
         .and_then(|l| l.split('"').nth(1))
-        .unwrap_or("0.0.0")
-        .to_string();
+    {
+        Some(v) => v.to_string(),
+        None => {
+            tracing::warn!("Could not parse version from Cargo.toml, skipping doc fixes");
+            return changes;
+        }
+    };
 
     // 2. Count crates in workspace
     let crate_count = count_crates(project_root);
@@ -120,7 +125,7 @@ pub fn fix_docs(project_root: &Path) -> Vec<String> {
         let old: usize = cap[1].parse().unwrap_or(0);
         if old != crate_count && crate_count > 0 {
             patched = crate_re
-                .replace(&patched, format!("{crate_count} crates").as_str())
+                .replace_all(&patched, format!("{crate_count} crates").as_str())
                 .to_string();
             changes.push(format!("Updated crate count: {old} → {crate_count}"));
         }
@@ -132,7 +137,7 @@ pub fn fix_docs(project_root: &Path) -> Vec<String> {
         let old: usize = cap[1].parse().unwrap_or(0);
         if old != tool_count && tool_count > 0 {
             patched = tool_re
-                .replace(&patched, format!("{tool_count} tools").as_str())
+                .replace_all(&patched, format!("{tool_count} tools").as_str())
                 .to_string();
             changes.push(format!("Updated tool count: {old} → {tool_count}"));
         }
@@ -144,7 +149,7 @@ pub fn fix_docs(project_root: &Path) -> Vec<String> {
         let old: usize = cap[1].parse().unwrap_or(0);
         if old != resource_count && resource_count > 0 {
             patched = resource_re
-                .replace(&patched, format!("{resource_count} resources").as_str())
+                .replace_all(&patched, format!("{resource_count} resources").as_str())
                 .to_string();
             changes.push(format!("Updated resource count: {old} → {resource_count}"));
         }

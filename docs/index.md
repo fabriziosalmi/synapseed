@@ -4,7 +4,7 @@ layout: home
 hero:
   name: SYNAPSEED
   text: The Thinking Layer Between You and the LLM
-  tagline: High-Performance Semantic AI Middleware — AST intelligence, DLP security, and live visualization in a single <12MB Rust binary.
+  tagline: High-Performance Semantic AI Middleware — AST intelligence, DLP security, and live visualization in a single Rust binary.
   actions:
     - theme: brand
       text: Get Started

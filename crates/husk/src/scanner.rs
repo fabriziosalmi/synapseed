@@ -106,7 +106,6 @@ impl DlpScanner {
                     ),
                     start: mat.start(),
                     end: mat.end(),
-                    matched_text: content[mat.start()..mat.end()].to_string(),
                 });
             }
         }
@@ -118,7 +117,6 @@ impl DlpScanner {
                     rule_name: pat.name.clone(),
                     start: mat.start(),
                     end: mat.end(),
-                    matched_text: mat.as_str().to_string(),
                 });
             }
         }
@@ -153,5 +151,4 @@ pub(crate) struct Finding {
     pub(crate) rule_name: String,
     pub(crate) start: usize,
     pub(crate) end: usize,
-    pub(crate) matched_text: String,
 }

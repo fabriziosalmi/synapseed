@@ -70,6 +70,26 @@ impl Sentinel {
                     description: Some("Block raw device writes".into()),
                 },
                 CommandRule {
+                    pattern: r"^sudo\b".into(),
+                    action: PolicyAction::Deny,
+                    description: Some("Block privilege escalation".into()),
+                },
+                CommandRule {
+                    pattern: r"\beval\b".into(),
+                    action: PolicyAction::Deny,
+                    description: Some("Block shell eval".into()),
+                },
+                CommandRule {
+                    pattern: r"curl\b.*\|\s*(ba)?sh".into(),
+                    action: PolicyAction::Deny,
+                    description: Some("Block piped curl-to-shell execution".into()),
+                },
+                CommandRule {
+                    pattern: r"LD_PRELOAD\s*=".into(),
+                    action: PolicyAction::Deny,
+                    description: Some("Block LD_PRELOAD injection".into()),
+                },
+                CommandRule {
                     pattern: r"^(ls|cat|echo|pwd|whoami|git\s+status|git\s+log|git\s+diff|cargo\s+check|cargo\s+test|cargo\s+build)".into(),
                     action: PolicyAction::Allow,
                     description: Some("Common safe commands".into()),

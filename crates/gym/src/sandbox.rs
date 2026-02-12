@@ -288,7 +288,7 @@ impl Sandbox {
             } else {
                 let mut outcomes = Vec::new();
                 let original_src = std::fs::read_to_string(self.project_path.join("src/lib.rs"))
-                    .unwrap_or_default();
+                    .map_err(|e| crate::GymError::Sandbox(format!("Failed to read original source for restore: {e}")))?;
 
                 for mutation in &mutations {
                     let mutated_source = Saboteur::apply_mutation(&scenario.source_code, mutation);

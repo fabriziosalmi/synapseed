@@ -18,7 +18,7 @@ Verify installation:
 
 ```bash
 synapseed --version
-# synapseed 2.2.0
+# synapseed 2.2.1
 ```
 
 ## Release Build
@@ -27,7 +27,7 @@ For maximum performance (LTO + single codegen unit):
 
 ```bash
 cargo build --release
-# Binary at target/release/synapseed (~12MB)
+# Binary at target/release/synapseed
 ```
 
 ## Development Build

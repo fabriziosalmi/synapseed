@@ -274,7 +274,8 @@ fn shift_boundary(line: &str) -> Option<String> {
             num.push(c);
             while let Some(&next) = chars.peek() {
                 if next.is_ascii_digit() {
-                    num.push(chars.next().unwrap());
+                    num.push(next);
+                    chars.next();
                 } else {
                     break;
                 }
