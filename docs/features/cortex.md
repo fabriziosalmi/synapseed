@@ -56,8 +56,8 @@ pub enum SymbolKind {
 
 | Tool | Description |
 | :--- | :--- |
-| `get_code_skeleton` | Index a directory and return the full AST skeleton |
-| `lookup_symbol` | Find a symbol by name across the project |
+| `hoist` | Index a directory and return the full AST skeleton |
+| `lookup` | Find a symbol by name across the project |
 
 ## Usage Example
 
@@ -67,7 +67,7 @@ synapseed hoist --project ./my-project
 synapseed lookup --project . "authenticate"
 
 # MCP tool call
-{"method": "tools/call", "params": {"name": "get_code_skeleton", "arguments": {"path": "."}}}
+{"method": "tools/call", "params": {"name": "hoist", "arguments": {"path": "."}}}
 ```
 
 ## Language Support

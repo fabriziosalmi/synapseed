@@ -180,7 +180,7 @@ Structural health snapshot from the most recent architect analysis.
 }
 ```
 
-Returns `{"status": "not_analyzed"}` if `architect_analyze` hasn't been called yet.
+Returns `{"status": "not_analyzed"}` if `architect` hasn't been called yet.
 
 ---
 

@@ -5,11 +5,11 @@ The **Whisper** module is SYNAPSEED's Intent Router. It takes a natural-language
 ## Why?
 
 Without Whisper, the LLM must make multiple sequential MCP tool calls:
-1. `get_code_skeleton` to understand structure
-2. `lookup_symbol` to find relevant code
-3. `git_history` to understand context
-4. `get_diagnostics` to check build status
-5. `scan_security` to verify safety
+1. `hoist` to understand structure
+2. `lookup` to find relevant code
+3. `blame` to understand context
+4. `diagnostics` to check build status
+5. `scan` to verify safety
 
 **Whisper does all of this in one call**, reducing roundtrips and context window usage.
 
@@ -37,7 +37,7 @@ Natural language query
 
 ## Response Format
 
-The `ask_synapseed` tool returns:
+The `ask` tool returns:
 
 ```json
 {
@@ -61,7 +61,7 @@ The `ask_synapseed` tool returns:
 
 | Tool | Description |
 | :--- | :--- |
-| `ask_synapseed` | Ask a natural-language question, get orchestrated response |
+| `ask` | Ask a natural-language question, get orchestrated response |
 
 ## Usage Example
 
@@ -69,7 +69,7 @@ The `ask_synapseed` tool returns:
 {
   "method": "tools/call",
   "params": {
-    "name": "ask_synapseed",
+    "name": "ask",
     "arguments": {
       "query": "why is the login broken?"
     }

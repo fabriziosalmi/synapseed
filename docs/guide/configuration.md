@@ -71,7 +71,7 @@ Strategy for workspace layout. Used by the architect tool to provide guidance.
 
 ### `preferred_libs`
 
-A key-value map of technology categories to preferred libraries. The `consult_architect` MCP tool uses this to guide the LLM.
+A key-value map of technology categories to preferred libraries. The `consult` MCP tool uses this to guide the LLM.
 
 ### `naming`
 

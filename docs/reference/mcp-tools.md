@@ -2,7 +2,7 @@
 
 SYNAPSEED exposes 19 tools via the Model Context Protocol. Tools are callable actions that the LLM can invoke.
 
-## `get_code_skeleton`
+## `hoist`
 
 Index a project directory and return its AST skeleton.
 
@@ -15,7 +15,7 @@ Index a project directory and return its AST skeleton.
 
 ---
 
-## `lookup_symbol`
+## `lookup`
 
 Find a symbol by name across the entire project.
 
@@ -28,7 +28,7 @@ Find a symbol by name across the entire project.
 
 ---
 
-## `scan_security`
+## `scan`
 
 Scan text content for sensitive data (API keys, passwords, tokens, PII) and/or code vulnerability patterns (SQL injection, XSS, command injection, path traversal).
 
@@ -42,7 +42,7 @@ Scan text content for sensitive data (API keys, passwords, tokens, PII) and/or c
 
 ---
 
-## `check_command`
+## `check`
 
 Evaluate a shell command against the security policy.
 
@@ -55,7 +55,7 @@ Evaluate a shell command against the security policy.
 
 ---
 
-## `git_history`
+## `blame`
 
 Get git blame/history for a file.
 
@@ -70,7 +70,7 @@ Get git blame/history for a file.
 
 ---
 
-## `project_diagnose`
+## `diagnose`
 
 Run a full diagnostic on the project.
 
@@ -80,7 +80,7 @@ Run a full diagnostic on the project.
 
 ---
 
-## `consult_architect`
+## `consult`
 
 Consult the project's architecture policy.
 
@@ -93,7 +93,7 @@ Consult the project's architecture policy.
 
 ---
 
-## `semantic_search`
+## `search`
 
 Search for code by concept using Tantivy.
 
@@ -107,7 +107,7 @@ Search for code by concept using Tantivy.
 
 ---
 
-## `get_diagnostics`
+## `diagnostics`
 
 Get current compiler diagnostics from the background shadow compiler. Supports severity filtering.
 
@@ -121,7 +121,7 @@ Get current compiler diagnostics from the background shadow compiler. Supports s
 
 ---
 
-## `analyze_history`
+## `analyze`
 
 Analyze the full history of a file.
 
@@ -136,7 +136,7 @@ Analyze the full history of a file.
 
 ---
 
-## `apply_quick_fix`
+## `quickfix`
 
 Apply a compiler-suggested fix automatically.
 
@@ -150,7 +150,7 @@ Apply a compiler-suggested fix automatically.
 
 ---
 
-## `ask_synapseed`
+## `ask`
 
 The Intent Router. Ask a natural-language question and get an orchestrated response.
 
@@ -163,7 +163,7 @@ The Intent Router. Ask a natural-language question and get an orchestrated respo
 
 ---
 
-## `reset_telemetry`
+## `reset-telemetry`
 
 Clear all telemetry data from the OTLP receiver.
 
@@ -173,7 +173,7 @@ Clear all telemetry data from the OTLP receiver.
 
 ---
 
-## `git_intent_summary`
+## `intent`
 
 Summarize the intent and direction of recent commits semantically. Groups commits by category (fix, feature, refactor, security, etc.) and extracts scope hints from conventional commit messages.
 
@@ -186,7 +186,7 @@ Summarize the intent and direction of recent commits semantically. Groups commit
 
 ---
 
-## `train_code`
+## `train`
 
 Evaluate Rust code in an isolated sandbox (The Gym). Compiles, tests, benchmarks, and optionally runs adversarial mutation testing, returning metrics and a composite score.
 
@@ -203,31 +203,31 @@ Evaluate Rust code in an isolated sandbox (The Gym). Compiles, tests, benchmarks
 
 ---
 
-## `janitor_run_now`
+## `janitor`
 
 Run the Janitor: scan for clippy warnings and unused dependencies, generate validated fix proposals.
 
 **Parameters:** None.
 
-**Returns:** Findings and actionable proposals with UUIDs for `janitor_apply_fix`.
+**Returns:** Findings and actionable proposals with UUIDs for `janitor-fix`.
 
 ---
 
-## `janitor_apply_fix`
+## `janitor-fix`
 
 Apply a specific Janitor fix proposal. **Dry-run by default** — shows a preview of what would change. Set `confirm: true` to actually apply.
 
 **Parameters:**
 | Name | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
-| `proposal_id` | string | Yes | UUID of the proposal (from `janitor_run_now`) |
+| `proposal_id` | string | Yes | UUID of the proposal (from `janitor`) |
 | `confirm` | boolean | No | Set to `true` to apply. Default: `false` (preview only) |
 
 **Returns:** Preview diff (dry-run) or success/error message (confirmed). Automatically reverts if compilation breaks.
 
 ---
 
-## `architect_analyze`
+## `architect`
 
 Analyze project structural health: dependency graph, coupling metrics, cycle detection, god objects, layer violations.
 
@@ -240,7 +240,7 @@ Analyze project structural health: dependency graph, coupling metrics, cycle det
 
 ---
 
-## `semantic_similarity`
+## `similar`
 
 Find code similar to a natural-language query using vector embeddings (cosine similarity). Requires `search.embeddings: true` in DNA config.
 

@@ -47,7 +47,7 @@ Every shell command suggested by the LLM is evaluated:
 
 - No arbitrary subprocess spawning
 - Only controlled `cargo check` via Shadow Compiler
-- No file writes except `apply_quick_fix` (compiler-suggested only)
+- No file writes except `quickfix` (compiler-suggested only)
 - No environment variable modification
 
 ## Threat Model

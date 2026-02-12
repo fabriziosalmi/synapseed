@@ -5,7 +5,7 @@ SYNAPSEED can observe its own performance through a **dogfooding loop**: it send
 ## How It Works
 
 ```
-SYNAPSEED operation (e.g., scan_security)
+SYNAPSEED operation (e.g., scan)
   → tracing emits a span
   → BatchSpanProcessor buffers the span
   → gRPC export to localhost:4317

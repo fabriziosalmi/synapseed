@@ -41,7 +41,7 @@ The Sentinel uses regex-based rules organized as:
 
 | Tool | Description |
 | :--- | :--- |
-| `check_command` | Evaluate a command and return ALLOWED or DENIED with reason |
+| `check` | Evaluate a command and return ALLOWED or DENIED with reason |
 
 ## Usage Example
 

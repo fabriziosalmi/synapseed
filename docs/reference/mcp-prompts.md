@@ -13,11 +13,11 @@ Analyze and describe the project architecture using SYNAPSEED's semantic underst
 | `depth` | No | `overview`, `detailed` (default), or `deep` |
 
 **Workflow:**
-1. `get_code_skeleton` to index the project
+1. `hoist` to index the project
 2. Read `synapseed://status` for project state
 3. Read `synapseed://dna` for configuration
-4. `lookup_symbol` for key types (detailed/deep modes)
-5. `git_history` on key files (deep mode only)
+4. `lookup` for key types (detailed/deep modes)
+5. `blame` on key files (deep mode only)
 
 ---
 
@@ -32,7 +32,7 @@ Open the live dashboard and guide the user through the interactive visualization
 
 **Workflow:**
 1. Read `synapseed://visualizer/url` for dashboard URL
-2. `get_code_skeleton` to ensure graph data is ready
+2. `hoist` to ensure graph data is ready
 3. Guide user to open the dashboard
 4. Explain graph features and color legend
 
@@ -49,9 +49,9 @@ Diagnose and fix current build errors using the shadow compiler.
 
 **Workflow:**
 1. Read `synapseed://diagnostics/active`
-2. `get_diagnostics` for full error list
+2. `diagnostics` for full error list
 3. Group by file and severity
-4. `apply_quick_fix` for `MachineApplicable` suggestions
+4. `quickfix` for `MachineApplicable` suggestions
 5. Re-check diagnostics to verify
 
 ---
@@ -68,10 +68,10 @@ Analyze why code looks the way it does by tracing its git evolution.
 | `end_line` | No | End line of region |
 
 **Workflow:**
-1. `get_code_skeleton` for project structure
-2. `lookup_symbol` for symbols in the file
-3. `analyze_history` for churn and patterns
-4. `git_history` for detailed blame
+1. `hoist` for project structure
+2. `lookup` for symbols in the file
+3. `analyze` for churn and patterns
+4. `blame` for detailed blame
 
 **Output:** Timeline, complexity narrative, risk assessment, recommendations.
 
@@ -89,10 +89,10 @@ Perform a security audit of the project.
 **Workflow (standard):**
 1. Read `synapseed://security/policy`
 2. Read `synapseed://status`
-3. `get_code_skeleton` to find all files
-4. `scan_security` on each config file
-5. `check_command` on common project commands
-6. `project_diagnose` for overall health
+3. `hoist` to find all files
+4. `scan` on each config file
+5. `check` on common project commands
+6. `diagnose` for overall health
 
 **Output:** DLP findings, command policy evaluation, risk assessment.
 
@@ -110,8 +110,8 @@ Analyze runtime performance hotspots from OTLP telemetry data.
 **Workflow:**
 1. Read `synapseed://telemetry/hotspots`
 2. Filter by threshold
-3. `lookup_symbol` for each hot function
-4. `analyze_history` for churn context
-5. `get_diagnostics` for compiler warnings
+3. `lookup` for each hot function
+4. `analyze` for churn context
+5. `diagnostics` for compiler warnings
 
 **Output:** Hotspot report, optimization suggestions, priority-ordered action plan.

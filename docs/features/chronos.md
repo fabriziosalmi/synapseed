@@ -44,8 +44,8 @@ Git Repository (.git/)
 
 | Tool | Description |
 | :--- | :--- |
-| `git_history` | Get blame data for a file and line range |
-| `analyze_history` | Full file analysis: churn, co-changes, risk, semantic tags, convergence rate, rigidity |
+| `blame` | Get blame data for a file and line range |
+| `analyze` | Full file analysis: churn, co-changes, risk, semantic tags, convergence rate, rigidity |
 
 ## Usage Example
 

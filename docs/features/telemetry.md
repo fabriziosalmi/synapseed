@@ -77,6 +77,6 @@ This enables the **dogfooding loop**: SYNAPSEED's tracing spans are sent to its 
 
 | Type | Name | Description |
 | :--- | :--- | :--- |
-| Tool | `reset_telemetry` | Clear all spans and metrics |
+| Tool | `reset-telemetry` | Clear all spans and metrics |
 | Resource | `synapseed://telemetry/hotspots` | Top-10 hotspots with metrics |
 | Prompt | `optimize_hotspots` | Guided hotspot analysis workflow |

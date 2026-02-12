@@ -38,21 +38,21 @@ Each diagnostic includes:
 
 | Tool | Description |
 | :--- | :--- |
-| `get_diagnostics` | Get current errors/warnings, optionally filtered by file |
-| `apply_quick_fix` | Apply a `MachineApplicable` fix by file and error code |
+| `diagnostics` | Get current errors/warnings, optionally filtered by file |
+| `quickfix` | Apply a `MachineApplicable` fix by file and error code |
 
 ## Usage Flow
 
 1. LLM writes code
 2. Shadow compiler detects change, re-checks
-3. LLM calls `get_diagnostics` to see errors
-4. LLM calls `apply_quick_fix` for auto-fixable issues
+3. LLM calls `diagnostics` to see errors
+4. LLM calls `quickfix` for auto-fixable issues
 5. Repeat until clean
 
 ```json
 // Step 1: Check for errors
-{"method": "tools/call", "params": {"name": "get_diagnostics", "arguments": {}}}
+{"method": "tools/call", "params": {"name": "diagnostics", "arguments": {}}}
 
 // Step 2: Fix an error
-{"method": "tools/call", "params": {"name": "apply_quick_fix", "arguments": {"file": "src/main.rs", "error_code": "unused_variables"}}}
+{"method": "tools/call", "params": {"name": "quickfix", "arguments": {"file": "src/main.rs", "error_code": "unused_variables"}}}
 ```

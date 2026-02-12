@@ -67,7 +67,7 @@ When enabled, the Tantivy index is written to `.synapseed/index/` and reused acr
 
 | Tool | Description |
 | :--- | :--- |
-| `semantic_search` | Search for code by concept. Supports fuzzy matching. |
+| `search` | Search for code by concept. Supports fuzzy matching. |
 
 ## Query Syntax
 
@@ -84,7 +84,7 @@ When enabled, the Tantivy index is written to `.synapseed/index/` and reused acr
 {
   "method": "tools/call",
   "params": {
-    "name": "semantic_search",
+    "name": "search",
     "arguments": {
       "query": "authentication login",
       "limit": 5

@@ -37,7 +37,7 @@ Input content
 
 | Tool | Description |
 | :--- | :--- |
-| `scan_security` | Scan text content. Supports `mode`: `all` (DLP + patterns), `dlp` (secrets only), `patterns` (code vulnerability patterns only) |
+| `scan` | Scan text content. Supports `mode`: `all` (DLP + patterns), `dlp` (secrets only), `patterns` (code vulnerability patterns only) |
 
 ## Code Pattern Scanner
 
@@ -56,10 +56,10 @@ Each finding includes the category, line number, risk level, confidence score, a
 
 ```json
 // Scan for code patterns only
-{"method": "tools/call", "params": {"name": "scan_security", "arguments": {"content": "...", "mode": "patterns"}}}
+{"method": "tools/call", "params": {"name": "scan", "arguments": {"content": "...", "mode": "patterns"}}}
 
 // Scan for everything (DLP + patterns)
-{"method": "tools/call", "params": {"name": "scan_security", "arguments": {"content": "...", "mode": "all"}}}
+{"method": "tools/call", "params": {"name": "scan", "arguments": {"content": "...", "mode": "all"}}}
 ```
 
 ## Usage Example
