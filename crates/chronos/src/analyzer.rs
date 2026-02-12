@@ -160,9 +160,24 @@ impl Historian {
             let mut revwalk = repo.revwalk().map_err(|e| {
                 SynapseedError::Internal(format!("Failed to walk commits: {e}"))
             })?;
-            revwalk.push_head().map_err(|e| {
-                SynapseedError::Internal(format!("Failed to push HEAD: {e}"))
-            })?;
+            // Empty repos have no HEAD — return empty analysis
+            if revwalk.push_head().is_err() {
+                return Ok(HistoryAnalysis {
+                    file_path: file_path.to_string(),
+                    line_range: line_start.zip(line_end),
+                    total_commits: 0,
+                    hotspot_score: 0.0,
+                    top_authors: Vec::new(),
+                    semantic_summary: SemanticSummary {
+                        fix_count: 0, revert_count: 0, refactor_count: 0,
+                        feature_count: 0, security_count: 0, performance_count: 0,
+                        risk_indicator: "none".to_string(),
+                    },
+                    co_changes: Vec::new(),
+                    commits: Vec::new(),
+                    last_fix_commit: None,
+                });
+            }
             revwalk.set_sorting(Sort::TIME).map_err(|e| {
                 SynapseedError::Internal(format!("Failed to set sort: {e}"))
             })?;
@@ -395,9 +410,15 @@ impl Historian {
             let mut revwalk = repo.revwalk().map_err(|e| {
                 SynapseedError::Internal(format!("Failed to walk commits: {e}"))
             })?;
-            revwalk.push_head().map_err(|e| {
-                SynapseedError::Internal(format!("Failed to push HEAD: {e}"))
-            })?;
+            // Empty repos have no HEAD — return empty summary
+            if revwalk.push_head().is_err() {
+                return Ok(IntentSummary {
+                    summary: "No commits found.".to_string(),
+                    categories: HashMap::new(),
+                    total_commits: 0,
+                    time_span: None,
+                });
+            }
             revwalk.set_sorting(git2::Sort::TIME).map_err(|e| {
                 SynapseedError::Internal(format!("Failed to set sort: {e}"))
             })?;

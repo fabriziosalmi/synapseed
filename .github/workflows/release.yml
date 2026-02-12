@@ -15,6 +15,7 @@ jobs:
     name: Build (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - target: x86_64-unknown-linux-gnu
@@ -23,6 +24,7 @@ jobs:
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
             archive: tar.gz
+            cross: true
           - target: x86_64-apple-darwin
             os: macos-latest
             archive: tar.gz
@@ -35,18 +37,27 @@ jobs:
         with:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
 
-      - name: Install cross (Linux ARM64)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: cargo install cross --git https://github.com/cross-rs/cross
+      # Linux aarch64: install cross-compilation toolchain
+      - name: Install cross-compilation tools
+        if: matrix.cross
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
       - name: Build (native)
-        if: matrix.target != 'aarch64-unknown-linux-gnu'
+        if: ${{ !matrix.cross }}
         run: cargo build --release --target ${{ matrix.target }} -p synapseed-cli
 
-      - name: Build (cross)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: cross build --release --target ${{ matrix.target }} -p synapseed-cli
+      - name: Build (cross - vendored OpenSSL)
+        if: matrix.cross
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+          CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
+          CXX_aarch64_unknown_linux_gnu: aarch64-linux-gnu-g++
+        run: cargo build --release --target ${{ matrix.target }} -p synapseed-cli --features vendored-openssl
 
       - name: Package
         run: |

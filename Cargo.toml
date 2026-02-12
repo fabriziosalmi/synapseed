@@ -16,7 +16,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/fabriziosalmi/synapseed"
@@ -42,7 +42,7 @@ aho-corasick = "1"
 regex = "1"
 
 # Git integration (Time-Travel)
-git2 = "0.19"
+git2 = { version = "0.19", default-features = false, features = ["ssh", "https"] }
 
 # Concurrent data structures
 dashmap = "6"

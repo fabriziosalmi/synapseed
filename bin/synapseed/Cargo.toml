@@ -9,6 +9,10 @@ description = "SYNAPSEED CLI — High-Performance Semantic AI Middleware"
 name = "synapseed"
 path = "src/main.rs"
 
+[features]
+default = []
+vendored-openssl = ["git2/vendored-openssl"]
+
 [dependencies]
 synapseed-core = { workspace = true }
 synapseed-cortex = { workspace = true }
@@ -21,6 +25,7 @@ synapseed-search = { workspace = true }
 synapseed-shadow-check = { workspace = true }
 synapseed-whisper = { workspace = true }
 synapseed-telemetry-sink = { workspace = true }
+git2 = { workspace = true }
 tokio = { workspace = true }
 clap = { workspace = true }
 anyhow = { workspace = true }

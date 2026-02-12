@@ -408,6 +408,16 @@ async fn cmd_serve(path: &PathBuf) -> Result<()> {
     }
 
     info!("Starting MCP server on stdio");
-    synapseed_mcp::server::run(ctx).await?;
+
+    // Run MCP server with graceful shutdown on SIGINT/SIGTERM
+    tokio::select! {
+        result = synapseed_mcp::server::run(ctx) => {
+            result?;
+        }
+        _ = tokio::signal::ctrl_c() => {
+            eprintln!("[INFO] Received shutdown signal, exiting gracefully...");
+        }
+    }
+
     Ok(())
 }

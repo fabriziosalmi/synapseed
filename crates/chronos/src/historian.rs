@@ -128,9 +128,10 @@ impl Historian {
             let mut revwalk = repo.revwalk().map_err(|e| {
                 SynapseedError::Internal(format!("Failed to walk commits: {e}"))
             })?;
-            revwalk.push_head().map_err(|e| {
-                SynapseedError::Internal(format!("Failed to push HEAD: {e}"))
-            })?;
+            // Empty repos have no HEAD — return empty list instead of error
+            if revwalk.push_head().is_err() {
+                return Ok(Vec::new());
+            }
 
             let mut commits = Vec::new();
 
@@ -222,9 +223,9 @@ impl Historian {
             let mut revwalk = repo.revwalk().map_err(|e| {
                 SynapseedError::Internal(format!("Failed to walk commits: {e}"))
             })?;
-            revwalk.push_head().map_err(|e| {
-                SynapseedError::Internal(format!("Failed to push HEAD: {e}"))
-            })?;
+            if revwalk.push_head().is_err() {
+                return Ok(0);
+            }
             Ok(revwalk.count())
         })
     }
