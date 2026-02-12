@@ -10,7 +10,7 @@ name = "synapseed"
 path = "src/main.rs"
 
 [features]
-default = []
+default = ["vendored-openssl"]
 vendored-openssl = ["git2/vendored-openssl"]
 
 [dependencies]
