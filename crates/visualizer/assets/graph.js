@@ -173,6 +173,26 @@ function initCytoscape(elements, autoCollapse) {
             'opacity': 0.5,
           }
         },
+        // ── Cycle edges — red dashed ──
+        {
+          selector: 'edge[type="cycle"]',
+          style: {
+            'line-color': '#f85149',
+            'target-arrow-color': '#f85149',
+            'line-style': 'dashed',
+            'width': 3,
+            'opacity': 0.8,
+            'arrow-scale': 1.0,
+          }
+        },
+        // ── Cycle-involved nodes — red border ──
+        {
+          selector: 'node[inCycle]',
+          style: {
+            'border-color': '#f85149',
+            'border-width': 4,
+          }
+        },
         // ── State classes ──
         { selector: '.sym-hidden', style: { 'display': 'none' } },
         { selector: '.search-dimmed', style: { 'opacity': 0.1, 'z-index': 0 } },
@@ -226,9 +246,13 @@ function initCytoscape(elements, autoCollapse) {
     __cy.on('mouseover', 'node[type="file"]', function(e) {
       const d = e.target.data();
       const n = e.target.children().length;
+      var extra = '';
+      if (d.instability != null) extra += '<div class="tt-kind">Instability: ' + d.instability.toFixed(2) + '</div>';
+      if (d.inCycle) extra += '<div class="tt-kind" style="color:#f85149">In dependency cycle</div>';
       showTooltip(e, `
         <div class="tt-name">${esc(d.label)}</div>
         <div class="tt-kind">${esc(d.language || 'unknown')} — ${n} symbol${n !== 1 ? 's' : ''}</div>
+        ${extra}
       `);
     });
 
@@ -574,10 +598,12 @@ async function loadGraph() {
     document.getElementById('stat-files').textContent = data.stats.files;
     document.getElementById('stat-symbols').textContent = data.stats.symbols;
 
-    // Compound nodes only — containment is via "parent" field
-    const elements = data.elements.nodes || [];
+    // Compound nodes + edges
+    const nodeElements = data.elements.nodes || [];
+    const edgeElements = data.elements.edges || [];
+    const elements = nodeElements.concat(edgeElements);
 
-    if (elements.length === 0) {
+    if (nodeElements.length === 0) {
       setStatus('No files indexed — is the project path correct?', true);
       return;
     }
@@ -589,7 +615,7 @@ async function loadGraph() {
     setStatus(null);
 
     // Auto-collapse on large graphs (>8 files) so only file boxes are visible
-    var fileCount = elements.filter(function(e) { return e.data && e.data.type === 'file'; }).length;
+    var fileCount = nodeElements.filter(function(e) { return e.data && e.data.type === 'file'; }).length;
     var autoCollapse = fileCount > 8;
     initCytoscape(elements, autoCollapse);
 

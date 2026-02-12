@@ -4,6 +4,7 @@
 
 use serde_json::json;
 
+use synapseed_architect::ReportStore;
 use synapseed_core::context::SynapseContext;
 use synapseed_core::state::ProjectState;
 use synapseed_janitor::ProposalStore;
@@ -79,6 +80,15 @@ pub fn list_resources() -> Vec<ResourceDefinition> {
             ),
             mime_type: Some("application/json".into()),
         },
+        ResourceDefinition {
+            uri: "synapseed://architect/health".into(),
+            name: "Architecture Health".into(),
+            description: Some(
+                "Structural health of the codebase: architecture score (A-F), module coupling metrics, detected violations (cycles, god objects, layer breaches), and top recommendations."
+                    .into(),
+            ),
+            mime_type: Some("application/json".into()),
+        },
     ]
 }
 
@@ -92,6 +102,7 @@ pub fn read_resource(uri: &str, ctx: &SynapseContext) -> Option<ResourceContent>
         "synapseed://visualizer/url" => Some(resource_visualizer_url()),
         "synapseed://telemetry/hotspots" => Some(resource_telemetry_hotspots(ctx)),
         "synapseed://janitor/proposals" => Some(resource_janitor_proposals(ctx)),
+        "synapseed://architect/health" => Some(resource_architect_health(ctx)),
         _ => None,
     }
 }
@@ -326,6 +337,69 @@ fn resource_janitor_proposals(ctx: &SynapseContext) -> ResourceContent {
 
     ResourceContent {
         uri: "synapseed://janitor/proposals".into(),
+        mime_type: Some("application/json".into()),
+        text: Some(text),
+    }
+}
+
+fn resource_architect_health(ctx: &SynapseContext) -> ResourceContent {
+    let text = match ctx.get_extension::<ReportStore>() {
+        Some(store) => match store.get() {
+            Some(report) => {
+                let violations_summary: Vec<_> = report
+                    .violations
+                    .iter()
+                    .map(|v| {
+                        json!({
+                            "rule": v.rule,
+                            "severity": format!("{:?}", v.severity),
+                            "description": v.description,
+                        })
+                    })
+                    .collect();
+
+                let top_recs: Vec<_> = report
+                    .recommendations
+                    .iter()
+                    .take(3)
+                    .map(|r| {
+                        json!({
+                            "priority": r.priority,
+                            "category": r.category,
+                            "action": r.action,
+                        })
+                    })
+                    .collect();
+
+                serde_json::to_string_pretty(&json!({
+                    "score": report.score,
+                    "grade": report.grade,
+                    "module_count": report.module_count,
+                    "edge_count": report.edge_count,
+                    "avg_instability": report.avg_instability,
+                    "avg_complexity": report.avg_complexity,
+                    "max_coupling": report.max_coupling,
+                    "violation_count": report.violations.len(),
+                    "violations": violations_summary,
+                    "top_recommendations": top_recs,
+                }))
+                .unwrap_or_default()
+            }
+            None => serde_json::to_string_pretty(&json!({
+                "status": "pending",
+                "message": "Architecture analysis in progress. Call `architect_analyze` or wait for background analysis to complete.",
+            }))
+            .unwrap_or_default(),
+        },
+        None => serde_json::to_string_pretty(&json!({
+            "status": "inactive",
+            "message": "Architect plugin not active.",
+        }))
+        .unwrap_or_default(),
+    };
+
+    ResourceContent {
+        uri: "synapseed://architect/health".into(),
         mime_type: Some("application/json".into()),
         text: Some(text),
     }

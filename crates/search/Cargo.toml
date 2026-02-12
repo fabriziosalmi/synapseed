@@ -3,7 +3,11 @@ name = "synapseed-search"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Semantic code search — Tantivy-powered full-text index over AST symbols"
+description = "Semantic code search — Tantivy full-text + optional vector embedding similarity"
+
+[features]
+default = []
+embeddings = ["fastembed"]
 
 [dependencies]
 synapseed-core = { workspace = true }
@@ -12,4 +16,9 @@ tantivy = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+bincode = { workspace = true }
 tracing = { workspace = true }
+thiserror = { workspace = true }
+
+# Optional: vector embeddings
+fastembed = { workspace = true, optional = true }

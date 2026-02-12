@@ -48,6 +48,10 @@ pub struct ProjectDna {
     /// Visualizer port override (default: 3000)
     #[serde(default)]
     pub visualizer_port: Option<u16>,
+
+    /// Architect configuration (layers, thresholds)
+    #[serde(default)]
+    pub architect: ArchitectConfig,
 }
 
 /// Search index configuration.
@@ -57,6 +61,39 @@ pub struct SearchConfig {
     /// Default: false (RAM-only, fast startup).
     #[serde(default)]
     pub persistence: bool,
+
+    /// Enable vector embedding similarity search.
+    /// Downloads ~22MB model on first use to `.synapseed/models/`.
+    #[serde(default)]
+    pub embeddings: bool,
+}
+
+/// Architect module configuration.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ArchitectConfig {
+    /// Layer definitions for violation detection.
+    #[serde(default)]
+    pub layers: Vec<ArchitectLayer>,
+    /// Max public symbols before flagging as god object (default: 50).
+    #[serde(default)]
+    pub god_object_max_symbols: Option<usize>,
+    /// Max approximate lines before flagging as god object (default: 1000).
+    #[serde(default)]
+    pub god_object_max_lines: Option<usize>,
+    /// Min fan-in to combine with size for god object detection (default: 5).
+    #[serde(default)]
+    pub god_object_min_fan_in: Option<usize>,
+}
+
+/// A named architectural layer with rank and module patterns.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArchitectLayer {
+    /// Layer name (e.g., "core", "domain", "api", "ui").
+    pub name: String,
+    /// Layer rank (0 = bottom). Lower must not import from higher.
+    pub rank: u32,
+    /// Module name patterns belonging to this layer.
+    pub modules: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -124,6 +161,7 @@ impl Default for ProjectDna {
             dlp_custom_rules: Vec::new(),
             search: SearchConfig::default(),
             visualizer_port: None,
+            architect: ArchitectConfig::default(),
         }
     }
 }
@@ -212,8 +250,23 @@ impl ProjectDna {
         if other.search.persistence {
             self.search.persistence = true;
         }
+        if other.search.embeddings {
+            self.search.embeddings = true;
+        }
         if other.visualizer_port.is_some() {
             self.visualizer_port = other.visualizer_port;
+        }
+        if !other.architect.layers.is_empty() {
+            self.architect.layers = other.architect.layers;
+        }
+        if other.architect.god_object_max_symbols.is_some() {
+            self.architect.god_object_max_symbols = other.architect.god_object_max_symbols;
+        }
+        if other.architect.god_object_max_lines.is_some() {
+            self.architect.god_object_max_lines = other.architect.god_object_max_lines;
+        }
+        if other.architect.god_object_min_fan_in.is_some() {
+            self.architect.god_object_min_fan_in = other.architect.god_object_min_fan_in;
         }
     }
 }

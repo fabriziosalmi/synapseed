@@ -14,11 +14,12 @@ members = [
     "crates/telemetry-sink",
     "crates/gym",
     "crates/janitor",
+    "crates/architect",
     "bin/synapseed",
 ]
 
 [workspace.package]
-version = "1.1.0"
+version = "1.2.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/fabriziosalmi/synapseed"
@@ -96,6 +97,15 @@ dirs = "6"
 # Temp directories (Gym)
 tempfile = "3"
 
+# Graph algorithms (Architect)
+petgraph = "0.6"
+
+# Vector Embeddings (local ONNX inference)
+fastembed = "5"
+
+# Binary serialization (vector index persistence)
+bincode = "1"
+
 # Internal crates
 synapseed-core = { path = "crates/core" }
 synapseed-cortex = { path = "crates/cortex" }
@@ -110,6 +120,7 @@ synapseed-whisper = { path = "crates/whisper" }
 synapseed-telemetry-sink = { path = "crates/telemetry-sink" }
 synapseed-gym = { path = "crates/gym" }
 synapseed-janitor = { path = "crates/janitor" }
+synapseed-architect = { path = "crates/architect" }
 
 [profile.release]
 opt-level = 3

@@ -5,6 +5,7 @@
 use serde_json::json;
 use tracing::info;
 
+use synapseed_architect::ReportStore;
 use synapseed_chronos::historian::Historian;
 use synapseed_core::context::SynapseContext;
 use synapseed_core::state::ProjectState;
@@ -274,6 +275,44 @@ pub fn list_tools() -> Vec<ToolDefinition> {
                 "required": ["proposal_id"]
             }),
         },
+        ToolDefinition {
+            name: "architect_analyze".into(),
+            description: "Analyze the project's structural health: module dependency graph, coupling metrics, cycle detection, god object detection, layer violation detection. Returns an architecture score (A-F), violations, and actionable recommendations.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "refresh": {
+                        "type": "boolean",
+                        "description": "Force a fresh analysis (default: use cached report if available)",
+                        "default": false
+                    }
+                }
+            }),
+        },
+        ToolDefinition {
+            name: "semantic_similarity".into(),
+            description: "Find code similar to a natural-language query using vector embeddings. Returns ranked results by cosine similarity. Requires `search.embeddings: true` in DNA config. Use this when you need to find code by meaning, not just keyword matching.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Natural-language query describing the code you're looking for (e.g., 'authentication logic', 'error handling patterns')"
+                    },
+                    "top_k": {
+                        "type": "integer",
+                        "description": "Number of results to return (default: 5)",
+                        "default": 5
+                    },
+                    "min_similarity": {
+                        "type": "number",
+                        "description": "Minimum cosine similarity threshold (default: 0.3)",
+                        "default": 0.3
+                    }
+                },
+                "required": ["query"]
+            }),
+        },
     ]
 }
 
@@ -303,6 +342,8 @@ pub fn handle_tool_call(
         "reset_telemetry" => tool_reset_telemetry(ctx),
         "janitor_run_now" => tool_janitor_run_now(ctx),
         "janitor_apply_fix" => tool_janitor_apply_fix(args, ctx),
+        "architect_analyze" => tool_architect_analyze(args, ctx),
+        "semantic_similarity" => tool_semantic_similarity(args, ctx),
         _ => ToolCallResult {
             content: vec![ContentBlock::Text {
                 text: format!("Unknown tool: {name}"),
@@ -877,6 +918,127 @@ fn tool_janitor_apply_fix(args: &serde_json::Value, ctx: &SynapseContext) -> Too
     match janitor.apply(proposal_id, &root) {
         Ok(msg) => text_result(format!("Fix applied successfully.\n{msg}")),
         Err(e) => error_result(format!("Failed to apply fix: {e}")),
+    }
+}
+
+fn tool_architect_analyze(args: &serde_json::Value, ctx: &SynapseContext) -> ToolCallResult {
+    let refresh = args
+        .get("refresh")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    // Try cached report from ArchitectPlugin
+    if !refresh {
+        if let Some(store) = ctx.get_extension::<ReportStore>() {
+            if let Some(report) = store.get() {
+                let json = serde_json::to_string_pretty(&report).unwrap_or_default();
+                return text_result(format!(
+                    "=== ARCHITECTURE REPORT ===\nScore: {}/100 (Grade: {})\nModules: {} | Edges: {} | Violations: {}\n\n{json}",
+                    report.score, report.grade, report.module_count, report.edge_count, report.violations.len()
+                ));
+            }
+        }
+    }
+
+    // Build fresh report (or no cached one exists)
+    let graph = match ctx.get_extension::<CodeGraph>() {
+        Some(g) => g,
+        None => {
+            // Fallback: build ephemeral graph
+            let root = ctx.project_root();
+            let g = CodeGraph::new();
+            if let Err(e) = g.index_directory(&root) {
+                return error_result(format!("Failed to index project: {e}"));
+            }
+            std::sync::Arc::new(g)
+        }
+    };
+
+    let dna = ctx.dna();
+    let mut dep_graph = synapseed_architect::DependencyGraph::build(&graph);
+    dep_graph.compute_metrics();
+
+    let config = synapseed_architect::linter::LinterConfig::from_dna(&dna.architect);
+    let violations = synapseed_architect::linter::lint(&dep_graph, &config);
+    let report = synapseed_architect::blueprint::generate_report(&dep_graph, violations);
+
+    // Cache the report if store exists
+    if let Some(store) = ctx.get_extension::<ReportStore>() {
+        store.set(report.clone());
+    }
+
+    let json = serde_json::to_string_pretty(&report).unwrap_or_default();
+    text_result(format!(
+        "=== ARCHITECTURE REPORT ===\nScore: {}/100 (Grade: {})\nModules: {} | Edges: {} | Violations: {}\n\n{json}",
+        report.score, report.grade, report.module_count, report.edge_count, report.violations.len()
+    ))
+}
+
+fn tool_semantic_similarity(args: &serde_json::Value, ctx: &SynapseContext) -> ToolCallResult {
+    let query = match args.get("query").and_then(|v| v.as_str()) {
+        Some(q) => q.trim(),
+        None => return error_result("Missing required parameter: query".into()),
+    };
+    if query.is_empty() {
+        return error_result("Query must not be empty".into());
+    }
+    let top_k = args.get("top_k").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
+    let min_similarity = args
+        .get("min_similarity")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.3) as f32;
+
+    #[cfg(feature = "embeddings")]
+    {
+        use synapseed_search::embeddings::EmbeddingEngine;
+        use synapseed_search::vector_index::VectorIndex;
+
+        let engine = match ctx.get_extension::<EmbeddingEngine>() {
+            Some(e) => e,
+            None => {
+                return text_result(
+                    "Embeddings not available. Enable with `search.embeddings: true` in your DNA config (.synapseed/dna.yaml).".into(),
+                );
+            }
+        };
+
+        let vector_index = match ctx.get_extension::<VectorIndex>() {
+            Some(vi) => vi,
+            None => {
+                return text_result("Vector index not ready. Embeddings may still be loading.".into());
+            }
+        };
+
+        let query_vector = match engine.embed(query) {
+            Ok(v) => v,
+            Err(e) => return error_result(format!("Failed to embed query: {e}")),
+        };
+
+        let results = vector_index.search(&query_vector, top_k);
+        let filtered: Vec<_> = results
+            .into_iter()
+            .filter(|r| r.similarity >= min_similarity)
+            .collect();
+
+        if filtered.is_empty() {
+            text_result(format!(
+                "No results above similarity threshold ({min_similarity}) for: \"{query}\""
+            ))
+        } else {
+            let json = serde_json::to_string_pretty(&filtered).unwrap_or_default();
+            text_result(format!(
+                "Found {} similar symbol(s) for \"{query}\":\n{json}",
+                filtered.len()
+            ))
+        }
+    }
+
+    #[cfg(not(feature = "embeddings"))]
+    {
+        let _ = (query, top_k, min_similarity, ctx);
+        text_result(
+            "Embeddings not compiled. Rebuild with the `embeddings` feature enabled.".into(),
+        )
     }
 }
 

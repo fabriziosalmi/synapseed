@@ -19,9 +19,10 @@ synapseed-cortex = { workspace = true }
 synapseed-husk = { workspace = true }
 synapseed-root = { workspace = true }
 synapseed-chronos = { workspace = true }
-synapseed-mcp = { workspace = true }
+synapseed-mcp = { workspace = true, features = ["embeddings"] }
 synapseed-visualizer = { workspace = true }
-synapseed-search = { workspace = true }
+synapseed-search = { workspace = true, features = ["embeddings"] }
+synapseed-architect = { workspace = true }
 synapseed-shadow-check = { workspace = true }
 synapseed-whisper = { workspace = true }
 synapseed-telemetry-sink = { workspace = true }

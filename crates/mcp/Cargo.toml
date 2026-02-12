@@ -5,6 +5,10 @@ edition.workspace = true
 license.workspace = true
 description = "MCP (Model Context Protocol) server — the bridge between SYNAPSEED and LLMs"
 
+[features]
+default = []
+embeddings = ["synapseed-search/embeddings"]
+
 [dependencies]
 synapseed-core = { workspace = true }
 synapseed-cortex = { workspace = true }
@@ -17,6 +21,7 @@ synapseed-whisper = { workspace = true }
 synapseed-telemetry-sink = { workspace = true }
 synapseed-gym = { workspace = true }
 synapseed-janitor = { workspace = true }
+synapseed-architect = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

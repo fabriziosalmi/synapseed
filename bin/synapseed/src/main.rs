@@ -24,6 +24,7 @@ use synapseed_telemetry_sink::plugin::TelemetrySinkPlugin;
 use synapseed_visualizer::plugin::VisualizerPlugin;
 use synapseed_gym::plugin::GymPlugin;
 use synapseed_janitor::plugin::JanitorPlugin;
+use synapseed_architect::plugin::ArchitectPlugin;
 use synapseed_whisper::plugin::WhisperPlugin;
 
 #[derive(Parser)]
@@ -412,6 +413,7 @@ async fn cmd_serve(path: &Path) -> Result<()> {
         Box::new(SearchPlugin::new()),
         Box::new(TelemetrySinkPlugin::new()),
         Box::new(VisualizerPlugin::from_config(&dna)),
+        Box::new(ArchitectPlugin::new()),
         Box::new(WhisperPlugin::new()),
         Box::new(GymPlugin::new()),
         Box::new(JanitorPlugin::new()),
