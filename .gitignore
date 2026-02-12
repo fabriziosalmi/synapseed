@@ -45,3 +45,6 @@ npm-debug.log*
 
 # Rust
 Cargo.lock
+.mcp.json
+.synapseed/session.json
+test-results/.last-run.json
