@@ -240,7 +240,10 @@ fn truncate(s: &str, max: usize) -> String {
     if s.len() <= max {
         s.to_string()
     } else {
-        format!("{}...", &s[..max])
+        // Find the nearest char boundary at or before `max` to avoid panicking
+        // on multi-byte UTF-8 sequences.
+        let end = s.floor_char_boundary(max);
+        format!("{}...", &s[..end])
     }
 }
 

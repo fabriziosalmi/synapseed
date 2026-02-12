@@ -154,8 +154,11 @@ fn test_tool_call_legacy_alias() {
 fn test_tool_call_unknown_returns_error() {
     let dir = tempfile::tempdir().unwrap();
     let ctx = test_ctx(dir.path());
+    // Use a short gibberish name (< 20 chars, no spaces) that won't fuzzy-match
+    // any real tool name (edit distance > 3) and won't trigger the natural-language
+    // redirect (requires len > 20 or spaces/question mark).
     let result = tools::handle_tool_call(
-        "totally_nonexistent_tool_xyz",
+        "zzqxwk",
         &json!({}),
         &ctx,
     );

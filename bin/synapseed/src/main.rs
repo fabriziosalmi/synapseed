@@ -297,7 +297,7 @@ async fn main() -> Result<()> {
 
         // ── MCP-bridged commands ────────────────────────────────────
         Commands::Ask { query } => {
-            cmd_mcp(&project_root, "ask", json!({"query": query})).await?
+            cmd_ask(&project_root, &query).await?
         }
         Commands::Search { query, limit } => {
             cmd_mcp(&project_root, "search", json!({"query": query, "limit": limit})).await?
@@ -353,7 +353,7 @@ async fn main() -> Result<()> {
         Commands::External(args) => {
             let query = args.join(" ");
             eprintln!("[ask] {query}");
-            cmd_mcp(&project_root, "ask", json!({"query": query})).await?
+            cmd_ask(&project_root, &query).await?
         }
     }
 
@@ -391,6 +391,70 @@ async fn init_full_context(path: &Path) -> Result<SynapseContext> {
     }
 
     Ok(ctx)
+}
+
+/// `ask` with auto-hoist: ensure the code graph is fully indexed before querying.
+///
+/// In CLI mode the Cortex plugin indexes in a background thread, so the graph
+/// may still be empty when the Whisperer processes the query.  This function
+/// detects that situation and performs a **synchronous** hoist (equivalent to
+/// `synapseed hoist . && synapseed ask "..."`) in a single process.
+async fn cmd_ask(path: &Path, query: &str) -> Result<()> {
+    let ctx = init_full_context(path).await?;
+
+    // Wait briefly for the background indexer, then fall back to synchronous.
+    if let Some(graph) = ctx.get_extension::<CodeGraph>() {
+        // Give the background thread up to 500 ms to finish.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(500);
+        while graph.file_count() == 0 && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(25));
+        }
+
+        if graph.file_count() == 0 {
+            // Background indexing didn't finish in time — do it synchronously.
+            info!("ask: auto-hoisting project (synchronous index)");
+            if let Err(e) = graph.index_directory(path) {
+                eprintln!("[WARN] auto-hoist failed: {e}");
+            } else {
+                ctx.update_metrics(|m| {
+                    m.files_indexed = graph.file_count();
+                    m.symbols_found = graph.symbol_count();
+                });
+                info!(
+                    files = graph.file_count(),
+                    symbols = graph.symbol_count(),
+                    "ask: auto-hoist complete"
+                );
+            }
+        }
+    } else {
+        // No graph registered at all — build one from scratch.
+        info!("ask: no code graph found, auto-hoisting");
+        let graph = std::sync::Arc::new(CodeGraph::new());
+        if let Err(e) = graph.index_directory(path) {
+            eprintln!("[WARN] auto-hoist failed: {e}");
+        } else {
+            ctx.update_metrics(|m| {
+                m.files_indexed = graph.file_count();
+                m.symbols_found = graph.symbol_count();
+            });
+            ctx.set_extension(graph);
+        }
+    }
+
+    let result = handle_tool_call("ask", &json!({"query": query}), &ctx);
+
+    for block in &result.content {
+        match block {
+            ContentBlock::Text { text } => println!("{text}"),
+        }
+    }
+
+    if result.is_error == Some(true) {
+        std::process::exit(1);
+    }
+
+    Ok(())
 }
 
 /// Generic MCP tool bridge: init context, call tool, print result.

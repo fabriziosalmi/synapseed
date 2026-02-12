@@ -22,7 +22,7 @@ resolver = "2"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/fabriziosalmi/synapseed"
-version = "3.2.0"
+version = "3.3.0"
 
 [workspace.dependencies]
 # Async Runtime
@@ -114,7 +114,7 @@ fastembed = "5"
 bincode = "1"
 
 # Benchmarking
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = {version = "0.5", features = ["html_reports"]}
 
 # Gitignore-aware file walking
 ignore = "0.4"

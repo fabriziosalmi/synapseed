@@ -3,7 +3,7 @@
 //! Tests DLP secret detection, false-positive whitelisting, redaction,
 //! code pattern detection, and SecurityGuard behavior.
 
-use synapseed_core::policy::{PolicyAction, SecurityPolicy};
+use synapseed_core::policy::SecurityPolicy;
 use synapseed_husk::guard::SecurityGuard;
 use synapseed_husk::patterns::CodePatternScanner;
 

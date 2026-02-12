@@ -1,5 +1,81 @@
 # Changelog
 
+## [3.3.0] — 2026-02-13
+
+### "Auto-Hoist" Release
+
+Security hardening, massive test expansion (93 → 255), and `ask` now auto-indexes
+the project so `synapseed ask "..."` works out of the box without a prior `hoist`.
+
+---
+
+### Architecture (15 crates, 20 tools, 9 resources, 6 prompts)
+
+Score: **97/100 (Grade A)** — 161 modules, 58 edges.
+255 tests passing, 0 failures.
+
+### Features
+
+- **Auto-hoist in `ask`** — CLI `ask` (and external catch-all) now ensures the
+  code graph is fully indexed before querying the Whisperer. Waits 500 ms for the
+  background indexer; if still empty, falls back to synchronous indexing. Equivalent
+  to `synapseed hoist . && synapseed ask "..."` in a single process.
+
+- **Semantic catch-all** — Natural-language tool names (len > 20, spaces, `?`)
+  are redirected to `ask` instead of erroring. Small models that write a question
+  as the tool name get a helpful answer.
+
+### Security — P0
+
+- **Path traversal protection** — Added `PathTraversal` error variant and
+  `safe_resolve()` utility in `synapseed-core`. Fixed unsafe `.join()` +
+  `read_to_string()` patterns in: whisper/security.rs, visualizer/server.rs,
+  search/indexer.rs, shadow-check/runner.rs, janitor/fixer.rs.
+
+- **Unicode truncation panic** — Fixed `husk/patterns.rs` byte-index slicing
+  on multi-byte characters (`&s[..max]` → `s.floor_char_boundary(max)`).
+  Discovered by proptest fuzzing.
+
+### Hardening — Zero-Panic
+
+- **parking_lot RwLock** — Replaced `std::sync::RwLock` with `parking_lot` in
+  core/context.rs, search/vector_index.rs, architect/blueprint.rs, janitor —
+  eliminates lock poisoning panics.
+
+- **LazyLock regex** — oracle.rs regexes compiled once via `std::sync::LazyLock`
+  instead of per-call `Regex::new()`.
+
+- **saturating_sub** — Epoch arithmetic uses `saturating_sub()` to prevent
+  underflow panic.
+
+### Testing — 93 → 255 tests
+
+- **MCP protocol** — 31 tests: JSON-RPC routing, fuzzy matching, tool aliases,
+  error codes, resource/prompt listing.
+- **Sentinel** — 22 tests: allow/deny, fail-closed, Unicode, edge cases.
+- **Cortex** — 11 tests + 7 proptest: graph indexing, symbol lookup, multi-lang,
+  AST parser fuzz (Rust/Python/JS never panics, determinism).
+- **Husk** — 15 tests + 9 proptest: DLP secrets, redaction, code patterns,
+  scanner fuzz, idempotent redaction.
+- **Search** — 9 tests: Tantivy indexing, querying, re-index, removal,
+  multi-symbol, temporal decay, disk persistence.
+- **Core** — 8 path-traversal tests: `safe_resolve()` blocks `..`, absolute
+  outside root, nonexistent files; allows valid paths.
+- **Root proptest** — 6 tests: sentinel never panics on arbitrary input,
+  deterministic evaluation.
+
+### Feature-gate
+
+- **tonic/gRPC optional** — `synapseed-telemetry-sink` gains `grpc` feature flag.
+  Users who don't need OTLP export save ~35 transitive deps. Default: enabled.
+
+### Benchmarks
+
+- **criterion suite** — cortex (CodeGraph::new, index_directory, lookup) and
+  search (SemanticIndex::new, index_all, search) benchmarks added.
+
+---
+
 ## [3.2.0] — 2026-02-12
 
 ### "CLI Polish" Release

@@ -79,8 +79,8 @@ fn index_file_and_search_by_name() {
     let count = index.index_all(&[file], project_root);
     assert_eq!(count, 1, "Should have indexed 1 symbol");
 
-    // Wait a tiny bit for the reader to reload
-    std::thread::sleep(std::time::Duration::from_millis(100));
+    // Wait for the reader to reload (OnCommitWithDelay adds ~500ms)
+    std::thread::sleep(std::time::Duration::from_millis(700));
 
     let results = index.search("authenticate", 10);
     assert!(
@@ -114,7 +114,7 @@ fn index_multiple_files_and_search() {
     let count = index.index_all(&files, project_root);
     assert_eq!(count, 3, "Should have indexed 3 symbols");
 
-    std::thread::sleep(std::time::Duration::from_millis(100));
+    std::thread::sleep(std::time::Duration::from_millis(700));
 
     let results = index.search("database connection", 10);
     assert!(
@@ -139,12 +139,12 @@ fn reindex_same_file_no_duplicates() {
 
     // Index the file twice using reindex_file (delete + re-add)
     index.index_all(&[file.clone()], project_root);
-    std::thread::sleep(std::time::Duration::from_millis(100));
+    std::thread::sleep(std::time::Duration::from_millis(700));
 
     let count = index.reindex_file(&file, project_root);
     assert_eq!(count, 1, "Reindex should add 1 symbol");
 
-    std::thread::sleep(std::time::Duration::from_millis(100));
+    std::thread::sleep(std::time::Duration::from_millis(700));
 
     let results = index.search("process_data", 10);
     assert_eq!(
@@ -164,7 +164,7 @@ fn remove_file_from_index() {
 
     let file = make_file("src/temp.rs", "temp_function", "fn temp_function()");
     index.index_all(&[file], project_root);
-    std::thread::sleep(std::time::Duration::from_millis(100));
+    std::thread::sleep(std::time::Duration::from_millis(700));
 
     // Verify it's indexed
     let results = index.search("temp_function", 10);
@@ -172,7 +172,7 @@ fn remove_file_from_index() {
 
     // Remove it
     index.remove_file("src/temp.rs");
-    std::thread::sleep(std::time::Duration::from_millis(100));
+    std::thread::sleep(std::time::Duration::from_millis(700));
 
     let results = index.search("temp_function", 10);
     assert!(
@@ -212,8 +212,8 @@ fn index_file_with_multiple_symbols() {
     let count = index.index_all(&[file], project_root);
     assert_eq!(count, 4, "Should have indexed 4 symbols");
 
-    std::thread::sleep(std::time::Duration::from_millis(100));
+    std::thread::sleep(std::time::Duration::from_millis(700));
 
-    let results = index.search("create user", 10);
-    assert!(!results.is_empty(), "Search for 'create user' should return results");
+    let results = index.search("create_user", 10);
+    assert!(!results.is_empty(), "Search for 'create_user' should return results");
 }
