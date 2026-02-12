@@ -12,31 +12,144 @@ use crate::event::SynapseEvent;
 use crate::liquid::ProjectDna;
 use crate::state::ProjectState;
 
-/// Thread-safe shared state + async Event Bus for all plugins.
+// ══════════════════════════════════════════════════════════════
+// EXTRACTED COMPONENT 1: EventBus
+// Decoupled pub/sub — plugins that only need events can accept
+// `&EventBus` instead of the full SynapseContext.
+// ══════════════════════════════════════════════════════════════
+
+/// Typed broadcast event bus, decoupled from the context.
 ///
-/// The context is both a data store (project state, metrics, config)
-/// and a nervous system (broadcast channel for domain events).
-///
-/// Cloning is cheap (Arc internally).
+/// Plugins that only need pub/sub can accept `&EventBus` instead
+/// of the full [`SynapseContext`], reducing coupling.
 #[derive(Clone)]
-pub struct SynapseContext {
-    inner: Arc<RwLock<ContextInner>>,
-    /// Async broadcast sender — plugins subscribe via `subscribe()`
-    event_tx: broadcast::Sender<SynapseEvent>,
-    /// Type-erased extensions — plugins register shared objects for cross-crate access.
-    extensions: Arc<RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>>,
-    /// Cancellation token for coordinated async shutdown.
-    shutdown_token: CancellationToken,
-    /// Companion flag for std::thread loops that cannot await.
-    shutdown_flag: Arc<AtomicBool>,
+pub struct EventBus {
+    tx: broadcast::Sender<SynapseEvent>,
 }
 
-struct ContextInner {
-    project_root: PathBuf,
-    project_state: ProjectState,
-    dna: ProjectDna,
-    metrics: ContextMetrics,
+impl EventBus {
+    /// Create a new event bus with the given channel capacity.
+    pub fn new(capacity: usize) -> Self {
+        let (tx, _) = broadcast::channel(capacity);
+        Self { tx }
+    }
+
+    /// Broadcast an event to all subscribers.
+    /// Returns the number of receivers that got the event.
+    pub fn broadcast(&self, event: SynapseEvent) -> usize {
+        self.tx.send(event).unwrap_or(0)
+    }
+
+    /// Subscribe to the event bus. Returns a receiver for async consumption.
+    pub fn subscribe(&self) -> broadcast::Receiver<SynapseEvent> {
+        self.tx.subscribe()
+    }
+
+    /// Get a clone of the sender (for spawning background tasks that emit events).
+    pub fn sender(&self) -> broadcast::Sender<SynapseEvent> {
+        self.tx.clone()
+    }
 }
+
+// ══════════════════════════════════════════════════════════════
+// EXTRACTED COMPONENT 2: ShutdownCoordinator
+// Lifecycle management decoupled from data/events.
+// ══════════════════════════════════════════════════════════════
+
+/// Coordinated shutdown for both async and sync contexts.
+///
+/// Wraps a [`CancellationToken`] for async tasks and an [`AtomicBool`]
+/// flag for `std::thread` loops that cannot await.
+#[derive(Clone)]
+pub struct ShutdownCoordinator {
+    token: CancellationToken,
+    flag: Arc<AtomicBool>,
+}
+
+impl ShutdownCoordinator {
+    pub fn new() -> Self {
+        Self {
+            token: CancellationToken::new(),
+            flag: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    /// Returns a clone of the cancellation token.
+    /// Background async tasks should use `token.cancelled().await` in a
+    /// `tokio::select!` branch to exit their loops.
+    pub fn token(&self) -> CancellationToken {
+        self.token.clone()
+    }
+
+    /// Returns a clone of the shutdown flag for std::thread loops.
+    /// Check with `flag.load(Ordering::Relaxed)` in loop conditions.
+    pub fn flag(&self) -> Arc<AtomicBool> {
+        self.flag.clone()
+    }
+
+    /// Trigger shutdown: sets the flag and cancels the token.
+    pub fn request_shutdown(&self) {
+        self.flag.store(true, Ordering::Relaxed);
+        self.token.cancel();
+    }
+
+    /// Returns true if shutdown has been requested.
+    pub fn is_shutting_down(&self) -> bool {
+        self.token.is_cancelled()
+    }
+}
+
+impl Default for ShutdownCoordinator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ══════════════════════════════════════════════════════════════
+// EXTRACTED COMPONENT 3: ExtensionRegistry
+// Type-erased DI container, standalone and testable.
+// ══════════════════════════════════════════════════════════════
+
+/// Type-erased dependency injection container.
+///
+/// Plugins register shared objects during `on_init`; MCP tools
+/// and other plugins retrieve them by type.
+#[derive(Clone)]
+pub struct ExtensionRegistry {
+    map: Arc<RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>>,
+}
+
+impl ExtensionRegistry {
+    pub fn new() -> Self {
+        Self {
+            map: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    /// Register a shared object by type.
+    pub fn set<T: Send + Sync + 'static>(&self, ext: Arc<T>) {
+        self.map.write().unwrap().insert(TypeId::of::<T>(), ext);
+    }
+
+    /// Retrieve a shared object by type.
+    pub fn get<T: Send + Sync + 'static>(&self) -> Option<Arc<T>> {
+        self.map
+            .read()
+            .unwrap()
+            .get(&TypeId::of::<T>())
+            .and_then(|ext| ext.clone().downcast::<T>().ok())
+    }
+}
+
+impl Default for ExtensionRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ══════════════════════════════════════════════════════════════
+// CONTEXT METRICS
+// ══════════════════════════════════════════════════════════════
 
 /// Runtime metrics tracked across the session.
 #[derive(Debug, Default, Clone, serde::Serialize)]
@@ -52,14 +165,39 @@ pub struct ContextMetrics {
     pub tools_invoked: usize,
 }
 
+// ══════════════════════════════════════════════════════════════
+// SYNAPSE CONTEXT — Composed Facade (identical public API)
+// ══════════════════════════════════════════════════════════════
+
+struct ContextInner {
+    project_root: PathBuf,
+    project_state: ProjectState,
+    dna: ProjectDna,
+    metrics: ContextMetrics,
+}
+
+/// Thread-safe shared state + async Event Bus for all plugins.
+///
+/// Internally composed of decoupled components:
+/// - [`EventBus`] for pub/sub
+/// - [`ShutdownCoordinator`] for lifecycle
+/// - [`ExtensionRegistry`] for type-erased DI
+///
+/// Cloning is cheap (Arc internally).
+#[derive(Clone)]
+pub struct SynapseContext {
+    inner: Arc<RwLock<ContextInner>>,
+    event_bus: Arc<EventBus>,
+    extensions: ExtensionRegistry,
+    shutdown: Arc<ShutdownCoordinator>,
+}
+
 impl SynapseContext {
     /// Create a new context with an event bus (capacity = 4096 events).
     ///
     /// A large capacity prevents `Lagged` errors when plugins produce
     /// events faster than consumers drain them (e.g., bulk file indexing).
     pub fn new(project_root: PathBuf, state: ProjectState, dna: ProjectDna) -> Self {
-        let (event_tx, _) = broadcast::channel(4096);
-
         Self {
             inner: Arc::new(RwLock::new(ContextInner {
                 project_root,
@@ -67,10 +205,9 @@ impl SynapseContext {
                 dna,
                 metrics: ContextMetrics::default(),
             })),
-            event_tx,
-            extensions: Arc::new(RwLock::new(HashMap::new())),
-            shutdown_token: CancellationToken::new(),
-            shutdown_flag: Arc::new(AtomicBool::new(false)),
+            event_bus: Arc::new(EventBus::new(4096)),
+            extensions: ExtensionRegistry::new(),
+            shutdown: Arc::new(ShutdownCoordinator::new()),
         }
     }
 
@@ -101,65 +238,61 @@ impl SynapseContext {
         self.inner.write().unwrap().project_state = state;
     }
 
-    // ── Event Bus ───────────────────────────────────────────────
+    // ── Event Bus (delegates to EventBus) ────────────────────────
 
     /// Broadcast an event to all subscribers.
     /// Returns the number of receivers that got the event.
     pub fn broadcast(&self, event: SynapseEvent) -> usize {
         debug!(event_type = ?std::mem::discriminant(&event), "Broadcasting event");
         self.update_metrics(|m| m.events_broadcast += 1);
-        self.event_tx.send(event).unwrap_or(0)
+        self.event_bus.broadcast(event)
     }
 
     /// Subscribe to the event bus. Returns a receiver for async consumption.
     pub fn subscribe(&self) -> broadcast::Receiver<SynapseEvent> {
-        self.event_tx.subscribe()
+        self.event_bus.subscribe()
     }
 
     /// Get a clone of the sender (for spawning background tasks that emit events).
     pub fn event_sender(&self) -> broadcast::Sender<SynapseEvent> {
-        self.event_tx.clone()
+        self.event_bus.sender()
     }
 
-    // ── Extensions ──────────────────────────────────────────────
+    // ── Extensions (delegates to ExtensionRegistry) ──────────────
 
     /// Register a shared object by type. Plugins set these during on_init.
     pub fn set_extension<T: Send + Sync + 'static>(&self, ext: Arc<T>) {
-        let mut map = self.extensions.write().unwrap();
-        map.insert(TypeId::of::<T>(), ext);
+        self.extensions.set(ext);
     }
 
     /// Retrieve a shared object by type. MCP tools and other plugins read these.
     pub fn get_extension<T: Send + Sync + 'static>(&self) -> Option<Arc<T>> {
-        let map = self.extensions.read().unwrap();
-        map.get(&TypeId::of::<T>())
-            .and_then(|ext| ext.clone().downcast::<T>().ok())
+        self.extensions.get()
     }
 
-    // ── Shutdown Coordination ────────────────────────────────────
+    // ── Shutdown (delegates to ShutdownCoordinator) ──────────────
 
     /// Returns a clone of the cancellation token.
     /// Background async tasks should use `token.cancelled().await` in a
     /// `tokio::select!` branch to exit their loops.
     pub fn shutdown_token(&self) -> CancellationToken {
-        self.shutdown_token.clone()
+        self.shutdown.token()
     }
 
     /// Returns a clone of the shutdown flag for std::thread loops.
     /// Check with `flag.load(Ordering::Relaxed)` in loop conditions.
     pub fn shutdown_flag(&self) -> Arc<AtomicBool> {
-        self.shutdown_flag.clone()
+        self.shutdown.flag()
     }
 
     /// Trigger shutdown: sets the flag and cancels the token.
     /// Called once from the signal handler in main.rs.
     pub fn request_shutdown(&self) {
-        self.shutdown_flag.store(true, Ordering::Relaxed);
-        self.shutdown_token.cancel();
+        self.shutdown.request_shutdown();
     }
 
     /// Returns true if shutdown has been requested.
     pub fn is_shutting_down(&self) -> bool {
-        self.shutdown_token.is_cancelled()
+        self.shutdown.is_shutting_down()
     }
 }
