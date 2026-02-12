@@ -8,4 +8,4 @@
 
 pub mod guard;
 pub mod plugin;
-pub mod scanner;
+pub(crate) mod scanner;

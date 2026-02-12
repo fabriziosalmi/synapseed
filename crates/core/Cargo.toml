@@ -21,3 +21,4 @@ opentelemetry-otlp = { workspace = true }
 chrono = { workspace = true }
 dirs = { workspace = true }
 tokio = { workspace = true }
+tokio-util = { workspace = true }

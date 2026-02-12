@@ -1,72 +1,6 @@
-use synapseed_architect::analyzer::{parse_import_target, DependencyGraph};
+use synapseed_architect::DependencyGraph;
 use synapseed_architect::blueprint::{self, ReportStore};
-use synapseed_architect::linter::{self, GodObjectThresholds, LinterConfig, ViolationSeverity};
-
-// ── Import parsing tests ─────────────────────────────────────
-
-#[test]
-fn test_parse_import_rust_crate_paths() {
-    assert_eq!(
-        parse_import_target("use crate::auth::User;", "rust"),
-        Some("auth".into())
-    );
-    assert_eq!(
-        parse_import_target("use crate::graph::CodeGraph;", "rust"),
-        Some("graph".into())
-    );
-    assert_eq!(
-        parse_import_target("use crate::protocol::{ContentBlock, ToolCallResult};", "rust"),
-        Some("protocol".into())
-    );
-}
-
-#[test]
-fn test_parse_import_rust_super() {
-    assert_eq!(
-        parse_import_target("use super::utils;", "rust"),
-        Some("utils".into())
-    );
-    assert_eq!(
-        parse_import_target("use super::config::Settings;", "rust"),
-        Some("config".into())
-    );
-}
-
-#[test]
-fn test_parse_import_rust_external_skipped() {
-    assert_eq!(parse_import_target("use std::collections::HashMap;", "rust"), None);
-    assert_eq!(parse_import_target("use serde::Serialize;", "rust"), None);
-    assert_eq!(parse_import_target("use tokio::sync::Mutex;", "rust"), None);
-}
-
-#[test]
-fn test_parse_import_python() {
-    assert_eq!(
-        parse_import_target("from auth import User", "python"),
-        Some("auth".into())
-    );
-    assert_eq!(
-        parse_import_target("import utils", "python"),
-        Some("utils".into())
-    );
-}
-
-#[test]
-fn test_parse_import_javascript() {
-    assert_eq!(
-        parse_import_target("import { foo } from './auth';", "javascript"),
-        Some("auth".into())
-    );
-    assert_eq!(
-        parse_import_target("import bar from '../utils';", "javascript"),
-        Some("utils".into())
-    );
-    // External packages should be skipped.
-    assert_eq!(
-        parse_import_target("import React from 'react';", "javascript"),
-        None
-    );
-}
+use synapseed_architect::linter::{self, LinterConfig};
 
 // ── Graph building on real project ──────────────────────────
 
@@ -129,40 +63,6 @@ fn test_score_clean_project() {
     );
     assert!(!report.grade.is_empty());
     assert!(!report.modules.is_empty());
-}
-
-// ── God object detection ─────────────────────────────────────
-
-#[test]
-fn test_god_object_low_threshold() {
-    let project_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap();
-
-    let graph = synapseed_cortex::graph::CodeGraph::new();
-    graph.index_directory(project_root).unwrap();
-
-    let mut dep_graph = DependencyGraph::build(&graph);
-    dep_graph.compute_metrics();
-
-    // With very low threshold, at least some module should trigger.
-    let strict_thresholds = GodObjectThresholds {
-        max_public_symbols: 3,
-        max_lines: 50,
-        min_fan_in: 0,
-    };
-
-    let violations = linter::detect_god_objects(&dep_graph, &strict_thresholds);
-    assert!(
-        !violations.is_empty(),
-        "With max_public_symbols=3, expected some god objects in synapseed"
-    );
-    assert!(violations.iter().all(|v| v.rule == "god_object"));
-    assert!(violations
-        .iter()
-        .all(|v| v.severity == ViolationSeverity::Warning));
 }
 
 // ── ReportStore thread safety ────────────────────────────────

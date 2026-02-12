@@ -92,6 +92,7 @@ impl SynapsePlugin for VisualizerPlugin {
 fn start_file_watcher(root: &Path, ctx: SynapseContext) {
     let root = root.to_path_buf();
     let (tx, rx) = std::sync::mpsc::channel::<notify::Event>();
+    let shutdown_flag = ctx.shutdown_flag();
 
     let watcher_result = notify::RecommendedWatcher::new(
         move |res: std::result::Result<notify::Event, notify::Error>| {
@@ -118,31 +119,41 @@ fn start_file_watcher(root: &Path, ctx: SynapseContext) {
     // Bridge thread: converts notify events → SynapseEvent broadcasts
     std::thread::spawn(move || {
         let _watcher = watcher; // prevent drop — keeps watching
-        while let Ok(event) = rx.recv() {
-            for path in &event.paths {
-                let path_str = path.display().to_string();
+        loop {
+            match rx.recv_timeout(std::time::Duration::from_secs(1)) {
+                Ok(event) => {
+                    for path in &event.paths {
+                        let path_str = path.display().to_string();
 
-                // Skip build artifacts, hidden dirs, and non-source files
-                if path_str.contains("/target/")
-                    || path_str.contains("/.git/")
-                    || path_str.contains("/node_modules/")
-                {
-                    continue;
+                        // Skip build artifacts, hidden dirs, and non-source files
+                        if path_str.contains("/target/")
+                            || path_str.contains("/.git/")
+                            || path_str.contains("/node_modules/")
+                        {
+                            continue;
+                        }
+
+                        let kind = match event.kind {
+                            notify::EventKind::Create(_) => FileChangeKind::Created,
+                            notify::EventKind::Modify(_) => FileChangeKind::Modified,
+                            notify::EventKind::Remove(_) => FileChangeKind::Deleted,
+                            _ => continue,
+                        };
+
+                        ctx.broadcast(SynapseEvent::FileChanged {
+                            path: path_str,
+                            kind,
+                        });
+                    }
                 }
-
-                let kind = match event.kind {
-                    notify::EventKind::Create(_) => FileChangeKind::Created,
-                    notify::EventKind::Modify(_) => FileChangeKind::Modified,
-                    notify::EventKind::Remove(_) => FileChangeKind::Deleted,
-                    _ => continue,
-                };
-
-                ctx.broadcast(SynapseEvent::FileChanged {
-                    path: path_str,
-                    kind,
-                });
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+            }
+            if shutdown_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                break;
             }
         }
+        info!("Visualizer: File watcher stopped");
     });
 
     info!("Visualizer: File watcher active");

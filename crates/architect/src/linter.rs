@@ -36,10 +36,10 @@ pub struct Violation {
 
 /// Thresholds for god-object detection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GodObjectThresholds {
-    pub max_public_symbols: usize,
-    pub max_lines: usize,
-    pub min_fan_in: usize,
+pub(crate) struct GodObjectThresholds {
+    pub(crate) max_public_symbols: usize,
+    pub(crate) max_lines: usize,
+    pub(crate) min_fan_in: usize,
 }
 
 impl Default for GodObjectThresholds {
@@ -54,20 +54,17 @@ impl Default for GodObjectThresholds {
 
 /// Layer definition for violation detection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LayerDefinition {
-    /// Layer name (e.g., "core", "domain", "api", "ui").
-    pub name: String,
-    /// Layer rank (0 = bottom). Lower must not import from higher.
-    pub rank: u32,
-    /// Module name patterns belonging to this layer.
-    pub modules: Vec<String>,
+pub(crate) struct LayerDefinition {
+    pub(crate) name: String,
+    pub(crate) rank: u32,
+    pub(crate) modules: Vec<String>,
 }
 
 /// Configuration for the architectural linter.
 #[derive(Debug, Clone, Default)]
 pub struct LinterConfig {
-    pub layers: Vec<LayerDefinition>,
-    pub god_object: GodObjectThresholds,
+    pub(crate) layers: Vec<LayerDefinition>,
+    pub(crate) god_object: GodObjectThresholds,
 }
 
 impl LinterConfig {
@@ -103,7 +100,7 @@ pub fn lint(dep_graph: &DependencyGraph, config: &LinterConfig) -> Vec<Violation
 }
 
 /// Detect circular dependencies using Tarjan's SCC algorithm.
-pub fn detect_cycles(dep_graph: &DependencyGraph) -> Vec<Violation> {
+pub(crate) fn detect_cycles(dep_graph: &DependencyGraph) -> Vec<Violation> {
     let sccs = tarjan_scc(dep_graph.raw_graph());
     let mut violations = Vec::new();
 
@@ -139,7 +136,7 @@ pub fn detect_cycles(dep_graph: &DependencyGraph) -> Vec<Violation> {
 
 /// Detect god objects: files with >max_public_symbols OR
 /// (>max_lines AND fan_in > min_fan_in).
-pub fn detect_god_objects(
+pub(crate) fn detect_god_objects(
     dep_graph: &DependencyGraph,
     thresholds: &GodObjectThresholds,
 ) -> Vec<Violation> {
@@ -186,7 +183,7 @@ pub fn detect_god_objects(
 
 /// Detect layer violations: a lower-rank layer module importing from a
 /// higher-rank layer module.
-pub fn detect_layer_violations(
+pub(crate) fn detect_layer_violations(
     dep_graph: &DependencyGraph,
     layers: &[LayerDefinition],
 ) -> Vec<Violation> {
@@ -248,4 +245,41 @@ pub fn detect_layer_violations(
     }
 
     violations
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use synapseed_cortex::graph::CodeGraph;
+
+    #[test]
+    fn test_god_object_low_threshold() {
+        let project_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap();
+
+        let graph = CodeGraph::new();
+        graph.index_directory(project_root).unwrap();
+
+        let mut dep_graph = DependencyGraph::build(&graph);
+        dep_graph.compute_metrics();
+
+        let strict_thresholds = GodObjectThresholds {
+            max_public_symbols: 3,
+            max_lines: 50,
+            min_fan_in: 0,
+        };
+
+        let violations = detect_god_objects(&dep_graph, &strict_thresholds);
+        assert!(
+            !violations.is_empty(),
+            "With max_public_symbols=3, expected some god objects in synapseed"
+        );
+        assert!(violations.iter().all(|v| v.rule == "god_object"));
+        assert!(violations
+            .iter()
+            .all(|v| v.severity == ViolationSeverity::Warning));
+    }
 }

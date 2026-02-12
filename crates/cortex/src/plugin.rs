@@ -61,6 +61,9 @@ impl SynapsePlugin for CortexPlugin {
                 warn!(error = %e, "Cortex: Background indexing failed");
                 return;
             }
+            if ctx_clone.is_shutting_down() {
+                return;
+            }
             let elapsed = start.elapsed();
             info!(
                 files = graph.file_count(),
@@ -112,5 +115,100 @@ impl SynapsePlugin for CortexPlugin {
 
     fn priority(&self) -> u32 {
         50 // High priority — AST updates feed other plugins
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+    use synapseed_core::event::SynapseEvent;
+    use synapseed_core::liquid::ProjectDna;
+    use synapseed_core::state::ProjectState;
+
+    /// Wait for `IndexingComplete` on the subscriber, with a timeout.
+    async fn wait_for_indexing_complete(ctx: &SynapseContext, timeout: Duration) {
+        let mut rx = ctx.subscribe();
+        tokio::time::timeout(timeout, async {
+            loop {
+                if let Ok(SynapseEvent::IndexingComplete) = rx.recv().await {
+                    break;
+                }
+            }
+        })
+        .await
+        .expect("IndexingComplete not received within timeout");
+    }
+
+    #[tokio::test]
+    async fn test_background_indexing_broadcasts_event() {
+        let dir = tempfile::tempdir().unwrap();
+        // Write a minimal Rust file so the indexer has something to parse.
+        std::fs::write(dir.path().join("hello.rs"), "pub fn hello() {}").unwrap();
+
+        let ctx = SynapseContext::new(
+            dir.path().to_path_buf(),
+            ProjectState::Unknown,
+            ProjectDna::default(),
+        );
+
+        let mut plugin = CortexPlugin::new();
+        plugin.on_init(&ctx).unwrap();
+
+        wait_for_indexing_complete(&ctx, Duration::from_secs(10)).await;
+    }
+
+    #[tokio::test]
+    async fn test_background_indexing_updates_metrics() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("lib.rs"),
+            "pub struct Foo;\npub fn bar() -> Foo { Foo }\n",
+        )
+        .unwrap();
+
+        let ctx = SynapseContext::new(
+            dir.path().to_path_buf(),
+            ProjectState::Unknown,
+            ProjectDna::default(),
+        );
+
+        let mut plugin = CortexPlugin::new();
+        plugin.on_init(&ctx).unwrap();
+
+        wait_for_indexing_complete(&ctx, Duration::from_secs(10)).await;
+
+        let metrics = ctx.metrics();
+        assert!(
+            metrics.files_indexed > 0,
+            "Expected files_indexed > 0, got {}",
+            metrics.files_indexed
+        );
+        assert!(
+            metrics.symbols_found > 0,
+            "Expected symbols_found > 0, got {}",
+            metrics.symbols_found
+        );
+    }
+
+    #[tokio::test]
+    async fn test_background_indexing_empty_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        // Empty directory — no files to index.
+
+        let ctx = SynapseContext::new(
+            dir.path().to_path_buf(),
+            ProjectState::Unknown,
+            ProjectDna::default(),
+        );
+
+        let mut plugin = CortexPlugin::new();
+        plugin.on_init(&ctx).unwrap();
+
+        wait_for_indexing_complete(&ctx, Duration::from_secs(10)).await;
+
+        let metrics = ctx.metrics();
+        assert_eq!(metrics.files_indexed, 0);
+        assert_eq!(metrics.symbols_found, 0);
     }
 }

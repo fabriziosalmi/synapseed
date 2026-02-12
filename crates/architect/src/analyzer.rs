@@ -12,28 +12,20 @@ use synapseed_cortex::graph::CodeGraph;
 
 /// A module node in the dependency graph.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModuleNode {
-    /// Module name derived from file stem (e.g., "auth", "graph", "plugin").
-    pub name: String,
-    /// Full file path this module corresponds to.
-    pub file_path: String,
-    /// Language of the source file.
-    pub language: String,
-    /// Number of non-import symbols (public API surface approximation).
-    pub public_symbol_count: usize,
-    /// Approximate lines (line_end of last symbol).
-    pub approx_lines: usize,
-    /// Number of function/method symbols.
-    pub function_count: usize,
+pub(crate) struct ModuleNode {
+    pub(crate) name: String,
+    pub(crate) file_path: String,
+    pub(crate) language: String,
+    pub(crate) public_symbol_count: usize,
+    pub(crate) approx_lines: usize,
+    pub(crate) function_count: usize,
 }
 
 /// A directed edge representing a dependency: source imports from target.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DependencyEdge {
-    /// The import statement signature that created this edge.
-    pub import_signature: String,
-    /// Weight: number of distinct imports from source to target.
-    pub weight: usize,
+pub(crate) struct DependencyEdge {
+    pub(crate) import_signature: String,
+    pub(crate) weight: usize,
 }
 
 /// Metrics for a single module in the dependency graph.
@@ -244,7 +236,7 @@ impl DependencyGraph {
     }
 
     /// Get all edges (source_name, target_name, edge).
-    pub fn all_edges(&self) -> Vec<(String, String, &DependencyEdge)> {
+    pub(crate) fn all_edges(&self) -> Vec<(String, String, &DependencyEdge)> {
         self.graph
             .edge_indices()
             .filter_map(|e| {
@@ -270,17 +262,17 @@ impl DependencyGraph {
     }
 
     /// Get the raw petgraph (for cycle detection in linter).
-    pub fn raw_graph(&self) -> &DiGraph<ModuleNode, DependencyEdge> {
+    pub(crate) fn raw_graph(&self) -> &DiGraph<ModuleNode, DependencyEdge> {
         &self.graph
     }
 
     /// Get the NodeIndex for a module name.
-    pub fn node_index(&self, name: &str) -> Option<NodeIndex> {
+    pub(crate) fn node_index(&self, name: &str) -> Option<NodeIndex> {
         self.node_map.get(name).copied()
     }
 
     /// Get the ModuleNode at a given NodeIndex.
-    pub fn node(&self, idx: NodeIndex) -> &ModuleNode {
+    pub(crate) fn node(&self, idx: NodeIndex) -> &ModuleNode {
         &self.graph[idx]
     }
 }
@@ -328,7 +320,7 @@ fn derive_module_name(file_path: &str) -> String {
 /// Parse an import signature to extract the target module name.
 ///
 /// Returns None for external crate imports (std::, third-party).
-pub fn parse_import_target(signature: &str, language: &str) -> Option<String> {
+pub(crate) fn parse_import_target(signature: &str, language: &str) -> Option<String> {
     let sig = signature.trim();
     match language {
         "rust" => {
@@ -421,12 +413,17 @@ mod tests {
             parse_import_target("use super::utils;", "rust"),
             Some("utils".to_string())
         );
+        assert_eq!(
+            parse_import_target("use super::config::Settings;", "rust"),
+            Some("config".to_string())
+        );
     }
 
     #[test]
     fn test_parse_import_rust_external_skipped() {
         assert_eq!(parse_import_target("use std::collections::HashMap;", "rust"), None);
         assert_eq!(parse_import_target("use serde::Serialize;", "rust"), None);
+        assert_eq!(parse_import_target("use tokio::sync::Mutex;", "rust"), None);
     }
 
     #[test]

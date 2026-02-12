@@ -28,8 +28,22 @@ pub async fn run(ctx: SynapseContext) -> anyhow::Result<()> {
     let mut stdout = tokio::io::stdout();
     let mut lines = BufReader::new(stdin).lines();
     let mut initialized = false;
+    let token = ctx.shutdown_token();
 
-    while let Some(line) = lines.next_line().await? {
+    loop {
+        let line = tokio::select! {
+            result = lines.next_line() => {
+                match result? {
+                    Some(line) => line,
+                    None => break, // EOF
+                }
+            }
+            _ = token.cancelled() => {
+                info!("MCP server: shutdown signal received");
+                break;
+            }
+        };
+
         let line = line.trim().to_string();
         if line.is_empty() {
             continue;

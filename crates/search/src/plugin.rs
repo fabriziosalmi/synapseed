@@ -95,9 +95,17 @@ impl SynapsePlugin for SearchPlugin {
                 return;
             }
 
+            if bg_ctx.is_shutting_down() {
+                return;
+            }
+
             let files = graph.all_files();
             let count = index.index_all(&files, &bg_root);
             info!(symbols = count, "Search: Semantic index ready");
+
+            if bg_ctx.is_shutting_down() {
+                return;
+            }
 
             // Phase 2: Vector embeddings (if enabled)
             #[cfg(feature = "embeddings")]

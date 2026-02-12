@@ -48,11 +48,16 @@ impl SynapsePlugin for ArchitectPlugin {
             let linter_config = LinterConfig::from_dna(&dna.architect);
             let store = self.store.clone();
 
+            let ctx_clone = ctx.clone();
             std::thread::spawn(move || {
                 let mut dep_graph = DependencyGraph::build(&code_graph);
                 dep_graph.compute_metrics();
                 let violations = linter::lint(&dep_graph, &linter_config);
                 let report = blueprint::generate_report(&dep_graph, violations);
+
+                if ctx_clone.is_shutting_down() {
+                    return;
+                }
 
                 info!(
                     score = report.score,
@@ -84,13 +89,16 @@ impl SynapsePlugin for ArchitectPlugin {
                     let dna = ctx.dna();
                     let linter_config = LinterConfig::from_dna(&dna.architect);
                     let store = self.store.clone();
+                    let ctx_ev = ctx.clone();
 
                     std::thread::spawn(move || {
                         let mut dep_graph = DependencyGraph::build(&code_graph);
                         dep_graph.compute_metrics();
                         let violations = linter::lint(&dep_graph, &linter_config);
                         let report = blueprint::generate_report(&dep_graph, violations);
-                        store.set(report);
+                        if !ctx_ev.is_shutting_down() {
+                            store.set(report);
+                        }
                     });
                 }
             }

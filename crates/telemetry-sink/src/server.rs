@@ -193,12 +193,16 @@ pub async fn start(
     store: SpanStore,
     ctx: SynapseContext,
 ) -> Result<(), tonic::transport::Error> {
+    let token = ctx.shutdown_token();
     let service = OtlpTraceService::new(store, ctx);
 
     info!(addr = %addr, "Telemetry: OTLP gRPC server listening");
 
     tonic::transport::Server::builder()
         .add_service(TraceServiceServer::new(service))
-        .serve(addr)
-        .await
+        .serve_with_shutdown(addr, async move { token.cancelled().await })
+        .await?;
+
+    info!("Telemetry: gRPC server stopped");
+    Ok(())
 }

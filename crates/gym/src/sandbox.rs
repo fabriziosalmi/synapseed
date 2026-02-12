@@ -5,7 +5,8 @@ use std::time::Instant;
 use tempfile::TempDir;
 use tracing::{debug, warn};
 
-use crate::report::{CompilationResult, CompilerMessage, Metrics, Report, TestResult};
+use crate::fuzzer;
+use crate::report::{CompilationResult, CompilerMessage, FuzzFailure, FuzzResult, Metrics, Report, TestResult};
 use crate::scenario::Scenario;
 
 /// An isolated sandbox environment for compiling and testing Rust code.
@@ -69,9 +70,27 @@ impl Sandbox {
                 .map_err(|e| crate::GymError::Sandbox(format!("Failed to write test: {e}")))?;
         }
 
-        // Update Cargo.toml with extra dependencies
-        if !scenario.dependencies.is_empty() {
-            self.add_dependencies(scenario)?;
+        // Generate and inject fuzz tests if enabled.
+        let fuzz_generated = if scenario.fuzz {
+            if let Some(fuzz_code) = fuzzer::generate_fuzz_tests(&scenario.source_code) {
+                let tests_dir = self.project_path.join("tests");
+                std::fs::create_dir_all(&tests_dir)
+                    .map_err(|e| crate::GymError::Sandbox(e.to_string()))?;
+                std::fs::write(tests_dir.join("fuzz.rs"), &fuzz_code)
+                    .map_err(|e| crate::GymError::Sandbox(format!("Failed to write fuzz tests: {e}")))?;
+                debug!(bytes = fuzz_code.len(), "Injected fuzz tests");
+                true
+            } else {
+                debug!("No fuzzable functions found, skipping fuzz injection");
+                false
+            }
+        } else {
+            false
+        };
+
+        // Update Cargo.toml with extra dependencies + proptest if fuzzing.
+        if !scenario.dependencies.is_empty() || fuzz_generated {
+            self.add_dependencies(scenario, fuzz_generated)?;
         }
 
         debug!("Injected source ({} bytes) + tests ({} bytes)",
@@ -230,6 +249,7 @@ impl Sandbox {
                 success: false,
                 compilation,
                 tests: None,
+                fuzz: None,
                 metrics: Metrics {
                     compile_time_ms,
                     binary_size_bytes: 0,
@@ -239,12 +259,20 @@ impl Sandbox {
             });
         }
 
-        // Step 2: Tests (if provided)
-        let (tests, test_time_ms) = if !scenario.test_code.is_empty() {
+        // Step 2: Tests (if provided or if fuzz tests were generated)
+        let has_tests = !scenario.test_code.is_empty() || scenario.fuzz;
+        let (tests, test_time_ms) = if has_tests {
             let (result, ms) = self.test(scenario.timeout_secs)?;
             (Some(result), ms)
         } else {
             (None, 0)
+        };
+
+        // Step 2b: Parse fuzz results from test output
+        let fuzz = if scenario.fuzz {
+            tests.as_ref().map(|t| parse_fuzz_results(&t.output, &scenario.source_code))
+        } else {
+            None
         };
 
         // Step 3: Measure binary size (release build)
@@ -257,6 +285,7 @@ impl Sandbox {
             success,
             compilation,
             tests,
+            fuzz,
             metrics: Metrics {
                 compile_time_ms,
                 binary_size_bytes,
@@ -273,39 +302,46 @@ impl Sandbox {
 
     // ── Private helpers ──────────────────────────────────────
 
-    fn add_dependencies(&self, scenario: &Scenario) -> Result<(), crate::GymError> {
+    fn add_dependencies(&self, scenario: &Scenario, fuzz: bool) -> Result<(), crate::GymError> {
         let cargo_path = self.project_path.join("Cargo.toml");
         let mut content = std::fs::read_to_string(&cargo_path)
             .map_err(|e| crate::GymError::Sandbox(e.to_string()))?;
 
-        let mut deps_section = String::from("\n[dependencies]\n");
-        for dep in &scenario.dependencies {
-            if dep.features.is_empty() {
-                deps_section.push_str(&format!("{} = \"{}\"\n", dep.name, dep.version));
+        // Add runtime dependencies
+        if !scenario.dependencies.is_empty() {
+            let mut deps_section = String::from("\n[dependencies]\n");
+            for dep in &scenario.dependencies {
+                if dep.features.is_empty() {
+                    deps_section.push_str(&format!("{} = \"{}\"\n", dep.name, dep.version));
+                } else {
+                    deps_section.push_str(&format!(
+                        "{} = {{ version = \"{}\", features = [{}] }}\n",
+                        dep.name,
+                        dep.version,
+                        dep.features
+                            .iter()
+                            .map(|f| format!("\"{f}\""))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                }
+            }
+
+            // Replace existing [dependencies] or append
+            if let Some(pos) = content.find("[dependencies]") {
+                let section_end = content[pos + 14..]
+                    .find("\n[")
+                    .map(|p| pos + 14 + p)
+                    .unwrap_or(content.len());
+                content.replace_range(pos..section_end, &deps_section[1..]);
             } else {
-                deps_section.push_str(&format!(
-                    "{} = {{ version = \"{}\", features = [{}] }}\n",
-                    dep.name,
-                    dep.version,
-                    dep.features
-                        .iter()
-                        .map(|f| format!("\"{f}\""))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ));
+                content.push_str(&deps_section);
             }
         }
 
-        // Replace existing [dependencies] or append
-        if let Some(pos) = content.find("[dependencies]") {
-            // Find the end of the section (next [section] or EOF)
-            let section_end = content[pos + 14..]
-                .find("\n[")
-                .map(|p| pos + 14 + p)
-                .unwrap_or(content.len());
-            content.replace_range(pos..section_end, &deps_section[1..]); // skip leading \n
-        } else {
-            content.push_str(&deps_section);
+        // Add proptest as dev-dependency for fuzz tests
+        if fuzz {
+            content.push_str("\n[dev-dependencies]\nproptest = \"1\"\n");
         }
 
         std::fs::write(&cargo_path, content)
@@ -365,6 +401,92 @@ fn extract_number_before(s: &str, keyword: &str) -> Option<u32> {
             .find_map(|w| w.parse::<u32>().ok())
     } else {
         None
+    }
+}
+
+/// Parse proptest fuzz results from cargo test output.
+///
+/// Counts fuzzed functions from the source, and extracts any proptest failures
+/// by looking for the pattern: `thread 'fuzz_xxx' panicked` + `minimal failing input`.
+fn parse_fuzz_results(test_output: &str, source: &str) -> FuzzResult {
+    // Count how many fuzz_* functions were generated.
+    let fuzzed_functions = fuzzer::generate_fuzz_tests(source)
+        .map(|code| code.matches("fn fuzz_").count())
+        .unwrap_or(0);
+
+    let mut failures = Vec::new();
+
+    // Parse proptest failures. Pattern:
+    //   thread 'fuzz_xxx' panicked at 'Test failed: <message>'
+    //   ...
+    //   minimal failing input:
+    //     <args>
+    let lines: Vec<&str> = test_output.lines().collect();
+    let mut i = 0;
+    while i < lines.len() {
+        let line = lines[i].trim();
+
+        // Detect panicked fuzz test.
+        if line.contains("panicked") && line.contains("fuzz_") {
+            // Extract function name.
+            let function = line
+                .split('\'')
+                .find(|s| s.starts_with("fuzz_"))
+                .unwrap_or("unknown")
+                .to_string();
+
+            // Extract error message.
+            let error = line
+                .split("panicked at")
+                .nth(1)
+                .map(|s| s.trim().trim_matches('\'').trim_matches('"').to_string())
+                .unwrap_or_else(|| line.to_string());
+
+            // Look ahead for "minimal failing input:" or proptest counter-example.
+            let mut failing_input = String::new();
+            let mut j = i + 1;
+            while j < lines.len() && j < i + 20 {
+                let next = lines[j].trim();
+                if next.starts_with("minimal failing input")
+                    || next.starts_with("successes:")
+                    || next.starts_with("test result:")
+                {
+                    // Collect input lines after "minimal failing input:".
+                    if next.starts_with("minimal failing input") {
+                        j += 1;
+                        while j < lines.len() {
+                            let input_line = lines[j].trim();
+                            if input_line.is_empty()
+                                || input_line.starts_with("successes:")
+                                || input_line.starts_with("test result:")
+                            {
+                                break;
+                            }
+                            if !failing_input.is_empty() {
+                                failing_input.push_str(", ");
+                            }
+                            failing_input.push_str(input_line);
+                            j += 1;
+                        }
+                    }
+                    break;
+                }
+                j += 1;
+            }
+
+            failures.push(FuzzFailure {
+                function,
+                failing_input,
+                error,
+            });
+        }
+
+        i += 1;
+    }
+
+    FuzzResult {
+        fuzzed_functions,
+        failures,
     }
 }
 

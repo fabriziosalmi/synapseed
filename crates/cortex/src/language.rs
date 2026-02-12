@@ -2,7 +2,7 @@ use synapseed_core::error::{Result, SynapseedError};
 
 /// Supported languages for AST parsing, plus a fallback for unrecognized extensions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Language {
+pub(crate) enum Language {
     Rust,
     Python,
     JavaScript,
@@ -16,7 +16,7 @@ impl Language {
     ///
     /// Returns `Some(Language::Unknown)` for recognized source files that lack
     /// a tree-sitter grammar, and `None` for truly non-source files (images, binaries, etc.).
-    pub fn from_extension(ext: &str) -> Option<Self> {
+    pub(crate) fn from_extension(ext: &str) -> Option<Self> {
         match ext {
             // Full AST support
             "rs" => Some(Self::Rust),
@@ -49,13 +49,13 @@ impl Language {
     }
 
     /// Returns true if this language has full tree-sitter AST support.
-    pub fn has_ast_support(&self) -> bool {
+    pub(crate) fn has_ast_support(&self) -> bool {
         !matches!(self, Self::Unknown)
     }
 
     /// Get the tree-sitter language for this variant.
     /// Returns an error for `Unknown` since it has no grammar.
-    pub fn ts_language(&self) -> Result<tree_sitter::Language> {
+    pub(crate) fn ts_language(&self) -> Result<tree_sitter::Language> {
         let lang = match self {
             Self::Rust => tree_sitter_rust::LANGUAGE,
             Self::Python => tree_sitter_python::LANGUAGE,
@@ -69,7 +69,7 @@ impl Language {
         Ok(tree_sitter::Language::new(lang))
     }
 
-    pub fn name(&self) -> &'static str {
+    pub(crate) fn name(&self) -> &'static str {
         match self {
             Self::Rust => "rust",
             Self::Python => "python",

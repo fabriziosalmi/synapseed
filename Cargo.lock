@@ -3493,6 +3493,7 @@ dependencies = [
  "serde_yaml",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-util",
  "toml",
  "tracing",
  "tracing-opentelemetry",
@@ -3508,6 +3509,8 @@ dependencies = [
  "ignore",
  "rayon",
  "synapseed-core",
+ "tempfile",
+ "tokio",
  "tracing",
  "tree-sitter",
  "tree-sitter-javascript",
@@ -3519,6 +3522,7 @@ dependencies = [
 name = "synapseed-gym"
 version = "2.0.2"
 dependencies = [
+ "regex",
  "serde",
  "serde_json",
  "synapseed-core",
@@ -4089,6 +4093,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-sink",
+ "futures-util",
  "pin-project-lite",
  "tokio",
 ]

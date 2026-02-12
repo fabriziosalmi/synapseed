@@ -15,6 +15,10 @@ pub struct Report {
     /// Performance metrics.
     pub metrics: Metrics,
 
+    /// Fuzz testing result (None if fuzzing was not enabled or no functions were fuzzable).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fuzz: Option<FuzzResult>,
+
     /// Raw stderr from cargo (useful for debugging).
     #[serde(default)]
     pub raw_stderr: String,
@@ -60,6 +64,26 @@ pub struct Metrics {
     pub binary_size_bytes: u64,
     /// Test execution time (milliseconds). 0 if no tests.
     pub test_time_ms: u64,
+}
+
+/// Result of proptest fuzz testing.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FuzzResult {
+    /// Number of public functions that were fuzz-tested.
+    pub fuzzed_functions: usize,
+    /// Failures discovered by proptest (empty if all passed).
+    pub failures: Vec<FuzzFailure>,
+}
+
+/// A single proptest failure.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FuzzFailure {
+    /// Name of the fuzz test function (e.g., "fuzz_add").
+    pub function: String,
+    /// The minimal failing input found by proptest shrinking.
+    pub failing_input: String,
+    /// The panic/error message.
+    pub error: String,
 }
 
 impl Report {

@@ -8,7 +8,7 @@ use tracing::warn;
 /// Uses a two-pass approach:
 /// 1. Aho-Corasick automaton for static terms (GB/s throughput)
 /// 2. Regex patterns for structured secrets (API keys, tokens)
-pub struct DlpScanner {
+pub(crate) struct DlpScanner {
     /// Fast multi-pattern matcher for static terms
     static_matcher: Option<AhoCorasick>,
     static_terms: Vec<String>,
@@ -23,7 +23,7 @@ struct CompiledPattern {
 
 impl DlpScanner {
     /// Build a scanner from a list of DLP rules.
-    pub fn from_rules(rules: &[DlpRule]) -> Self {
+    pub(crate) fn from_rules(rules: &[DlpRule]) -> Self {
         let mut static_terms = Vec::new();
         let mut regex_patterns = Vec::new();
 
@@ -65,7 +65,7 @@ impl DlpScanner {
     }
 
     /// Create a scanner with sensible defaults for common secret patterns.
-    pub fn with_defaults() -> Self {
+    pub(crate) fn with_defaults() -> Self {
         let default_rules = vec![
             DlpRule {
                 name: "aws_key".into(),
@@ -93,7 +93,7 @@ impl DlpScanner {
     }
 
     /// Scan content and return all findings.
-    pub fn scan(&self, content: &str) -> Vec<Finding> {
+    pub(crate) fn scan(&self, content: &str) -> Vec<Finding> {
         let mut findings = Vec::new();
 
         // Pass 1: Aho-Corasick static terms
@@ -127,7 +127,7 @@ impl DlpScanner {
     }
 
     /// Scan and redact: replace all findings with [REDACTED].
-    pub fn redact(&self, content: &str) -> (String, Vec<Finding>) {
+    pub(crate) fn redact(&self, content: &str) -> (String, Vec<Finding>) {
         let findings = self.scan(content);
 
         if findings.is_empty() {
@@ -149,9 +149,9 @@ impl DlpScanner {
 
 /// A single DLP finding within scanned content.
 #[derive(Debug, Clone)]
-pub struct Finding {
-    pub rule_name: String,
-    pub start: usize,
-    pub end: usize,
-    pub matched_text: String,
+pub(crate) struct Finding {
+    pub(crate) rule_name: String,
+    pub(crate) start: usize,
+    pub(crate) end: usize,
+    pub(crate) matched_text: String,
 }

@@ -1,9 +1,11 @@
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 
 use tokio::sync::broadcast;
+use tokio_util::sync::CancellationToken;
 use tracing::debug;
 
 use crate::event::SynapseEvent;
@@ -23,6 +25,10 @@ pub struct SynapseContext {
     event_tx: broadcast::Sender<SynapseEvent>,
     /// Type-erased extensions — plugins register shared objects for cross-crate access.
     extensions: Arc<RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>>,
+    /// Cancellation token for coordinated async shutdown.
+    shutdown_token: CancellationToken,
+    /// Companion flag for std::thread loops that cannot await.
+    shutdown_flag: Arc<AtomicBool>,
 }
 
 struct ContextInner {
@@ -63,6 +69,8 @@ impl SynapseContext {
             })),
             event_tx,
             extensions: Arc::new(RwLock::new(HashMap::new())),
+            shutdown_token: CancellationToken::new(),
+            shutdown_flag: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -126,5 +134,32 @@ impl SynapseContext {
         let map = self.extensions.read().unwrap();
         map.get(&TypeId::of::<T>())
             .and_then(|ext| ext.clone().downcast::<T>().ok())
+    }
+
+    // ── Shutdown Coordination ────────────────────────────────────
+
+    /// Returns a clone of the cancellation token.
+    /// Background async tasks should use `token.cancelled().await` in a
+    /// `tokio::select!` branch to exit their loops.
+    pub fn shutdown_token(&self) -> CancellationToken {
+        self.shutdown_token.clone()
+    }
+
+    /// Returns a clone of the shutdown flag for std::thread loops.
+    /// Check with `flag.load(Ordering::Relaxed)` in loop conditions.
+    pub fn shutdown_flag(&self) -> Arc<AtomicBool> {
+        self.shutdown_flag.clone()
+    }
+
+    /// Trigger shutdown: sets the flag and cancels the token.
+    /// Called once from the signal handler in main.rs.
+    pub fn request_shutdown(&self) {
+        self.shutdown_flag.store(true, Ordering::Relaxed);
+        self.shutdown_token.cancel();
+    }
+
+    /// Returns true if shutdown has been requested.
+    pub fn is_shutting_down(&self) -> bool {
+        self.shutdown_token.is_cancelled()
     }
 }

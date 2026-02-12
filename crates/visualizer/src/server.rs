@@ -36,34 +36,21 @@ struct AppState {
 /// Maximum port retry attempts (HCI Req 1: Zero-Friction Start / port-hopping).
 const PORT_RETRY_LIMIT: u16 = 10;
 
-/// Start the axum server. Blocks until the server shuts down.
+/// Bind a TCP listener, optionally retrying on the next port if occupied.
 ///
-/// If `port_retry` is true, automatically tries the next port (up to 10 attempts)
-/// when the requested port is already in use.
-pub async fn start(
-    addr: SocketAddr,
-    ctx: SynapseContext,
-    port_retry: bool,
-) -> anyhow::Result<()> {
-    let state = AppState { ctx };
-
-    let app = Router::new()
-        .route("/", get(serve_index))
-        .route("/graph.js", get(serve_graph_js))
-        .route("/api/graph", get(api_graph))
-        .route("/api/xray", get(api_xray))
-        .route("/ws", get(ws_upgrade))
-        .with_state(state);
-
-    let base_port = addr.port();
-    let host = addr.ip();
-
-    let listener = if port_retry {
+/// When `retry` is true, tries up to `PORT_RETRY_LIMIT` consecutive ports
+/// starting from `base_port`. When false, fails immediately if the port is taken.
+pub(crate) async fn bind_with_retry(
+    host: std::net::IpAddr,
+    base_port: u16,
+    retry: bool,
+) -> anyhow::Result<tokio::net::TcpListener> {
+    if retry {
         let mut port = base_port;
         loop {
             let try_addr = SocketAddr::new(host, port);
             match tokio::net::TcpListener::bind(try_addr).await {
-                Ok(l) => break l,
+                Ok(l) => return Ok(l),
                 Err(e) if port < base_port + PORT_RETRY_LIMIT => {
                     debug!(port, error = %e, "Visualizer: Port taken, trying next");
                     port += 1;
@@ -80,18 +67,42 @@ pub async fn start(
             }
         }
     } else {
-        match tokio::net::TcpListener::bind(addr).await {
-            Ok(l) => l,
-            Err(e) => {
-                warn!(addr = %addr, error = %e, "Visualizer: Failed to bind port");
-                return Err(e.into());
-            }
-        }
-    };
+        let addr = SocketAddr::new(host, base_port);
+        tokio::net::TcpListener::bind(addr).await.map_err(|e| {
+            warn!(addr = %addr, error = %e, "Visualizer: Failed to bind port");
+            e.into()
+        })
+    }
+}
+
+/// Start the axum server. Blocks until the server shuts down.
+///
+/// If `port_retry` is true, automatically tries the next port (up to 10 attempts)
+/// when the requested port is already in use.
+pub async fn start(
+    addr: SocketAddr,
+    ctx: SynapseContext,
+    port_retry: bool,
+) -> anyhow::Result<()> {
+    let token = ctx.shutdown_token();
+    let state = AppState { ctx };
+
+    let app = Router::new()
+        .route("/", get(serve_index))
+        .route("/graph.js", get(serve_graph_js))
+        .route("/api/graph", get(api_graph))
+        .route("/api/xray", get(api_xray))
+        .route("/ws", get(ws_upgrade))
+        .with_state(state);
+
+    let listener = bind_with_retry(addr.ip(), addr.port(), port_retry).await?;
 
     let actual_addr = listener.local_addr()?;
     info!(addr = %actual_addr, "Visualizer: Server listening");
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(async move { token.cancelled().await })
+        .await?;
+    info!("Visualizer: Server stopped");
     Ok(())
 }
 
@@ -552,4 +563,72 @@ async fn handle_ws(mut socket: WebSocket, state: AppState) {
     }
 
     info!("Visualizer: WebSocket client disconnected");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::{IpAddr, Ipv4Addr};
+
+    const LOCALHOST: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
+
+    /// Helper: bind port 0 to get an OS-assigned port, return (listener, port).
+    async fn occupy_port() -> (tokio::net::TcpListener, u16) {
+        let l = tokio::net::TcpListener::bind((LOCALHOST, 0u16))
+            .await
+            .unwrap();
+        let port = l.local_addr().unwrap().port();
+        (l, port)
+    }
+
+    #[tokio::test]
+    async fn test_bind_with_retry_finds_free_port() {
+        let listener = bind_with_retry(LOCALHOST, 0, true).await.unwrap();
+        assert!(listener.local_addr().unwrap().port() > 0);
+    }
+
+    #[tokio::test]
+    async fn test_bind_with_retry_skips_occupied() {
+        let (_hold, occupied_port) = occupy_port().await;
+
+        let listener = bind_with_retry(LOCALHOST, occupied_port, true)
+            .await
+            .unwrap();
+        let actual_port = listener.local_addr().unwrap().port();
+        assert!(
+            actual_port > occupied_port,
+            "Expected port > {occupied_port}, got {actual_port}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_bind_with_retry_exhausts_limit() {
+        // Occupy PORT_RETRY_LIMIT + 1 consecutive ports.
+        let (first_hold, base_port) = occupy_port().await;
+        let mut holders = vec![first_hold];
+
+        for offset in 1..=PORT_RETRY_LIMIT {
+            if let Ok(l) =
+                tokio::net::TcpListener::bind((LOCALHOST, base_port + offset)).await
+            {
+                holders.push(l);
+            }
+        }
+
+        let result = bind_with_retry(LOCALHOST, base_port, true).await;
+        assert!(result.is_err(), "Expected error when all ports exhausted");
+
+        drop(holders);
+    }
+
+    #[tokio::test]
+    async fn test_bind_without_retry_fails_immediately() {
+        let (_hold, occupied_port) = occupy_port().await;
+
+        let result = bind_with_retry(LOCALHOST, occupied_port, false).await;
+        assert!(
+            result.is_err(),
+            "Expected immediate error with retry=false"
+        );
+    }
 }

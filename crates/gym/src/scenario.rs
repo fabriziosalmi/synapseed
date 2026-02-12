@@ -20,6 +20,10 @@ pub struct Scenario {
     /// Default: 60.
     #[serde(default = "default_timeout")]
     pub timeout_secs: u64,
+
+    /// Enable proptest fuzzing: auto-generate property tests for public functions.
+    #[serde(default)]
+    pub fuzz: bool,
 }
 
 /// A Cargo dependency to add to the sandbox project.
@@ -44,6 +48,7 @@ impl Scenario {
             test_code: String::new(),
             dependencies: Vec::new(),
             timeout_secs: default_timeout(),
+            fuzz: false,
         }
     }
 
@@ -66,6 +71,12 @@ impl Scenario {
     /// Set the timeout.
     pub fn with_timeout(mut self, secs: u64) -> Self {
         self.timeout_secs = secs;
+        self
+    }
+
+    /// Enable proptest fuzzing.
+    pub fn with_fuzz(mut self, fuzz: bool) -> Self {
+        self.fuzz = fuzz;
         self
     }
 }

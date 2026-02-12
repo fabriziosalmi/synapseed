@@ -428,15 +428,56 @@ async fn cmd_serve(path: &Path) -> Result<()> {
 
     info!("Starting MCP server on stdio");
 
-    // Run MCP server with graceful shutdown on SIGINT/SIGTERM
+    // Run MCP server — exits on stdin EOF or shutdown signal
     tokio::select! {
-        result = synapseed_mcp::server::run(ctx) => {
-            result?;
+        result = synapseed_mcp::server::run(ctx.clone()) => {
+            if let Err(e) = result {
+                eprintln!("[ERROR] MCP server error: {e}");
+            }
         }
         _ = tokio::signal::ctrl_c() => {
-            eprintln!("[INFO] Received shutdown signal, exiting gracefully...");
+            eprintln!("[INFO] Received SIGINT");
+        }
+        _ = sigterm() => {
+            eprintln!("[INFO] Received SIGTERM");
         }
     }
 
+    // ── Graceful Shutdown Sequence ───────────────────────────────
+    eprintln!("[INFO] Initiating graceful shutdown...");
+
+    // 1. Signal all background tasks to stop
+    ctx.request_shutdown();
+
+    // 2. Broadcast SystemShutdown event to all subscribers
+    ctx.broadcast(SynapseEvent::SystemShutdown);
+
+    // 3. Call on_shutdown() on plugins in reverse priority order
+    for plugin in plugins.iter().rev() {
+        if let Err(e) = plugin.on_shutdown(&ctx) {
+            eprintln!("[WARN] {} shutdown error: {e}", plugin.name());
+        }
+    }
+
+    // 4. Brief grace period for background tasks to finish
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+    eprintln!("[INFO] Shutdown complete");
     Ok(())
+}
+
+/// Wait for SIGTERM (Unix) or pend forever (Windows).
+async fn sigterm() {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{signal, SignalKind};
+        signal(SignalKind::terminate())
+            .expect("failed to install SIGTERM handler")
+            .recv()
+            .await;
+    }
+    #[cfg(not(unix))]
+    {
+        std::future::pending::<()>().await;
+    }
 }

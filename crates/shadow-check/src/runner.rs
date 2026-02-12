@@ -286,6 +286,8 @@ pub fn start_background_loop(
     ctx: SynapseContext,
     trigger_rx: std::sync::mpsc::Receiver<()>,
 ) {
+    let shutdown_flag = ctx.shutdown_flag();
+
     std::thread::spawn(move || {
         info!("Shadow: Background check loop started");
 
@@ -300,7 +302,22 @@ pub fn start_background_loop(
         let rapid_threshold = 3usize;
         let mut recent_triggers: Vec<Instant> = Vec::new();
 
-        while trigger_rx.recv().is_ok() {
+        loop {
+            if shutdown_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                break;
+            }
+
+            // Wait for a trigger with timeout so we can check shutdown periodically
+            match trigger_rx.recv_timeout(Duration::from_secs(2)) {
+                Ok(()) => {}
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+            }
+
+            if shutdown_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                break;
+            }
+
             let now = Instant::now();
             recent_triggers.push(now);
 
@@ -332,6 +349,10 @@ pub fn start_background_loop(
                     }
                     Err(_) => break,
                 }
+            }
+
+            if shutdown_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                break;
             }
 
             // Run the check
