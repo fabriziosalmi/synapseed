@@ -8,7 +8,7 @@ designed to be copy-pasted into your AI coding session.
 
 ---
 
-## Baseline (as of v2.0.2)
+## Baseline (as of v2.1.0)
 
 | Metric | Value |
 |--------|-------|

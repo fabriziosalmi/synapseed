@@ -1,5 +1,83 @@
 # Changelog
 
+## [2.1.0] — 2026-02-12
+
+### "The Hardening" Release
+
+SYNAPSEED hardens its internals: graceful shutdown, expanded test coverage, tighter
+API visibility, adversarial fuzzing, and a structural refactoring pass that
+eliminated all three monolith files.
+
+---
+
+### Architecture (15 crates, 19 tools, 8 resources, 6 prompts)
+
+Score: **97/100 (Grade A)** — 131 modules, 44 edges, 1 remaining violation.
+93 tests passing, 0 failures.
+
+### New Features
+
+- **Graceful Shutdown** (#12) — `CancellationToken` propagation through all async
+  plugins (Cortex, Visualizer, Shadow-Check, Telemetry-Sink). `AtomicBool` shutdown
+  flag on `SynapseContext`. Ctrl-C triggers coordinated cleanup across all subsystems.
+
+- **Adversarial Fuzzing** (#6) — `train_code(fuzz: true)` auto-generates proptest
+  property-based tests for all public functions. `FuzzGenerator` parses function
+  signatures and generates type-appropriate strategies (u8..u64, String, Vec, Option).
+  Integrated into Gym sandbox evaluation pipeline.
+
+- **Architect Crate** — New `synapseed-architect` crate: dependency graph analysis,
+  coupling metrics (Ce/Ca/Instability), cycle detection, god object detection,
+  `LinterConfig` from DNA, blueprint report generation. `architect_analyze` MCP tool
+  with `ReportStore` caching.
+
+- **Janitor Crate** — New `synapseed-janitor` crate: automated clippy scan, unused
+  dependency detection, fix proposal system with dry-run preview. Background async
+  scanning with `ProposalStore` and atomic scan-in-progress guard.
+
+### Improvements
+
+- **Test Coverage** (#13) — 93 tests (up from 78). Added:
+  - 4 port-hopping tests for `bind_with_retry()` (extracted from `start()`)
+  - 3 async background indexing tests for `CortexPlugin`
+  - First `#[tokio::test]` async tests in the codebase
+
+- **API Visibility** (#14) — Tightened `pub` exports across all crates.
+  `pub(crate)` for internal functions, `pub(super)` for module-private helpers.
+
+### Structural Refactoring
+
+- **graph.js Split** (#21) — God object (921 lines, 81 symbols) split into 9 focused
+  modules: `constants.js`, `styles.js`, `layout.js`, `panels.js`, `events.js`,
+  `search.js`, `xray.js`, `api.js`, `graph.js` (boot, 40 lines). Served via dynamic
+  `/{name}.js` axum route. XSS safety preserved (`esc()` in `constants.js`).
+
+- **tools.rs Split** (#23) — MCP tool monolith (1150 lines, 19 tools) split into
+  `tools/mod.rs` (429 lines: schema registry + dispatch + helpers) + 12 sub-modules.
+  Each tool file exports `pub(super) fn tool_xxx()`.
+
+- **router.rs Split** (#22) — Whisper intent router (720 lines) split into
+  `router/mod.rs` (530 lines: classify + extract + build context + tests) + 4 gather
+  modules (`diagnostics.rs`, `history.rs`, `code.rs`, `security.rs`).
+
+### Documentation
+
+- **"The Quantum Loop"** — New `docs/guide/workflow.md`: operational playbook for
+  high-velocity development using SYNAPSEED's 19 MCP tools. Includes tool tier
+  classification, 5-step iteration cycle, ready-to-use prompt pack, anti-patterns,
+  and the meta-loop (SYNAPSEED managing SYNAPSEED).
+
+### Bug Fixes
+
+- **Flaky port test** — `test_bind_with_retry_exhausts_limit` now deterministically
+  finds a consecutive range of free ports instead of relying on OS-assigned ports.
+
+- **Dependabot security alerts** — Resolved all outstanding dependency advisories.
+
+---
+
+[2.1.0]: https://github.com/fabriziosalmi/synapseed/compare/v2.0.2...v2.1.0
+
 ## [1.0.0] — 2026-02-12
 
 ### The "Production-Ready" Release
