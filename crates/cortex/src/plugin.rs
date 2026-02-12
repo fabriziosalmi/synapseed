@@ -6,12 +6,16 @@ use synapseed_core::context::SynapseContext;
 use synapseed_core::error::Result;
 use synapseed_core::event::{FileChangeKind, SynapseEvent};
 use synapseed_core::plugin::SynapsePlugin;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::graph::CodeGraph;
 use crate::parser::AstParser;
 
 /// The Cortex plugin — semantic code understanding.
+///
+/// Uses background indexing (HCI Req 1: Zero-Friction Start) so the MCP
+/// server becomes responsive immediately while the code graph populates
+/// asynchronously.
 pub struct CortexPlugin {
     parser: Option<AstParser>,
     graph: Arc<CodeGraph>,
@@ -44,20 +48,32 @@ impl SynapsePlugin for CortexPlugin {
     fn on_init(&mut self, ctx: &SynapseContext) -> Result<()> {
         let root = ctx.project_root();
 
-        self.graph.index_directory(&root)?;
-
-        ctx.update_metrics(|m| {
-            m.files_indexed = self.graph.file_count();
-            m.symbols_found = self.graph.symbol_count();
-        });
-
+        // Register the (initially empty) graph immediately so downstream
+        // plugins and MCP tools can access it — they'll gracefully degrade
+        // with zero files until background indexing completes.
         ctx.set_extension(self.graph.clone());
 
-        info!(
-            files = self.graph.file_count(),
-            symbols = self.graph.symbol_count(),
-            "Cortex: Code graph initialized"
-        );
+        let graph = Arc::clone(&self.graph);
+        let ctx_clone = ctx.clone();
+        std::thread::spawn(move || {
+            let start = std::time::Instant::now();
+            if let Err(e) = graph.index_directory(&root) {
+                warn!(error = %e, "Cortex: Background indexing failed");
+                return;
+            }
+            let elapsed = start.elapsed();
+            info!(
+                files = graph.file_count(),
+                symbols = graph.symbol_count(),
+                ms = elapsed.as_millis(),
+                "Cortex: Background indexing complete"
+            );
+            ctx_clone.update_metrics(|m| {
+                m.files_indexed = graph.file_count();
+                m.symbols_found = graph.symbol_count();
+            });
+            ctx_clone.broadcast(SynapseEvent::IndexingComplete);
+        });
 
         self.parser = AstParser::new().ok();
         Ok(())

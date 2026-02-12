@@ -14,6 +14,32 @@ use crate::diagnostic::{
     parse_cargo_line, Applicability, Diagnostic, DiagnosticLevel, DiagnosticSnapshot, Suggestion,
 };
 
+/// Minimum severity filter for diagnostic queries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum MinSeverity {
+    Info,
+    Warning,
+    Error,
+}
+
+impl MinSeverity {
+    pub fn from_str_loose(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "error" | "err" => Self::Error,
+            "warning" | "warn" => Self::Warning,
+            _ => Self::Info,
+        }
+    }
+
+    fn matches(&self, level: &DiagnosticLevel) -> bool {
+        match self {
+            Self::Info => true,
+            Self::Warning => matches!(level, DiagnosticLevel::Warning | DiagnosticLevel::Error),
+            Self::Error => matches!(level, DiagnosticLevel::Error),
+        }
+    }
+}
+
 /// The shared diagnostic store — thread-safe, accessible via `ctx.get_extension()`.
 pub struct DiagnosticStore {
     inner: RwLock<StoreInner>,
@@ -47,6 +73,31 @@ impl DiagnosticStore {
             diagnostics: inner.diagnostics.clone(),
             error_count: inner.error_count,
             warning_count: inner.warning_count,
+            last_check_ms: inner.last_check_ms,
+        }
+    }
+
+    /// Get a snapshot filtered by minimum severity.
+    pub fn filtered_snapshot(&self, min: MinSeverity) -> DiagnosticSnapshot {
+        let inner = self.inner.read().unwrap();
+        let filtered: Vec<Diagnostic> = inner
+            .diagnostics
+            .iter()
+            .filter(|d| min.matches(&d.level))
+            .cloned()
+            .collect();
+        let error_count = filtered
+            .iter()
+            .filter(|d| d.level == DiagnosticLevel::Error)
+            .count();
+        let warning_count = filtered
+            .iter()
+            .filter(|d| d.level == DiagnosticLevel::Warning)
+            .count();
+        DiagnosticSnapshot {
+            diagnostics: filtered,
+            error_count,
+            warning_count,
             last_check_ms: inner.last_check_ms,
         }
     }
@@ -226,7 +277,10 @@ impl DiagnosticStore {
 }
 
 /// Start the background check loop.
-/// Listens for trigger signals and runs cargo check with debouncing.
+/// Listens for trigger signals and runs cargo check with adaptive debouncing.
+///
+/// HCI Req 4 (Focus Mode): If 3+ triggers arrive within 5 seconds, the debounce
+/// window escalates from 2s to 5s — the user is in rapid edit flow.
 pub fn start_background_loop(
     store: Arc<DiagnosticStore>,
     ctx: SynapseContext,
@@ -239,10 +293,31 @@ pub fn start_background_loop(
         let (errors, warnings) = store.run_check();
         ctx.broadcast(SynapseEvent::DiagnosticUpdated { errors, warnings });
 
-        // Then wait for triggers with debouncing
-        let debounce = Duration::from_secs(2);
+        // Adaptive debounce parameters
+        let normal_debounce = Duration::from_secs(2);
+        let rapid_debounce = Duration::from_secs(5);
+        let rapid_window = Duration::from_secs(5);
+        let rapid_threshold = 3usize;
+        let mut recent_triggers: Vec<Instant> = Vec::new();
 
         while trigger_rx.recv().is_ok() {
+            let now = Instant::now();
+            recent_triggers.push(now);
+
+            // Prune old triggers outside the rapid detection window
+            recent_triggers.retain(|t| now.duration_since(*t) < rapid_window);
+
+            // Adaptive debounce: escalate if rapid editing detected
+            let debounce = if recent_triggers.len() >= rapid_threshold {
+                debug!(
+                    triggers = recent_triggers.len(),
+                    "Shadow: Rapid editing detected, escalating debounce"
+                );
+                rapid_debounce
+            } else {
+                normal_debounce
+            };
+
             // Drain any additional triggers (debounce)
             let deadline = Instant::now() + debounce;
             loop {
@@ -251,8 +326,11 @@ pub fn start_background_loop(
                     break;
                 }
                 match trigger_rx.recv_timeout(remaining) {
-                    Ok(()) => continue, // More triggers — keep draining
-                    Err(_) => break,    // Timeout — time to run
+                    Ok(()) => {
+                        recent_triggers.push(Instant::now());
+                        continue;
+                    }
+                    Err(_) => break,
                 }
             }
 

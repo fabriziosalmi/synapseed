@@ -2,6 +2,8 @@
 //!
 //! Each tool maps to an internal SYNAPSEED capability.
 
+use std::path::Path;
+
 use serde_json::json;
 use tracing::info;
 
@@ -25,7 +27,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "get_code_skeleton".into(),
-            description: "Index a project directory and return its AST skeleton (files, symbols, structure). Use this to understand the architecture before diving into code.".into(),
+            description: "LOW-LEVEL — Index a project directory and return its AST skeleton (files, symbols, structure). Prefer `ask_synapseed` for holistic queries; use this only when you need raw symbol data.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -38,7 +40,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "lookup_symbol".into(),
-            description: "Find a symbol (function, class, struct, etc.) by name across the entire project. Returns file path, line numbers, and signature.".into(),
+            description: "LOW-LEVEL — Find a symbol by name across the entire project. Returns file path, line numbers, and signature. Prefer `ask_synapseed` unless you know the exact symbol name.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -52,7 +54,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "scan_security".into(),
-            description: "Scan text content for sensitive data (API keys, passwords, tokens, PII). Returns findings or CLEAN status.".into(),
+            description: "LOW-LEVEL — Scan text content for sensitive data (API keys, passwords, tokens, PII). Returns findings or CLEAN status. Called automatically by `ask_synapseed` when security-relevant.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -66,7 +68,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "check_command".into(),
-            description: "Evaluate a shell command against the security policy. Returns ALLOWED or DENIED with reason.".into(),
+            description: "LOW-LEVEL — Evaluate a shell command against the security policy. Returns ALLOWED or DENIED with reason. Always call this before executing any shell command.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -80,7 +82,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "git_history".into(),
-            description: "Get git blame/history for a file. Shows who changed what and why — useful for understanding code context.".into(),
+            description: "LOW-LEVEL — Get git blame/history for a file. Shows who changed what and why. Prefer `analyze_history` for richer insights or `ask_synapseed` for holistic context.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -102,7 +104,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "project_diagnose".into(),
-            description: "Run a full diagnostic on the project: detect state (virgin/partial/healthy), build system, git status, active plugins.".into(),
+            description: "LOW-LEVEL — Run a full diagnostic on the project: detect state (virgin/partial/healthy), build system, git status, active plugins. Included automatically in `ask_synapseed` responses.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {}
@@ -110,7 +112,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "consult_architect".into(),
-            description: "Consult the project's architecture policy. Returns guidance from the DNA configuration on preferred libraries, workspace strategy, naming conventions, and design principles.".into(),
+            description: "LOW-LEVEL — Consult the project's architecture policy (DNA config). Returns preferred libraries, workspace strategy, naming conventions. Use `architect_analyze` for structural health or `ask_synapseed` for holistic answers.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -124,7 +126,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "semantic_search".into(),
-            description: "Search for code by concept, not just exact strings. Finds symbols based on names, doc comments, signatures, and body content. Supports fuzzy matching (e.g., 'auth~2' for typo tolerance). Use this when you need to find code related to a concept like 'authentication', 'logging', or 'error handling'.".into(),
+            description: "LOW-LEVEL — Search for code by concept (Tantivy keyword index). Finds symbols by name, signature, doc comments. Supports fuzzy matching. Prefer `ask_synapseed` for broad queries; use this for targeted symbol search.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -143,20 +145,26 @@ pub fn list_tools() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "get_diagnostics".into(),
-            description: "Get current compiler diagnostics (errors and warnings) from the background shadow compiler. Optionally filter by file path. Use this to check if the code compiles before proceeding.".into(),
+            description: "LOW-LEVEL — Get current compiler diagnostics from the background shadow compiler. Optionally filter by file path and/or severity. Included automatically in `ask_synapseed` responses when relevant.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
                     "file": {
                         "type": "string",
                         "description": "Optional file path to filter diagnostics (returns all if omitted)"
+                    },
+                    "min_severity": {
+                        "type": "string",
+                        "enum": ["info", "warning", "error"],
+                        "description": "Minimum severity to include (default: 'warning')",
+                        "default": "warning"
                     }
                 }
             }),
         },
         ToolDefinition {
             name: "analyze_history".into(),
-            description: "Analyze the full history of a file: churn/hotspot score, co-change patterns, semantic commit classification (fix/revert/refactor/security), and risk assessment. Optionally scope to a line range. Use this when asked 'Why is this code so complex?' or 'Is this area risky?'.".into(),
+            description: "LOW-LEVEL — Analyze file history: churn/hotspot score, co-change patterns, semantic commit classification, risk assessment. Use for deep dives into a specific file; `ask_synapseed` includes this automatically when relevant.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -178,7 +186,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "apply_quick_fix".into(),
-            description: "Apply a compiler-suggested fix automatically. Only applies 'MachineApplicable' suggestions from rustc. Use get_diagnostics first to find the error code, then apply the fix.".into(),
+            description: "LOW-LEVEL — Apply a compiler-suggested fix automatically. Only applies 'MachineApplicable' suggestions from rustc. Call `get_diagnostics` first to find the error code.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -195,8 +203,8 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "ask_whisperer".into(),
-            description: "The Intent Router — ask a natural-language question and SYNAPSEED automatically orchestrates all relevant subsystems (compiler, search, history, security) in a single call. Returns an enriched context object with diagnostics, history, code context, and security status. Use this FIRST for any complex question instead of calling individual tools.".into(),
+            name: "ask_synapseed".into(),
+            description: "PRIMARY TOOL — Start here. Ask a natural-language question and SYNAPSEED automatically orchestrates all relevant subsystems (compiler, search, history, security, architecture) in a single call. Returns enriched context with diagnostics, history, code context, and security status. Use this FIRST for any question instead of calling individual low-level tools.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -210,7 +218,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "git_intent_summary".into(),
-            description: "Summarize the intent and direction of recent commits semantically. Groups commits by category (fix, feature, refactor, security, etc.) and extracts scope hints from conventional commit messages. Use this to quickly understand what the team has been working on.".into(),
+            description: "LOW-LEVEL — Summarize the intent and direction of recent commits semantically. Groups by category (fix, feature, refactor, security). Prefer `ask_synapseed` for broad project context.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -224,7 +232,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "train_code".into(),
-            description: "Evaluate Rust code in an isolated sandbox (The Gym). Compiles, tests, and benchmarks the code, returning a detailed report with metrics (compile time, binary size, test results) and a composite score. Use this to compare code variants or validate refactoring safety.".into(),
+            description: "SPECIALIZED — Evaluate Rust code in an isolated sandbox (The Gym). Compiles, tests, and benchmarks code, returning metrics (compile time, binary size, test results) and a composite score. Use to compare code variants or validate refactoring safety.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -247,7 +255,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "reset_telemetry".into(),
-            description: "Clear all telemetry data (spans and metrics) from the OTLP receiver. Use this to reset the heatmap and start fresh observation.".into(),
+            description: "LOW-LEVEL — Clear all telemetry data (spans and metrics) from the OTLP receiver. Use to reset the heatmap and start fresh observation.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {}
@@ -255,7 +263,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "janitor_run_now".into(),
-            description: "Run the Janitor: scan the project for clippy warnings and unused dependencies, generate validated fix proposals. Returns a summary of findings and actionable proposals. Ask 'Janitor, hai trovato qualcosa?' to trigger this.".into(),
+            description: "SPECIALIZED — Run the Janitor: scan for clippy warnings and unused dependencies, generate validated fix proposals. Returns findings and actionable proposals.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {}
@@ -263,13 +271,18 @@ pub fn list_tools() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "janitor_apply_fix".into(),
-            description: "Apply a specific Janitor fix proposal by ID. The fix is applied to the actual file, then verified with `cargo check`. Automatically reverts if compilation breaks.".into(),
+            description: "SPECIALIZED — Apply a specific Janitor fix proposal by ID. Default: preview only (dry-run). Set `confirm: true` to actually apply. Applied to the actual file, verified with `cargo check`. Automatically reverts if compilation breaks.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
                     "proposal_id": {
                         "type": "string",
                         "description": "The UUID of the proposal to apply (from janitor_run_now results)"
+                    },
+                    "confirm": {
+                        "type": "boolean",
+                        "description": "Set to true to actually apply the fix. Default: false (preview only).",
+                        "default": false
                     }
                 },
                 "required": ["proposal_id"]
@@ -277,7 +290,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "architect_analyze".into(),
-            description: "Analyze the project's structural health: module dependency graph, coupling metrics, cycle detection, god object detection, layer violation detection. Returns an architecture score (A-F), violations, and actionable recommendations.".into(),
+            description: "SPECIALIZED — Analyze project structural health: dependency graph, coupling metrics, cycle detection, god objects, layer violations. Returns architecture score (A-F), violations, and recommendations.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -291,7 +304,7 @@ pub fn list_tools() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "semantic_similarity".into(),
-            description: "Find code similar to a natural-language query using vector embeddings. Returns ranked results by cosine similarity. Requires `search.embeddings: true` in DNA config. Use this when you need to find code by meaning, not just keyword matching.".into(),
+            description: "SPECIALIZED — Find code similar to a natural-language query using vector embeddings (cosine similarity). Requires `search.embeddings: true` in DNA config. Use for meaning-based code search beyond keyword matching.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -336,7 +349,7 @@ pub fn handle_tool_call(
         "analyze_history" => tool_analyze_history(args, ctx),
         "get_diagnostics" => tool_get_diagnostics(args, ctx),
         "apply_quick_fix" => tool_apply_quick_fix(args, ctx),
-        "ask_whisperer" => tool_ask_whisperer(args, ctx),
+        "ask_synapseed" => tool_ask_synapseed(args, ctx),
         "git_intent_summary" => tool_git_intent_summary(args, ctx),
         "train_code" => tool_train_code(args),
         "reset_telemetry" => tool_reset_telemetry(ctx),
@@ -361,6 +374,9 @@ fn tool_get_code_skeleton(args: &serde_json::Value, ctx: &SynapseContext) -> Too
         .map(std::path::PathBuf::from)
         .unwrap_or(root.clone());
 
+    // HCI Req 8: Honest Mirror — warn if path is gitignored
+    let gi_warning = check_gitignore_warning(&path, &root).unwrap_or_default();
+
     // Try shared graph from CortexPlugin for project root
     if path == root {
         if let Some(graph) = ctx.get_extension::<CodeGraph>() {
@@ -369,7 +385,10 @@ fn tool_get_code_skeleton(args: &serde_json::Value, ctx: &SynapseContext) -> Too
                 "symbols_indexed": graph.symbol_count(),
                 "path": path.display().to_string(),
             });
-            return text_result(serde_json::to_string_pretty(&summary).unwrap_or_default());
+            return text_result(format!(
+                "{gi_warning}{}",
+                serde_json::to_string_pretty(&summary).unwrap_or_default()
+            ));
         }
     }
 
@@ -704,30 +723,41 @@ fn tool_analyze_history(args: &serde_json::Value, ctx: &SynapseContext) -> ToolC
 }
 
 fn tool_get_diagnostics(args: &serde_json::Value, ctx: &SynapseContext) -> ToolCallResult {
+    use synapseed_shadow_check::runner::MinSeverity;
+
     let store = match ctx.get_extension::<DiagnosticStore>() {
         Some(s) => s,
         None => return text_result("Shadow compiler not active (no Cargo.toml found or not initialized). Run `synapseed init` first.".into()),
     };
 
     let file_filter = args.get("file").and_then(|v| v.as_str());
+    let min_severity = args
+        .get("min_severity")
+        .and_then(|v| v.as_str())
+        .map(MinSeverity::from_str_loose)
+        .unwrap_or(MinSeverity::Warning);
 
+    let snap = store.filtered_snapshot(min_severity);
     let diagnostics = match file_filter {
-        Some(file) => store.for_file(file),
-        None => store.snapshot().diagnostics,
+        Some(file) => snap
+            .diagnostics
+            .iter()
+            .filter(|d| d.file_path == file || file.ends_with(&d.file_path))
+            .cloned()
+            .collect(),
+        None => snap.diagnostics,
     };
 
     if diagnostics.is_empty() {
-        let snap = store.snapshot();
         text_result(format!(
-            "CLEAN: No diagnostics. Last check took {}ms.",
-            snap.last_check_ms
+            "CLEAN: No diagnostics at severity {:?}+. Last check took {}ms.",
+            min_severity, snap.last_check_ms
         ))
     } else {
-        let snap = store.snapshot();
         let json = serde_json::to_string_pretty(&diagnostics).unwrap_or_default();
         text_result(format!(
-            "{} error(s), {} warning(s) (check took {}ms):\n{json}",
-            snap.error_count, snap.warning_count, snap.last_check_ms
+            "{} error(s), {} warning(s) (check took {}ms, filter: {:?}+):\n{json}",
+            snap.error_count, snap.warning_count, snap.last_check_ms, min_severity
         ))
     }
 }
@@ -753,7 +783,7 @@ fn tool_apply_quick_fix(args: &serde_json::Value, ctx: &SynapseContext) -> ToolC
     }
 }
 
-fn tool_ask_whisperer(args: &serde_json::Value, ctx: &SynapseContext) -> ToolCallResult {
+fn tool_ask_synapseed(args: &serde_json::Value, ctx: &SynapseContext) -> ToolCallResult {
     let query = match args.get("query").and_then(|v| v.as_str()) {
         Some(q) => q,
         None => return error_result("Missing required parameter: query".into()),
@@ -906,11 +936,36 @@ fn tool_janitor_apply_fix(args: &serde_json::Value, ctx: &SynapseContext) -> Too
         Some(id) => id,
         None => return error_result("Missing required parameter: proposal_id".into()),
     };
+    let confirm = args
+        .get("confirm")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
 
     let store = match ctx.get_extension::<ProposalStore>() {
         Some(s) => s,
         None => return error_result("Janitor plugin not active.".into()),
     };
+
+    // HCI Req 3 (Safety Net): dry-run by default — preview what WOULD change
+    if !confirm {
+        return match store.get(proposal_id) {
+            Some(proposal) => {
+                text_result(format!(
+                    "PREVIEW (dry-run): Would apply fix to {}:{}\n\
+                     - Description: {}\n\
+                     - Original:\n{}\n\
+                     - Fixed:\n{}\n\n\
+                     Call again with `confirm: true` to apply this fix.",
+                    proposal.file_path,
+                    proposal.line_start,
+                    proposal.description,
+                    proposal.original_code,
+                    proposal.fixed_code,
+                ))
+            }
+            None => error_result(format!("No proposal found with ID: {proposal_id}")),
+        };
+    }
 
     let janitor = Janitor::new(store);
     let root = ctx.project_root();
@@ -1039,6 +1094,24 @@ fn tool_semantic_similarity(args: &serde_json::Value, ctx: &SynapseContext) -> T
         text_result(
             "Embeddings not compiled. Rebuild with the `embeddings` feature enabled.".into(),
         )
+    }
+}
+
+/// Check if a file path is listed in .gitignore (HCI Req 8: Honest Mirror).
+/// Returns a warning string if the file IS ignored, or None if tracked.
+fn check_gitignore_warning(path: &Path, root: &Path) -> Option<String> {
+    let gi_path = root.join(".gitignore");
+    if !gi_path.exists() {
+        return None;
+    }
+    let (gi, _) = ignore::gitignore::Gitignore::new(&gi_path);
+    if gi.matched(path, path.is_dir()).is_ignore() {
+        Some(format!(
+            "WARNING: {} is listed in .gitignore. Results may not reflect tracked code.\n\n",
+            path.display()
+        ))
+    } else {
+        None
     }
 }
 

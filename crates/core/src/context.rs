@@ -43,12 +43,16 @@ pub struct ContextMetrics {
     pub commands_denied: usize,
     pub errors_prevented: usize,
     pub events_broadcast: usize,
+    pub tools_invoked: usize,
 }
 
 impl SynapseContext {
-    /// Create a new context with an event bus (capacity = 256 events).
+    /// Create a new context with an event bus (capacity = 4096 events).
+    ///
+    /// A large capacity prevents `Lagged` errors when plugins produce
+    /// events faster than consumers drain them (e.g., bulk file indexing).
     pub fn new(project_root: PathBuf, state: ProjectState, dna: ProjectDna) -> Self {
-        let (event_tx, _) = broadcast::channel(256);
+        let (event_tx, _) = broadcast::channel(4096);
 
         Self {
             inner: Arc::new(RwLock::new(ContextInner {

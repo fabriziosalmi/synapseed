@@ -7,6 +7,7 @@ use tracing::debug;
 use crate::language::Language;
 
 /// AST parser that extracts structured symbols from source files.
+/// Falls back to text-only extraction for unsupported languages.
 pub struct AstParser {
     parsers: std::collections::HashMap<Language, tree_sitter::Parser>,
 }
@@ -27,6 +28,10 @@ impl AstParser {
     }
 
     /// Parse a file and extract its structural skeleton (symbols only, no bodies).
+    ///
+    /// For languages with tree-sitter support, performs full AST extraction.
+    /// For `Language::Unknown`, falls back to text-only extraction (line count,
+    /// TODO/FIXME markers) so the file still appears in the code graph.
     pub fn parse_file(&mut self, path: &Path, source: &str) -> Result<FileStructure> {
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
@@ -34,6 +39,11 @@ impl AstParser {
             file: path.display().to_string(),
             reason: format!("Unsupported file extension: .{ext}"),
         })?;
+
+        // Text-only fallback for languages without tree-sitter grammars
+        if !lang.has_ast_support() {
+            return Ok(Self::text_only_parse(path, source, lang));
+        }
 
         let parser = self
             .parsers
@@ -62,6 +72,59 @@ impl AstParser {
             language: lang.name().to_string(),
             symbols,
         })
+    }
+
+    /// Text-only fallback: extract line count and TODO/FIXME markers as symbols.
+    /// This ensures that files in unsupported languages still appear in the code graph,
+    /// the architect module metrics, and the search index.
+    fn text_only_parse(path: &Path, source: &str, lang: Language) -> FileStructure {
+        let mut symbols = Vec::new();
+        let total_lines = source.lines().count();
+
+        // Extract TODO/FIXME/HACK/XXX markers as symbols
+        for (line_idx, line) in source.lines().enumerate() {
+            let trimmed = line.trim();
+            let marker = if let Some(pos) = trimmed.find("TODO") {
+                Some(("TODO", pos, trimmed))
+            } else if let Some(pos) = trimmed.find("FIXME") {
+                Some(("FIXME", pos, trimmed))
+            } else if let Some(pos) = trimmed.find("HACK") {
+                Some(("HACK", pos, trimmed))
+            } else if let Some(pos) = trimmed.find("XXX") {
+                Some(("XXX", pos, trimmed))
+            } else {
+                None
+            };
+
+            if let Some((tag, _, line_text)) = marker {
+                // Extract the comment text after the marker
+                let signature = line_text.to_string();
+                symbols.push(Symbol {
+                    id: SymbolId::new(),
+                    name: format!("{tag}:{}", path.file_name().and_then(|n| n.to_str()).unwrap_or("?")),
+                    kind: SymbolKind::Variable, // reuse Variable kind for markers
+                    file_path: String::new(),
+                    line_start: line_idx + 1,
+                    line_end: line_idx + 1,
+                    signature: Some(signature),
+                    children: Vec::new(),
+                });
+            }
+        }
+
+        debug!(
+            path = %path.display(),
+            lang = %lang,
+            lines = total_lines,
+            markers = symbols.len(),
+            "Text-only parse (no AST)"
+        );
+
+        FileStructure {
+            path: path.display().to_string(),
+            language: lang.name().to_string(),
+            symbols,
+        }
     }
 
     fn extract_symbols(
@@ -95,6 +158,7 @@ impl AstParser {
                 "lexical_declaration" => Some(SymbolKind::Variable),
                 _ => None,
             },
+            Language::Unknown => None, // handled by text_only_parse
         };
 
         if let Some(sk) = symbol_kind {
@@ -123,6 +187,7 @@ impl AstParser {
     fn extract_name(node: tree_sitter::Node, source: &str, lang: Language) -> Option<String> {
         let name_field = match lang {
             Language::Rust | Language::Python | Language::JavaScript => "name",
+            Language::Unknown => return None,
         };
 
         node.child_by_field_name(name_field)

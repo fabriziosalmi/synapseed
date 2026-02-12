@@ -52,6 +52,10 @@ pub struct ProjectDna {
     /// Architect configuration (layers, thresholds)
     #[serde(default)]
     pub architect: ArchitectConfig,
+
+    /// HCI (Human-Computer Interaction) configuration.
+    #[serde(default)]
+    pub hci: HciConfig,
 }
 
 /// Search index configuration.
@@ -83,6 +87,48 @@ pub struct ArchitectConfig {
     /// Min fan-in to combine with size for god object detection (default: 5).
     #[serde(default)]
     pub god_object_min_fan_in: Option<usize>,
+}
+
+/// HCI (Human-Computer Interaction) configuration.
+/// Controls perceptual quality features: background indexing, adaptive linting,
+/// session persistence, and other UX behaviors.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HciConfig {
+    /// Enable background (non-blocking) code indexing at startup.
+    #[serde(default = "default_true")]
+    pub background_indexing: bool,
+    /// Enable automatic port retry for the Visualizer dashboard.
+    #[serde(default = "default_true")]
+    pub port_retry: bool,
+    /// Enable adaptive linting (debounce escalation during rapid edits).
+    #[serde(default = "default_true")]
+    pub adaptive_linting: bool,
+    /// Enable mentor mode (response depth adapts to query complexity).
+    #[serde(default = "default_true")]
+    pub mentor_mode: bool,
+    /// Enable session persistence (cross-session continuity).
+    #[serde(default = "default_true")]
+    pub session_persistence: bool,
+    /// Max files to index (memory ceiling). None = unlimited (default: 10000).
+    #[serde(default)]
+    pub memory_ceiling_files: Option<usize>,
+}
+
+impl Default for HciConfig {
+    fn default() -> Self {
+        Self {
+            background_indexing: true,
+            port_retry: true,
+            adaptive_linting: true,
+            mentor_mode: true,
+            session_persistence: true,
+            memory_ceiling_files: None,
+        }
+    }
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// A named architectural layer with rank and module patterns.
@@ -162,6 +208,7 @@ impl Default for ProjectDna {
             search: SearchConfig::default(),
             visualizer_port: None,
             architect: ArchitectConfig::default(),
+            hci: HciConfig::default(),
         }
     }
 }
@@ -267,6 +314,25 @@ impl ProjectDna {
         }
         if other.architect.god_object_min_fan_in.is_some() {
             self.architect.god_object_min_fan_in = other.architect.god_object_min_fan_in;
+        }
+        // HCI: only override if explicitly set to non-default
+        if !other.hci.background_indexing {
+            self.hci.background_indexing = false;
+        }
+        if !other.hci.port_retry {
+            self.hci.port_retry = false;
+        }
+        if !other.hci.adaptive_linting {
+            self.hci.adaptive_linting = false;
+        }
+        if !other.hci.mentor_mode {
+            self.hci.mentor_mode = false;
+        }
+        if !other.hci.session_persistence {
+            self.hci.session_persistence = false;
+        }
+        if other.hci.memory_ceiling_files.is_some() {
+            self.hci.memory_ceiling_files = other.hci.memory_ceiling_files;
         }
     }
 }

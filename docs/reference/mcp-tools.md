@@ -1,6 +1,6 @@
 # MCP Tools
 
-SYNAPSEED exposes 14 tools via the Model Context Protocol. Tools are callable actions that the LLM can invoke.
+SYNAPSEED exposes 19 tools via the Model Context Protocol. Tools are callable actions that the LLM can invoke.
 
 ## `get_code_skeleton`
 
@@ -108,14 +108,15 @@ Search for code by concept using Tantivy.
 
 ## `get_diagnostics`
 
-Get current compiler diagnostics from the shadow compiler.
+Get current compiler diagnostics from the background shadow compiler. Supports severity filtering.
 
 **Parameters:**
 | Name | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
 | `file` | string | No | Filter by file path |
+| `min_severity` | string | No | Minimum severity: `info`, `warning` (default), `error` |
 
-**Returns:** Errors and warnings with codes, messages, and suggestions.
+**Returns:** Errors and warnings with codes, messages, and suggestions. Returns `CLEAN` if no diagnostics match the filter.
 
 ---
 
@@ -148,7 +149,7 @@ Apply a compiler-suggested fix automatically.
 
 ---
 
-## `ask_whisperer`
+## `ask_synapseed`
 
 The Intent Router. Ask a natural-language question and get an orchestrated response.
 
@@ -181,3 +182,69 @@ Summarize the intent and direction of recent commits semantically. Groups commit
 | `limit` | integer | No | Number of recent commits to analyze (default: 20) |
 
 **Returns:** Natural-language summary with category breakdown and JSON detail.
+
+---
+
+## `train_code`
+
+Evaluate Rust code in an isolated sandbox (The Gym). Compiles the code, runs tests, and returns structured feedback.
+
+**Parameters:**
+| Name | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `code` | string | Yes | Rust source code to evaluate |
+| `test_code` | string | No | Optional test code to run against the code |
+
+**Returns:** Compilation status, test results, and detailed diagnostics.
+
+---
+
+## `janitor_run_now`
+
+Run the Janitor: scan for clippy warnings and unused dependencies, generate validated fix proposals.
+
+**Parameters:** None.
+
+**Returns:** Findings and actionable proposals with UUIDs for `janitor_apply_fix`.
+
+---
+
+## `janitor_apply_fix`
+
+Apply a specific Janitor fix proposal. **Dry-run by default** — shows a preview of what would change. Set `confirm: true` to actually apply.
+
+**Parameters:**
+| Name | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `proposal_id` | string | Yes | UUID of the proposal (from `janitor_run_now`) |
+| `confirm` | boolean | No | Set to `true` to apply. Default: `false` (preview only) |
+
+**Returns:** Preview diff (dry-run) or success/error message (confirmed). Automatically reverts if compilation breaks.
+
+---
+
+## `architect_analyze`
+
+Analyze project structural health: dependency graph, coupling metrics, cycle detection, god objects, layer violations.
+
+**Parameters:**
+| Name | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `refresh` | boolean | No | Force fresh analysis (default: use cached report) |
+
+**Returns:** Architecture score (A-F), violations, module metrics, and recommendations.
+
+---
+
+## `semantic_similarity`
+
+Find code similar to a natural-language query using vector embeddings (cosine similarity). Requires `search.embeddings: true` in DNA config.
+
+**Parameters:**
+| Name | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `query` | string | Yes | Natural-language description of code to find |
+| `top_k` | integer | No | Number of results (default: 5) |
+| `min_similarity` | number | No | Minimum cosine similarity threshold (default: 0.3) |
+
+**Returns:** Ranked results with file, symbol, similarity score, and code snippet.

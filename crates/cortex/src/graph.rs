@@ -1,12 +1,25 @@
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use dashmap::DashMap;
+use ignore::WalkBuilder;
 use rayon::prelude::*;
 use synapseed_core::error::Result;
 use synapseed_core::symbol::{FileStructure, Symbol, SymbolId};
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::parser::AstParser;
+
+/// Maximum file size to index (1 MB). Files larger than this are skipped
+/// to prevent OOM on generated code, vendored deps, and binary files.
+const MAX_FILE_SIZE: u64 = 1_048_576;
+
+/// Per-file parse time warning threshold (5 seconds).
+/// Files exceeding this are logged and counted.
+const PARSE_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Default maximum files to index (HCI Req 6: Silent Partner / memory ceiling).
+const DEFAULT_MAX_FILES: usize = 10_000;
 
 /// The in-memory code graph — a semantic index of the entire project.
 ///
@@ -89,10 +102,46 @@ impl CodeGraph {
     /// Uses rayon for parallel parsing — each thread creates its own
     /// `AstParser` since tree-sitter `Parser` requires `&mut self`.
     /// Thread-safety is guaranteed by `DashMap`.
-    pub fn index_directory(&self, root: &Path) -> Result<()> {
-        let paths = walkdir(root)?;
+    /// Index all supported files in a directory tree with memory ceiling.
+    ///
+    /// `max_files` caps the total number of files indexed (HCI Req 6: Silent Partner).
+    /// Pass `None` for the default ceiling of 10,000 files.
+    pub fn index_directory_with_ceiling(
+        &self,
+        root: &Path,
+        max_files: Option<usize>,
+    ) -> Result<()> {
+        let mut paths = walkdir(root)?;
+        let max = max_files.unwrap_or(DEFAULT_MAX_FILES);
+
+        if paths.len() > max {
+            info!(
+                total = paths.len(),
+                cap = max,
+                "Capping indexed files to memory ceiling"
+            );
+            paths.truncate(max);
+        }
 
         paths.par_iter().for_each(|path| {
+            // Size guard: skip files larger than MAX_FILE_SIZE
+            match std::fs::metadata(path) {
+                Ok(meta) if meta.len() > MAX_FILE_SIZE => {
+                    debug!(
+                        path = %path.display(),
+                        bytes = meta.len(),
+                        "Skipping oversized file (>{} bytes)",
+                        MAX_FILE_SIZE
+                    );
+                    return;
+                }
+                Err(e) => {
+                    debug!(path = %path.display(), error = %e, "Cannot stat file, skipping");
+                    return;
+                }
+                _ => {}
+            }
+
             let source = match std::fs::read_to_string(path) {
                 Ok(s) => s,
                 Err(_) => return, // skip binary/unreadable files
@@ -106,8 +155,17 @@ impl CodeGraph {
                 }
             };
 
+            let parse_start = Instant::now();
             if let Err(e) = self.index_file(&mut parser, path, &source) {
                 debug!(path = %path.display(), error = %e, "Skipping file");
+            }
+            let elapsed = parse_start.elapsed();
+            if elapsed > PARSE_TIMEOUT {
+                warn!(
+                    path = %path.display(),
+                    ms = elapsed.as_millis(),
+                    "Parser exceeded timeout threshold"
+                );
             }
         });
 
@@ -119,6 +177,10 @@ impl CodeGraph {
 
         Ok(())
     }
+
+    pub fn index_directory(&self, root: &Path) -> Result<()> {
+        self.index_directory_with_ceiling(root, None)
+    }
 }
 
 impl Default for CodeGraph {
@@ -127,33 +189,39 @@ impl Default for CodeGraph {
     }
 }
 
-/// Walk a directory and collect paths with supported extensions.
+/// Walk a directory using the `ignore` crate — respects .gitignore,
+/// .ignore, and global gitignore. Automatically skips hidden dirs,
+/// target/, node_modules/, etc. via gitignore rules.
 fn walkdir(root: &Path) -> Result<Vec<PathBuf>> {
+    let walker = WalkBuilder::new(root)
+        .hidden(true) // respect hidden dirs (skip .* dirs)
+        .git_ignore(true) // respect .gitignore
+        .git_global(true) // respect global gitignore
+        .git_exclude(true) // respect .git/info/exclude
+        .build();
+
     let mut paths = Vec::new();
-    walk_recursive(root, &mut paths)?;
-    Ok(paths)
-}
-
-fn walk_recursive(dir: &Path, paths: &mut Vec<PathBuf>) -> Result<()> {
-    let entries = std::fs::read_dir(dir)?;
-
-    for entry in entries {
-        let entry = entry?;
-        let path = entry.path();
-
-        if path.is_dir() {
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            // Skip hidden dirs and common non-source dirs
-            if name.starts_with('.') || name == "target" || name == "node_modules" {
+    for entry in walker {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(e) => {
+                warn!(error = %e, "File walk error, skipping entry");
                 continue;
             }
-            walk_recursive(&path, paths)?;
-        } else if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+        };
+
+        // Skip directories (we only want files)
+        if entry.file_type().map_or(true, |ft| !ft.is_file()) {
+            continue;
+        }
+
+        let path = entry.into_path();
+        if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
             if crate::language::Language::from_extension(ext).is_some() {
                 paths.push(path);
             }
         }
     }
 
-    Ok(())
+    Ok(paths)
 }

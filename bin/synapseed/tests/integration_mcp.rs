@@ -125,7 +125,7 @@ fn test_mcp_full_lifecycle() {
     assert!(tool_names.contains(&"get_diagnostics"));
     assert!(tool_names.contains(&"analyze_history"));
     assert!(tool_names.contains(&"apply_quick_fix"));
-    assert!(tool_names.contains(&"ask_whisperer"));
+    assert!(tool_names.contains(&"ask_synapseed"));
     assert!(tool_names.contains(&"git_intent_summary"));
     assert!(tool_names.contains(&"train_code"));
     assert!(tool_names.contains(&"reset_telemetry"));
@@ -342,4 +342,57 @@ fn test_mcp_prompt_get() {
         "Prompt should reference scan_security tool"
     );
     assert!(text.contains("CLEAN"), "Prompt should mention risk levels");
+}
+
+// ── Test: Janitor Preview Mode (Dry-Run Default) ─────────────────────
+
+#[test]
+fn test_mcp_janitor_preview_mode() {
+    let hs = handshake();
+    let responses = run_mcp_session(&[
+        hs[0],
+        hs[1],
+        // Call janitor_apply_fix WITHOUT confirm:true — should preview / error, never apply
+        r#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"janitor_apply_fix","arguments":{"proposal_id":"nonexistent-id-123"}}}"#,
+    ]);
+
+    assert!(responses.len() >= 2);
+    let res = &responses[1];
+    assert_eq!(res["id"], 2);
+
+    // Should return an error about missing proposal — crucially, it should NOT
+    // have attempted to apply anything (no file modification)
+    let text = res["result"]["content"][0]["text"].as_str().unwrap();
+    let is_error = res["result"]["isError"].as_bool().unwrap_or(false);
+
+    // Either "No proposal found" (preview path) or "Janitor plugin not active"
+    assert!(
+        text.contains("No proposal found") || text.contains("not active"),
+        "Expected preview error, got: {text}"
+    );
+    assert!(is_error, "Expected isError=true for missing proposal");
+}
+
+// ── Test: get_diagnostics with severity filter ───────────────────────
+
+#[test]
+fn test_mcp_diagnostics_severity_filter() {
+    let hs = handshake();
+    let responses = run_mcp_session(&[
+        hs[0],
+        hs[1],
+        // Call get_diagnostics with min_severity=error
+        r#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_diagnostics","arguments":{"min_severity":"error"}}}"#,
+    ]);
+
+    assert!(responses.len() >= 2);
+    let res = &responses[1];
+    assert_eq!(res["id"], 2);
+    // Should return valid diagnostics result (may have 0 errors, that's fine)
+    let text = res["result"]["content"][0]["text"].as_str().unwrap();
+    // Valid outputs: "CLEAN: No diagnostics..." or "X errors, Y warnings" or "not active"
+    assert!(
+        text.contains("errors") || text.contains("diagnostics") || text.contains("not active") || text.contains("CLEAN"),
+        "Expected diagnostics output, got: {text}"
+    );
 }

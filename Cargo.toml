@@ -19,7 +19,7 @@ members = [
 ]
 
 [workspace.package]
-version = "1.2.0"
+version = "2.0.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/fabriziosalmi/synapseed"
@@ -105,6 +105,9 @@ fastembed = "5"
 
 # Binary serialization (vector index persistence)
 bincode = "1"
+
+# Gitignore-aware file walking
+ignore = "0.4"
 
 # Internal crates
 synapseed-core = { path = "crates/core" }

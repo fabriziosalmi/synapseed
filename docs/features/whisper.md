@@ -37,7 +37,7 @@ Natural language query
 
 ## Response Format
 
-The `ask_whisperer` tool returns:
+The `ask_synapseed` tool returns:
 
 ```json
 {
@@ -54,7 +54,7 @@ The `ask_whisperer` tool returns:
 
 | Tool | Description |
 | :--- | :--- |
-| `ask_whisperer` | Ask a natural-language question, get orchestrated response |
+| `ask_synapseed` | Ask a natural-language question, get orchestrated response |
 
 ## Usage Example
 
@@ -62,7 +62,7 @@ The `ask_whisperer` tool returns:
 {
   "method": "tools/call",
   "params": {
-    "name": "ask_whisperer",
+    "name": "ask_synapseed",
     "arguments": {
       "query": "why is the login broken?"
     }

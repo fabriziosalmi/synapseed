@@ -9,6 +9,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tracing::{error, info, warn};
 
 use synapseed_core::context::SynapseContext;
+use synapseed_core::session::SessionState;
 use synapseed_core::state::ProjectState;
 
 use crate::prompts;
@@ -62,6 +63,14 @@ pub async fn run(ctx: SynapseContext) -> anyhow::Result<()> {
         stdout.flush().await?;
     }
 
+    // HCI Req 9: Save session state on shutdown
+    let metrics = ctx.metrics();
+    let root = ctx.project_root();
+    let mut session = SessionState::new(&root);
+    session.files_indexed = metrics.files_indexed;
+    session.tools_invoked = metrics.tools_invoked;
+    session.save(&root);
+
     info!("MCP server shutting down");
     Ok(())
 }
@@ -93,7 +102,7 @@ async fn handle_request(
         }
         "tools/call" => {
             // Offload CPU-bound tool execution to blocking thread pool
-            let ctx = ctx.clone();
+            let ctx_cloned = ctx.clone();
             let id = req.id.clone();
             let name = req
                 .params
@@ -104,11 +113,13 @@ async fn handle_request(
             let arguments = req.params.get("arguments").cloned().unwrap_or(json!({}));
 
             match tokio::task::spawn_blocking(move || {
-                tools::handle_tool_call(&name, &arguments, &ctx)
+                tools::handle_tool_call(&name, &arguments, &ctx_cloned)
             })
             .await
             {
                 Ok(result) => {
+                    // HCI Req 9: Track tool invocations for session continuity
+                    ctx.update_metrics(|m| m.tools_invoked += 1);
                     JsonRpcResponse::success(id, serde_json::to_value(result).unwrap_or_default())
                 }
                 Err(e) => {
@@ -299,6 +310,19 @@ fn build_instructions(ctx: &SynapseContext) -> String {
         dna.dlp_level,
         dna.plugins.join(", "),
     ));
+
+    // HCI Req 9 (Time Anchor): inject session continuity if recent session exists
+    let root = ctx.project_root();
+    if let Some(session) = SessionState::load(&root) {
+        if session.is_recent() {
+            instructions.push_str(&format!(
+                "\nSESSION CONTINUITY: Last session was {}. {} files indexed, {} tools used. Resuming context.\n",
+                session.time_ago(),
+                session.files_indexed,
+                session.tools_invoked,
+            ));
+        }
+    }
 
     instructions
 }

@@ -54,12 +54,13 @@ impl SynapsePlugin for VisualizerPlugin {
     fn on_init(&mut self, ctx: &SynapseContext) -> Result<()> {
         let root = ctx.project_root();
         let port = self.port;
+        let port_retry = ctx.dna().hci.port_retry;
 
         // 1. Spawn the HTTP/WS server on the tokio runtime
         let ctx_for_server = ctx.clone();
         let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
         tokio::spawn(async move {
-            if let Err(e) = server::start(addr, ctx_for_server).await {
+            if let Err(e) = server::start(addr, ctx_for_server, port_retry).await {
                 warn!(error = %e, "Visualizer: Server failed to start");
             }
         });

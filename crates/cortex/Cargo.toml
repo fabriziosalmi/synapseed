@@ -14,3 +14,4 @@ tree-sitter-javascript = { workspace = true }
 dashmap = { workspace = true }
 rayon = { workspace = true }
 tracing = { workspace = true }
+ignore = { workspace = true }

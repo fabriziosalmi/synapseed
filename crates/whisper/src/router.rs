@@ -79,6 +79,7 @@ pub struct CodeContext {
 #[derive(Debug, Clone, Serialize)]
 pub struct WhisperResult {
     pub intent: Intent,
+    pub complexity: QueryComplexity,
     pub query: String,
     pub targets: Vec<Target>,
     pub diagnostics: Option<DiagnosticsContext>,
@@ -88,17 +89,55 @@ pub struct WhisperResult {
     pub smart_context: String,
 }
 
+// ── Query Complexity (HCI Req 5: Mentor Mode) ─────────────────────────
+
+/// How deep the Whisperer should go when building context.
+/// Determined by simple string heuristics — no NLP, no external deps.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QueryComplexity {
+    /// Short/simple query → brief response, max 3 context sections
+    Quick,
+    /// Normal query → standard behavior
+    Standard,
+    /// Long/multi-part query → full context, cross-references
+    Deep,
+}
+
+/// Classify query complexity from string heuristics.
+/// Word count + question marks + code references → Quick/Standard/Deep.
+pub fn analyze_complexity(query: &str) -> QueryComplexity {
+    let word_count = query.split_whitespace().count();
+    let question_marks = query.matches('?').count();
+    let has_code_refs = query.contains("::")
+        || query.contains("()")
+        || query.contains(".rs")
+        || query.contains(".py")
+        || query.contains(".js");
+
+    if word_count <= 4 && question_marks <= 1 && !has_code_refs {
+        QueryComplexity::Quick
+    } else if word_count >= 30 || question_marks > 1 || (word_count > 15 && has_code_refs) {
+        QueryComplexity::Deep
+    } else {
+        QueryComplexity::Standard
+    }
+}
+
 // ── Public API ─────────────────────────────────────────────────────────
 
 /// Main entry point: analyze the query and return aggregated context.
 ///
 /// Classifies intent, extracts targets, executes the right subsystems,
 /// and returns everything the LLM needs in a single call.
+///
+/// HCI Req 5 (Mentor Mode): Response depth adapts to query complexity.
 pub fn ask(query: &str, ctx: &SynapseContext) -> WhisperResult {
     info!(query = query, "Whisperer: Processing query");
 
     let intent = classify_intent(query);
-    debug!(intent = ?intent, "Whisperer: Classified intent");
+    let complexity = analyze_complexity(query);
+    debug!(intent = ?intent, complexity = ?complexity, "Whisperer: Classified");
 
     let targets = extract_targets(query, ctx);
     debug!(target_count = targets.len(), "Whisperer: Extracted targets");
@@ -112,6 +151,7 @@ pub fn ask(query: &str, ctx: &SynapseContext) -> WhisperResult {
     let smart_context = build_smart_context(
         query,
         &intent,
+        complexity,
         &diagnostics,
         &history,
         &code_context,
@@ -120,6 +160,7 @@ pub fn ask(query: &str, ctx: &SynapseContext) -> WhisperResult {
 
     WhisperResult {
         intent,
+        complexity,
         query: query.to_string(),
         targets,
         diagnostics,
@@ -460,6 +501,7 @@ fn gather_security(intent: &Intent, targets: &[Target], ctx: &SynapseContext) ->
 fn build_smart_context(
     query: &str,
     intent: &Intent,
+    complexity: QueryComplexity,
     diagnostics: &Option<DiagnosticsContext>,
     history: &Option<HistoryContext>,
     code_context: &Option<CodeContext>,
@@ -473,42 +515,76 @@ fn build_smart_context(
         Intent::General => "general inquiry",
     };
 
-    let mut parts = vec![format!(
-        "Based on your query \"{query}\", SYNAPSEED detected a **{intent_label}** intent and gathered:"
-    )];
+    // HCI Req 5 (Mentor Mode): adapt preamble to query complexity
+    let preamble = match complexity {
+        QueryComplexity::Quick => format!(
+            "Brief answer for \"{query}\" ({intent_label}):"
+        ),
+        QueryComplexity::Standard => format!(
+            "Based on your query \"{query}\", SYNAPSEED detected a **{intent_label}** intent and gathered:"
+        ),
+        QueryComplexity::Deep => format!(
+            "Detailed analysis for \"{query}\" — detected intent: **{intent_label}**.\n\
+             SYNAPSEED gathered comprehensive context across all subsystems:"
+        ),
+    };
 
-    if let Some(diag) = diagnostics {
-        if diag.error_count > 0 || diag.warning_count > 0 {
-            parts.push(format!(
-                "- **Compiler**: {} error(s), {} warning(s)",
-                diag.error_count, diag.warning_count
-            ));
-        } else {
-            parts.push("- **Compiler**: No errors or warnings".into());
+    let mut parts = vec![preamble];
+    let mut section_count = 0usize;
+    let max_sections = match complexity {
+        QueryComplexity::Quick => 3,
+        QueryComplexity::Standard => 5,
+        QueryComplexity::Deep => usize::MAX,
+    };
+
+    if section_count < max_sections {
+        if let Some(diag) = diagnostics {
+            if diag.error_count > 0 || diag.warning_count > 0 {
+                parts.push(format!(
+                    "- **Compiler**: {} error(s), {} warning(s)",
+                    diag.error_count, diag.warning_count
+                ));
+            } else {
+                parts.push("- **Compiler**: No errors or warnings".into());
+            }
+            section_count += 1;
         }
     }
 
-    if let Some(hist) = history {
-        parts.push(format!(
-            "- **History** ({}): {} commit(s), hotspot {:.1}, risk: {}",
-            hist.file, hist.total_commits, hist.hotspot_score, hist.risk
-        ));
+    if section_count < max_sections {
+        if let Some(hist) = history {
+            parts.push(format!(
+                "- **History** ({}): {} commit(s), hotspot {:.1}, risk: {}",
+                hist.file, hist.total_commits, hist.hotspot_score, hist.risk
+            ));
+            section_count += 1;
+        }
     }
 
-    if let Some(code) = code_context {
-        parts.push(format!(
-            "- **Code**: {} relevant symbol(s) found",
-            code.symbols.len()
-        ));
+    if section_count < max_sections {
+        if let Some(code) = code_context {
+            parts.push(format!(
+                "- **Code**: {} relevant symbol(s) found",
+                code.symbols.len()
+            ));
+            section_count += 1;
+        }
     }
 
-    match security_status {
-        "CLEAN" => parts.push("- **Security**: CLEAN".into()),
-        "NOT_SCANNED" => {}
-        status => parts.push(format!("- **Security**: {status}")),
+    if section_count < max_sections {
+        match security_status {
+            "CLEAN" => parts.push("- **Security**: CLEAN".into()),
+            "NOT_SCANNED" => {}
+            status => parts.push(format!("- **Security**: {status}")),
+        }
     }
 
-    parts.push("\nUse the full JSON context below to provide an informed, precise answer.".into());
+    let closing = match complexity {
+        QueryComplexity::Quick => "\nProvide a concise answer.",
+        QueryComplexity::Standard => "\nUse the full JSON context below to provide an informed, precise answer.",
+        QueryComplexity::Deep => "\nUse ALL gathered context to provide a thorough, cross-referenced analysis with specific file paths and line numbers.",
+    };
+    parts.push(closing.into());
     parts.join("\n")
 }
 
@@ -597,6 +673,36 @@ mod tests {
             classify_intent("fix the security issue"),
             Intent::BugFix
         ));
+    }
+
+    #[test]
+    fn test_complexity_quick() {
+        assert_eq!(analyze_complexity("what is this"), QueryComplexity::Quick);
+        assert_eq!(analyze_complexity("help"), QueryComplexity::Quick);
+        assert_eq!(analyze_complexity("fix it"), QueryComplexity::Quick);
+    }
+
+    #[test]
+    fn test_complexity_standard() {
+        assert_eq!(
+            analyze_complexity("explain how the router works"),
+            QueryComplexity::Standard
+        );
+        assert_eq!(
+            analyze_complexity("what does the authentication module do"),
+            QueryComplexity::Standard
+        );
+    }
+
+    #[test]
+    fn test_complexity_deep() {
+        let long = "I need to understand how the authentication flow works across the entire codebase, including session management, token validation, and the security guard module. Can you also check for any vulnerabilities?";
+        assert_eq!(analyze_complexity(long), QueryComplexity::Deep);
+        // Multiple question marks
+        assert_eq!(
+            analyze_complexity("what is this? why does it fail? how to fix?"),
+            QueryComplexity::Deep
+        );
     }
 
     #[test]

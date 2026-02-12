@@ -11,17 +11,19 @@
 
 Most AI coding agents treat your codebase as flat text — `grep` for search, `cat` for reading, zero security. This leads to hallucinations, broken imports, and leaked secrets.
 
-**SYNAPSEED** parses code into an **AST**, indexes it semantically, scans for secrets in real-time, tracks git history with semantic tags, compiles in the background, and visualizes architecture live — all in a single **<12 MB Rust binary** with **zero network calls**.
+**SYNAPSEED** parses code into an **AST**, indexes it semantically, scans for secrets in real-time, tracks git history with semantic tags, compiles in the background, analyzes architecture health, and visualizes everything live — all in a single **<12 MB Rust binary** with **zero network calls**.
 
 | Capability | Standard LLM Context | SYNAPSEED |
 | :--- | :--- | :--- |
 | Code access | `cat file.rs` (blind text) | AST skeleton with symbols and relationships |
-| Search | Regex / grep | Tantivy semantic search (concepts > keywords) |
+| Search | Regex / grep | Tantivy FTS + vector embedding similarity |
 | Security | None (leaked secrets) | DLP fail-closed with real-time redaction |
-| Context | Zero (stateless) | Git time-travel with intent analysis |
-| Safety | Suggests `rm -rf /` | Command sentinel with policy enforcement |
-| Visibility | None | Live graph visualization with WebSocket |
+| Context | Zero (stateless) | Git time-travel + session continuity |
+| Safety | Suggests `rm -rf /` | Command sentinel + Janitor dry-run default |
+| Architecture | None | Dependency graph, coupling metrics, cycle detection |
+| Visibility | None | Live graph + X-Ray Mode (Shift+hover) |
 | Observability | None | OTLP telemetry receiver with heatmap |
+| Startup | Blocks until indexed | Background indexing, port-hopping |
 | Latency | High (network calls) | Zero-copy direct Rust (<10 ms) |
 
 ---
@@ -96,26 +98,26 @@ See the [full integration guides](docs/integration/) for system prompt templates
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     MCP JSON-RPC (stdio)                    │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌─────────┐  ┌──────┐  ┌──────┐  ┌─────────┐  ┌───────┐  │
-│  │ Cortex  │  │ Husk │  │ Root │  │ Chronos │  │Search │  │
-│  │  (AST)  │  │(DLP) │  │(Cmd) │  │  (Git)  │  │(FTS)  │  │
-│  └────┬────┘  └──┬───┘  └──┬───┘  └────┬────┘  └───┬───┘  │
-│       │          │         │            │           │       │
-│  ┌────┴──────────┴─────────┴────────────┴───────────┴───┐  │
-│  │              SynapseContext (Event Bus)               │  │
-│  └────┬──────────┬─────────┬────────────┬───────────┬───┘  │
-│       │          │         │            │           │       │
-│  ┌────┴────┐  ┌──┴───┐  ┌─┴──────┐  ┌──┴──┐  ┌────┴───┐  │
-│  │ Shadow  │  │Whis- │  │Visuali-│  │Tele-│  │Liquid  │  │
-│  │(Compile)│  │ per  │  │  zer   │  │metry│  │(Config)│  │
-│  └─────────┘  └──────┘  └────────┘  └─────┘  └────────┘  │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-   11 crates · Plugin architecture · Priority-based init
+┌──────────────────────────────────────────────────────────────────────┐
+│                        MCP JSON-RPC (stdio)                          │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  ┌─────────┐  ┌──────┐  ┌──────┐  ┌─────────┐  ┌───────┐  ┌─────┐ │
+│  │ Cortex  │  │ Husk │  │ Root │  │ Chronos │  │Search │  │ Gym │ │
+│  │  (AST)  │  │(DLP) │  │(Cmd) │  │  (Git)  │  │(FTS)  │  │(RL) │ │
+│  └────┬────┘  └──┬───┘  └──┬───┘  └────┬────┘  └───┬───┘  └──┬──┘ │
+│       │          │         │            │           │          │     │
+│  ┌────┴──────────┴─────────┴────────────┴───────────┴──────────┴──┐ │
+│  │                SynapseContext (Event Bus + Sessions)            │ │
+│  └────┬──────────┬─────────┬────────────┬──────────┬──────────┬───┘ │
+│       │          │         │            │          │          │      │
+│  ┌────┴────┐  ┌──┴───┐  ┌─┴──────┐  ┌──┴──┐  ┌───┴────┐  ┌─┴───┐ │
+│  │ Shadow  │  │Whis- │  │Visuali-│  │Tele-│  │Janitor │  │Arch-│ │
+│  │(Compile)│  │ per  │  │  zer   │  │metry│  │(Maint.)│  │itect│ │
+│  └─────────┘  └──────┘  └────────┘  └─────┘  └────────┘  └─────┘ │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+   14 crates · Plugin architecture · Priority-based init · HCI-tuned
 ```
 
 ```mermaid
@@ -142,49 +144,59 @@ graph LR
 
 | Crate | Role |
 | :--- | :--- |
-| `synapseed-core` | Event bus, plugin trait, context, telemetry |
-| `synapseed-cortex` | Tree-sitter AST parsing, CodeGraph, parallel indexing (rayon) |
+| `synapseed-core` | Event bus, plugin trait, context, session persistence, HCI config |
+| `synapseed-cortex` | Tree-sitter AST (Rust/Python/JS + 27 fallback), background indexing |
 | `synapseed-husk` | DLP shield — Aho-Corasick + regex secret detection |
 | `synapseed-root` | Command sentinel — policy-based command evaluation |
 | `synapseed-chronos` | Git history with semantic commit tags and intent analysis |
-| `synapseed-search` | Tantivy full-text search index (RAM or disk-persistent) |
-| `synapseed-shadow-check` | Background `cargo check` with quick-fix application |
-| `synapseed-visualizer` | Live Cytoscape.js dashboard (configurable port) |
-| `synapseed-whisper` | Intent router — classifies questions and orchestrates tools |
+| `synapseed-search` | Tantivy FTS + local vector embeddings (fastembed, cosine similarity) |
+| `synapseed-shadow-check` | Background `cargo check` with severity filtering and adaptive debounce |
+| `synapseed-visualizer` | Live Cytoscape.js dashboard with X-Ray Mode and port-hopping |
+| `synapseed-whisper` | Intent router with query complexity analysis (Mentor Mode) |
 | `synapseed-telemetry-sink` | OTLP gRPC receiver on port 4317, SpanStore, heatmap |
-| `synapseed-mcp` | MCP protocol handler — tools, resources, prompts |
+| `synapseed-gym` | RL sandbox — safe code evaluation with compilation + test feedback |
+| `synapseed-janitor` | Autonomous maintenance — clippy + unused deps, validated proposals |
+| `synapseed-architect` | Dependency graph, coupling metrics, cycle detection, scoring (A-F) |
+| `synapseed-mcp` | MCP protocol handler — 19 tools, 8 resources, 6 prompts |
 
 ---
 
-## MCP Tools (14)
+## MCP Tools (19)
 
-| Tool | Description |
-| :--- | :--- |
-| `get_code_skeleton` | Parse project AST and return symbol graph |
-| `lookup_symbol` | Find function/struct/trait by name |
-| `semantic_search` | Concept-based code search via Tantivy |
-| `scan_security` | DLP scan for secrets (API keys, passwords, private keys) |
-| `check_command` | Evaluate shell command against security policy |
-| `git_history` | Semantic git blame and file history |
-| `analyze_history` | Churn analysis, risk scoring, change patterns |
-| `git_intent_summary` | Summarize recent commit intent by category |
-| `get_diagnostics` | Live compiler errors and warnings |
-| `apply_quick_fix` | Auto-apply compiler-suggested fixes |
-| `ask_whisperer` | Intent-based question routing and orchestration |
-| `consult_architect` | Architecture guidance from project DNA config |
-| `project_diagnose` | Full system diagnostic across all subsystems |
-| `reset_telemetry` | Clear telemetry span store and metrics |
+| Tool | Tier | Description |
+| :--- | :--- | :--- |
+| `ask_synapseed` | PRIMARY | Intent-based orchestration — start here for any question |
+| `get_code_skeleton` | LOW-LEVEL | Parse project AST and return symbol graph |
+| `lookup_symbol` | LOW-LEVEL | Find function/struct/trait by name |
+| `semantic_search` | LOW-LEVEL | Concept-based code search via Tantivy |
+| `scan_security` | LOW-LEVEL | DLP scan for secrets (API keys, passwords, private keys) |
+| `check_command` | LOW-LEVEL | Evaluate shell command against security policy |
+| `git_history` | LOW-LEVEL | Semantic git blame and file history |
+| `analyze_history` | LOW-LEVEL | Churn analysis, risk scoring, change patterns |
+| `git_intent_summary` | LOW-LEVEL | Summarize recent commit intent by category |
+| `get_diagnostics` | LOW-LEVEL | Live compiler errors and warnings |
+| `apply_quick_fix` | LOW-LEVEL | Auto-apply compiler-suggested fixes |
+| `consult_architect` | LOW-LEVEL | Architecture guidance from project DNA config |
+| `project_diagnose` | LOW-LEVEL | Full system diagnostic across all subsystems |
+| `reset_telemetry` | LOW-LEVEL | Clear telemetry span store and metrics |
+| `train_code` | SPECIALIZED | Evaluate Rust code in isolated sandbox (The Gym) |
+| `janitor_run_now` | SPECIALIZED | Scan for clippy warnings and unused deps |
+| `janitor_apply_fix` | SPECIALIZED | Apply a Janitor fix (dry-run preview by default) |
+| `architect_analyze` | SPECIALIZED | Structural health analysis (score, cycles, coupling) |
+| `semantic_similarity` | SPECIALIZED | Vector embedding similarity search |
 
-## MCP Resources (6)
+## MCP Resources (8)
 
 | URI | Description |
 | :--- | :--- |
-| `synapseed://project/skeleton` | Full AST skeleton of the project |
-| `synapseed://project/diagnostics` | Current compiler diagnostics |
-| `synapseed://project/dna` | Project DNA configuration |
-| `synapseed://search/index-stats` | Search index statistics |
+| `synapseed://status` | Project status (state, metrics, plugins) |
+| `synapseed://dna` | Project DNA configuration |
 | `synapseed://security/policy` | Active security policy rules |
+| `synapseed://diagnostics/active` | Current compiler diagnostics |
+| `synapseed://visualizer/url` | Visualizer dashboard URL |
 | `synapseed://telemetry/hotspots` | Top-10 performance hotspots from OTLP spans |
+| `synapseed://janitor/proposals` | Janitor fix proposals |
+| `synapseed://architect/health` | Architecture health score and violations |
 
 ## MCP Prompts (6)
 
@@ -256,6 +268,14 @@ plugins:
 
 dlp_level: standard          # off | low | standard | strict | paranoid
 visualizer_port: 3000        # override with SYNAPSEED_VISUALIZER_PORT env var
+
+hci:
+  background_indexing: true   # Non-blocking startup (Cortex indexes in background)
+  port_retry: true            # Visualizer auto-retries next port if taken
+  adaptive_linting: true      # Shadow-check debounce escalates during rapid edits
+  mentor_mode: true           # Response depth adapts to query complexity
+  session_persistence: true   # Resume context across MCP restarts
+  memory_ceiling_files: 10000 # Cap indexed files to limit memory usage
 ```
 
 All fields are optional — omitted fields use sensible defaults. Project-level config overrides user-level config. See [`examples/dna.yaml`](examples/dna.yaml) for a full annotated example.

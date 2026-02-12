@@ -20,6 +20,7 @@ pub mod event;
 pub mod liquid;
 pub mod plugin;
 pub mod policy;
+pub mod session;
 pub mod state;
 pub mod symbol;
 pub mod telemetry;

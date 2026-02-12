@@ -1,17 +1,20 @@
 // SYNAPSEED Architecture Visualizer — Frontend Logic
 
+// HCI Req 7: Perceptually uniform palette — WCAG AA contrast on #0d1117.
+// Semantic: blue=structural, green=actions, purple=types, orange=enums, gray=deps.
 const NODE_COLORS = {
-  file:     { bg: '#161b22', border: '#30363d', text: '#c9d1d9' },
+  file:     { bg: '#161b22', border: '#58a6ff', text: '#c9d1d9' },
   function: { bg: '#0e4429', border: '#7ee787', text: '#7ee787' },
-  method:   { bg: '#0c3a3a', border: '#56d4dd', text: '#56d4dd' },
-  struct:   { bg: '#0d1d3a', border: '#58a6ff', text: '#58a6ff' },
-  class:    { bg: '#0d1d3a', border: '#58a6ff', text: '#58a6ff' },
-  enum:     { bg: '#2a1446', border: '#d2a8ff', text: '#d2a8ff' },
-  module:   { bg: '#3a1d0c', border: '#f0883e', text: '#f0883e' },
-  import:   { bg: '#1c2128', border: '#484f58', text: '#8b949e' },
-  variable: { bg: '#2a2400', border: '#d29922', text: '#d29922' },
-  constant: { bg: '#3a1d0c', border: '#f0883e', text: '#f0883e' },
-  interface:{ bg: '#0d1d3a', border: '#58a6ff', text: '#58a6ff' },
+  method:   { bg: '#0e4429', border: '#56d364', text: '#56d364' },
+  struct:   { bg: '#1a1040', border: '#d2a8ff', text: '#d2a8ff' },
+  class:    { bg: '#1a1040', border: '#bc8cff', text: '#bc8cff' },
+  enum:     { bg: '#3a1d0c', border: '#f0883e', text: '#f0883e' },
+  module:   { bg: '#0d1d3a', border: '#79c0ff', text: '#79c0ff' },
+  import:   { bg: '#1c2128', border: '#8b949e', text: '#8b949e' },
+  variable: { bg: '#2a1800', border: '#ffa657', text: '#ffa657' },
+  constant: { bg: '#2a0e0e', border: '#ff7b72', text: '#ff7b72' },
+  interface:{ bg: '#1a1040', border: '#d2a8ff', text: '#d2a8ff' },
+  cluster:  { bg: '#21262d', border: '#484f58', text: '#8b949e' },
 };
 
 // Globals use `var` so they're accessible as window properties (for testing).
@@ -193,6 +196,24 @@ function initCytoscape(elements, autoCollapse) {
             'border-width': 4,
           }
         },
+        // ── CLUSTER compound node (Unrecognized files group) ──
+        {
+          selector: 'node[type="cluster"]',
+          style: {
+            'shape': 'round-rectangle',
+            'background-color': '#21262d',
+            'border-color': '#484f58',
+            'border-width': 2,
+            'border-style': 'dashed',
+            'font-size': '13px',
+            'color': '#8b949e',
+            'text-valign': 'top',
+            'text-halign': 'center',
+            'text-margin-y': 10,
+            'padding': '20px',
+            'min-width': '120px',
+          }
+        },
         // ── State classes ──
         { selector: '.sym-hidden', style: { 'display': 'none' } },
         { selector: '.search-dimmed', style: { 'opacity': 0.1, 'z-index': 0 } },
@@ -232,6 +253,30 @@ function initCytoscape(elements, autoCollapse) {
 
     // Apply telemetry heatmap from data
     applyHeatmap();
+
+    // ── HCI Req 7: Hover animations — subtle scale + glow ──
+    __cy.on('mouseover', 'node', function(e) {
+      var node = e.target;
+      if (node.isParent() && node.data('type') === 'cluster') return;
+      node.stop(); // cancel any running animation
+      node.animate({
+        style: {
+          'border-width': (node.data('type') === 'file' ? 5 : 4),
+          'overlay-opacity': 0.08,
+        }
+      }, { duration: 150, easing: 'ease-out-cubic' });
+    });
+    __cy.on('mouseout', 'node', function(e) {
+      var node = e.target;
+      if (node.isParent() && node.data('type') === 'cluster') return;
+      node.stop();
+      node.animate({
+        style: {
+          'border-width': (node.data('type') === 'file' ? 3 : 2),
+          'overlay-opacity': 0,
+        }
+      }, { duration: 200, easing: 'ease-in-cubic' });
+    });
 
     // ── Hover tooltip ──
     __cy.on('mouseover', 'node[type!="file"]', function(e) {
@@ -292,6 +337,9 @@ function initCytoscape(elements, autoCollapse) {
     // Run the force-directed layout after all setup is done
     runLayout();
 
+    // Initialize X-Ray Mode (Shift+hover)
+    initXray();
+
   } catch (err) {
     console.error('Cytoscape init failed:', err);
     setStatus('Graph init failed: ' + err.message, true);
@@ -338,7 +386,8 @@ function runLayout() {
     layoutOpts = {
       name: 'cose',
       animate: !isLarge,             // no animation on huge graphs (prevents zoom flicker)
-      animationDuration: 800,
+      animationDuration: 600,
+      animationEasing: 'ease-out-cubic',
       randomize: true,
       componentSpacing: isLarge ? 20 : 60,
       nodeRepulsion: function() { return isLarge ? 600 : 2000; },
@@ -758,6 +807,93 @@ function toggleLog() {
   var btn = document.getElementById('btn-activity');
   log.classList.toggle('visible');
   btn.classList.toggle('active');
+}
+
+// ── X-Ray Mode (HCI Req 10: Shift+hover reveals deep detail) ──
+
+var __xrayOverlay = null;
+var __xrayTimeout = null;
+
+function initXray() {
+  if (!__cy) return;
+
+  __cy.on('mouseover', 'node[type="file"]', function(e) {
+    if (!e.originalEvent.shiftKey) return;
+    clearTimeout(__xrayTimeout);
+    var nodeId = e.target.data('fullPath') || e.target.id();
+    var pos = e.renderedPosition;
+    __xrayTimeout = setTimeout(function() {
+      fetch('/api/xray?node=' + encodeURIComponent(nodeId))
+        .then(function(r) { return r.json(); })
+        .then(function(data) { showXrayOverlay(pos, data); })
+        .catch(function() { /* silently fail */ });
+    }, 200);
+  });
+
+  __cy.on('mouseout', 'node[type="file"]', function() {
+    clearTimeout(__xrayTimeout);
+    hideXrayOverlay();
+  });
+
+  // Also hide on background click
+  __cy.on('tap', function(e) {
+    if (e.target === __cy) hideXrayOverlay();
+  });
+}
+
+function showXrayOverlay(pos, data) {
+  hideXrayOverlay();
+
+  var overlay = document.createElement('div');
+  overlay.className = 'xray-overlay';
+
+  // Position near cursor, clamped inside viewport
+  var x = Math.min(pos.x + 24, window.innerWidth - 380);
+  var y = Math.max(pos.y - 20, 10);
+  if (y + 360 > window.innerHeight) y = window.innerHeight - 370;
+  overlay.style.left = x + 'px';
+  overlay.style.top = y + 'px';
+
+  var html = '<div class="xray-title">' + esc(data.file || '?') + '</div>';
+
+  if (data.imports && data.imports.length > 0) {
+    html += '<div class="xray-section"><span class="xray-label">Imports (' + data.imports.length + ')</span>';
+    data.imports.slice(0, 8).forEach(function(imp) {
+      html += '<div class="xray-item">&rarr; ' + esc(imp) + '</div>';
+    });
+    if (data.imports.length > 8) html += '<div class="xray-item" style="color:#484f58">...and ' + (data.imports.length - 8) + ' more</div>';
+    html += '</div>';
+  }
+
+  if (data.importers && data.importers.length > 0) {
+    html += '<div class="xray-section"><span class="xray-label">Imported by (' + data.importers.length + ')</span>';
+    data.importers.slice(0, 8).forEach(function(imp) {
+      html += '<div class="xray-item">&larr; ' + esc(imp) + '</div>';
+    });
+    if (data.importers.length > 8) html += '<div class="xray-item" style="color:#484f58">...and ' + (data.importers.length - 8) + ' more</div>';
+    html += '</div>';
+  }
+
+  if (data.preview) {
+    html += '<div class="xray-section"><span class="xray-label">Preview</span>';
+    html += '<pre class="xray-code">' + esc(data.preview) + '</pre>';
+    html += '</div>';
+  }
+
+  if ((!data.imports || data.imports.length === 0) && (!data.importers || data.importers.length === 0) && !data.preview) {
+    html += '<div class="xray-section" style="color:#484f58">No dependency or source data available</div>';
+  }
+
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+  __xrayOverlay = overlay;
+}
+
+function hideXrayOverlay() {
+  if (__xrayOverlay) {
+    __xrayOverlay.remove();
+    __xrayOverlay = null;
+  }
 }
 
 // ── Boot ─────────────────────────────────────────────────

@@ -3,17 +3,18 @@
 use std::net::SocketAddr;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
 use rust_embed::Embed;
 use serde_json::json;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use synapseed_architect::ReportStore;
 use synapseed_core::context::SynapseContext;
+use synapseed_core::symbol::SymbolKind;
 use synapseed_cortex::graph::CodeGraph;
 use synapseed_telemetry_sink::store::SpanStore;
 
@@ -32,26 +33,64 @@ struct AppState {
 
 // ── Server Entry Point ───────────────────────────────────────────
 
+/// Maximum port retry attempts (HCI Req 1: Zero-Friction Start / port-hopping).
+const PORT_RETRY_LIMIT: u16 = 10;
+
 /// Start the axum server. Blocks until the server shuts down.
-pub async fn start(addr: SocketAddr, ctx: SynapseContext) -> anyhow::Result<()> {
+///
+/// If `port_retry` is true, automatically tries the next port (up to 10 attempts)
+/// when the requested port is already in use.
+pub async fn start(
+    addr: SocketAddr,
+    ctx: SynapseContext,
+    port_retry: bool,
+) -> anyhow::Result<()> {
     let state = AppState { ctx };
 
     let app = Router::new()
         .route("/", get(serve_index))
         .route("/graph.js", get(serve_graph_js))
         .route("/api/graph", get(api_graph))
+        .route("/api/xray", get(api_xray))
         .route("/ws", get(ws_upgrade))
         .with_state(state);
 
-    let listener = match tokio::net::TcpListener::bind(addr).await {
-        Ok(l) => l,
-        Err(e) => {
-            warn!(addr = %addr, error = %e, "Visualizer: Failed to bind port");
-            return Err(e.into());
+    let base_port = addr.port();
+    let host = addr.ip();
+
+    let listener = if port_retry {
+        let mut port = base_port;
+        loop {
+            let try_addr = SocketAddr::new(host, port);
+            match tokio::net::TcpListener::bind(try_addr).await {
+                Ok(l) => break l,
+                Err(e) if port < base_port + PORT_RETRY_LIMIT => {
+                    debug!(port, error = %e, "Visualizer: Port taken, trying next");
+                    port += 1;
+                }
+                Err(e) => {
+                    warn!(
+                        base_port,
+                        last_port = port,
+                        error = %e,
+                        "Visualizer: All port attempts exhausted"
+                    );
+                    return Err(e.into());
+                }
+            }
+        }
+    } else {
+        match tokio::net::TcpListener::bind(addr).await {
+            Ok(l) => l,
+            Err(e) => {
+                warn!(addr = %addr, error = %e, "Visualizer: Failed to bind port");
+                return Err(e.into());
+            }
         }
     };
 
-    info!(addr = %addr, "Visualizer: Server listening");
+    let actual_addr = listener.local_addr()?;
+    info!(addr = %actual_addr, "Visualizer: Server listening");
     axum::serve(listener, app).await?;
     Ok(())
 }
@@ -168,6 +207,9 @@ fn build_cytoscape_data(
         })
         .unwrap_or_default();
 
+    // Track unknown-language files for compound grouping (HCI Req 2: Chaos Tolerance)
+    let mut unknown_file_count = 0usize;
+
     for file in graph.all_files() {
         // Shorten the file path for display
         let label = file
@@ -178,6 +220,7 @@ fn build_cytoscape_data(
             .to_string();
 
         let file_id = format!("file:{}", file.path);
+        let is_unknown_lang = file.language == "unknown";
 
         // Check if any symbol in this file is a hotspot
         let file_heat = hotspot_map
@@ -197,19 +240,25 @@ fn build_cytoscape_data(
             .map(|(_, v)| *v);
 
         // File node (compound parent)
-        nodes.push(json!({
-            "data": {
-                "id": file_id,
-                "label": label,
-                "type": "file",
-                "language": file.language,
-                "fullPath": file.path,
-                "heatLevel": file_heat_level,
-                "heatMs": file_heat,
-                "inCycle": in_cycle,
-                "instability": instability,
-            }
-        }));
+        let mut file_data = json!({
+            "id": file_id,
+            "label": label,
+            "type": "file",
+            "language": file.language,
+            "fullPath": file.path,
+            "heatLevel": file_heat_level,
+            "heatMs": file_heat,
+            "inCycle": in_cycle,
+            "instability": instability,
+        });
+
+        // Group unknown-language files under a "Unrecognized" compound node
+        if is_unknown_lang {
+            file_data["parent"] = json!("cluster:unrecognized");
+            unknown_file_count += 1;
+        }
+
+        nodes.push(json!({ "data": file_data }));
 
         // Symbol nodes (children of file via "parent" — Cytoscape compound nodes)
         for sym in &file.symbols {
@@ -245,6 +294,21 @@ fn build_cytoscape_data(
                 }
             }));
         }
+    }
+
+    // Add compound parent for unknown-language files
+    if unknown_file_count > 0 {
+        nodes.insert(
+            0,
+            json!({
+                "data": {
+                    "id": "cluster:unrecognized",
+                    "label": format!("Unrecognized ({unknown_file_count} files)"),
+                    "type": "cluster",
+                    "language": "unknown",
+                }
+            }),
+        );
     }
 
     // Add dependency edges from architect report
@@ -331,6 +395,114 @@ fn build_cytoscape_data(
     }
 
     data
+}
+
+// ── X-Ray API (HCI Req 10: Killer Feature) ──────────────────────
+
+/// Query parameters for the X-Ray endpoint.
+#[derive(serde::Deserialize)]
+struct XrayQuery {
+    node: String,
+}
+
+/// Returns imports, importers, and a source preview for a file node.
+async fn api_xray(
+    Query(query): Query<XrayQuery>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    let ctx = state.ctx;
+    let file_path = query.node;
+    let project_root = ctx.project_root();
+
+    let shared_graph = ctx.get_extension::<CodeGraph>();
+
+    let result = tokio::task::spawn_blocking(move || {
+        let mut imports: Vec<String> = Vec::new();
+        let mut importers: Vec<String> = Vec::new();
+        let mut preview = String::new();
+
+        // 1. Get imports from CodeGraph (Import symbols in this file)
+        let file_as_path = std::path::Path::new(&file_path);
+        if let Some(ref graph) = shared_graph {
+            if let Some(file) = graph.hoist(file_as_path) {
+                for sym in &file.symbols {
+                    if sym.kind == SymbolKind::Import {
+                        let label = sym
+                            .signature
+                            .as_deref()
+                            .unwrap_or(&sym.name);
+                        imports.push(label.to_string());
+                    }
+                }
+            }
+
+            // 2. Find importers — scan all files for Import symbols that reference this file
+            let target_stem = file_path
+                .rsplit('/')
+                .next()
+                .unwrap_or(&file_path)
+                .rsplit('.')
+                .last()
+                .unwrap_or(&file_path);
+            for other in graph.all_files() {
+                if other.path == file_path {
+                    continue;
+                }
+                for sym in &other.symbols {
+                    if sym.kind == SymbolKind::Import {
+                        let sig = sym.signature.as_deref().unwrap_or(&sym.name);
+                        if sig.contains(target_stem) {
+                            let short = other
+                                .path
+                                .rsplit('/')
+                                .next()
+                                .unwrap_or(&other.path);
+                            importers.push(short.to_string());
+                            break; // one entry per file
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Read first 15 lines of source
+        let abs_path = if std::path::Path::new(&file_path).is_absolute() {
+            std::path::PathBuf::from(&file_path)
+        } else {
+            project_root.join(&file_path)
+        };
+        if let Ok(content) = std::fs::read_to_string(&abs_path) {
+            preview = content.lines().take(15).collect::<Vec<_>>().join("\n");
+        }
+
+        let short_file = file_path
+            .rsplit('/')
+            .next()
+            .unwrap_or(&file_path)
+            .to_string();
+
+        json!({
+            "file": short_file,
+            "imports": imports,
+            "importers": importers,
+            "preview": preview,
+        })
+    })
+    .await;
+
+    match result {
+        Ok(data) => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "application/json".to_string())],
+            serde_json::to_string(&data).unwrap_or_default(),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("X-Ray failed: {e}"),
+        )
+            .into_response(),
+    }
 }
 
 /// Classify a duration into a heat level for the visualizer.

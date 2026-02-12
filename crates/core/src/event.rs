@@ -53,6 +53,9 @@ pub enum SynapseEvent {
         /// Duration of the hottest span in ms (if any)
         hotspot_duration_ms: Option<f64>,
     },
+    /// Code graph indexing completed in the background.
+    /// Fired by CortexPlugin after async indexing finishes.
+    IndexingComplete,
     /// System is shutting down
     SystemShutdown,
 }

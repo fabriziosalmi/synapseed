@@ -28,3 +28,4 @@ serde_json = { workspace = true }
 tracing = { workspace = true }
 chrono = { workspace = true }
 anyhow = { workspace = true }
+ignore = { workspace = true }
