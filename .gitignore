@@ -9,3 +9,4 @@ docs/.vitepress/cache/
 tests/visualizer/node_modules/
 tests/visualizer/test-results/
 tests/visualizer/playwright-report/
+.vscode/mcp.json
