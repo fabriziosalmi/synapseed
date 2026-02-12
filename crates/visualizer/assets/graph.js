@@ -14,9 +14,11 @@ const NODE_COLORS = {
   interface:{ bg: '#0d1d3a', border: '#58a6ff', text: '#58a6ff' },
 };
 
-let cy = null;
-let eventCount = 0;
-let collapsedFiles = new Set(); // track collapsed file node IDs
+// Globals use `var` so they're accessible as window properties (for testing).
+// Prefixed with __ to avoid conflict with DOM element id="cy".
+var __cy = null;
+var __eventCount = 0;
+var __collapsedFiles = new Set();
 
 // ── Status Overlay ──────────────────────────────────────────
 
@@ -36,7 +38,7 @@ function setStatus(text, isError) {
 
 function initCytoscape(elements) {
   try {
-    cy = cytoscape({
+    __cy = cytoscape({
       container: document.getElementById('cy'),
       elements: elements,
       style: [
@@ -178,7 +180,7 @@ function initCytoscape(elements) {
     // Apply individual symbol colors
     Object.entries(NODE_COLORS).forEach(([type, colors]) => {
       if (type === 'file') return;
-      cy.nodes(`[type="${type}"]`).style({
+      __cy.nodes(`[type="${type}"]`).style({
         'background-color': colors.bg,
         'border-color': colors.border,
         'color': colors.text,
@@ -186,8 +188,8 @@ function initCytoscape(elements) {
     });
 
     // Re-apply collapsed state from previous render
-    collapsedFiles.forEach(fileId => {
-      const fileNode = cy.getElementById(fileId);
+    __collapsedFiles.forEach(fileId => {
+      const fileNode = __cy.getElementById(fileId);
       if (fileNode.length) {
         fileNode.addClass('collapsed');
         fileNode.children().addClass('sym-hidden');
@@ -198,7 +200,7 @@ function initCytoscape(elements) {
     applyHeatmap();
 
     // ── Hover tooltip ──
-    cy.on('mouseover', 'node[type!="file"]', function(e) {
+    __cy.on('mouseover', 'node[type!="file"]', function(e) {
       const d = e.target.data();
       showTooltip(e, `
         <div class="tt-name">${esc(d.name || d.label)}</div>
@@ -207,7 +209,7 @@ function initCytoscape(elements) {
       `);
     });
 
-    cy.on('mouseover', 'node[type="file"]', function(e) {
+    __cy.on('mouseover', 'node[type="file"]', function(e) {
       const d = e.target.data();
       const n = e.target.children().length;
       showTooltip(e, `
@@ -216,27 +218,27 @@ function initCytoscape(elements) {
       `);
     });
 
-    cy.on('mouseout', 'node', function() {
+    __cy.on('mouseout', 'node', function() {
       document.getElementById('tooltip').style.display = 'none';
     });
 
     // ── Single click → detail panel ──
-    cy.on('tap', 'node[type="file"]', function(e) {
+    __cy.on('tap', 'node[type="file"]', function(e) {
       showFilePanel(e.target);
     });
 
-    cy.on('tap', 'node[type!="file"]', function(e) {
+    __cy.on('tap', 'node[type!="file"]', function(e) {
       showSymbolPanel(e.target);
     });
 
     // ── Double click → collapse/expand file ──
-    cy.on('dbltap', 'node[type="file"]', function(e) {
+    __cy.on('dbltap', 'node[type="file"]', function(e) {
       toggleFileCollapse(e.target);
     });
 
     // ── Click background → dismiss ──
-    cy.on('tap', function(e) {
-      if (e.target === cy) {
+    __cy.on('tap', function(e) {
+      if (e.target === __cy) {
         document.getElementById('tooltip').style.display = 'none';
       }
     });
@@ -293,7 +295,7 @@ function showFilePanel(node) {
       </li>`;
   });
 
-  const isCollapsed = collapsedFiles.has(node.id());
+  const isCollapsed = __collapsedFiles.has(node.id());
 
   body.innerHTML = `
     <div class="panel-section">
@@ -364,15 +366,15 @@ function closePanel() {
 }
 
 function focusNode(nodeId) {
-  if (!cy) return;
-  const node = cy.getElementById(nodeId);
+  if (!__cy) return;
+  const node = __cy.getElementById(nodeId);
   if (node.length) {
     // If hidden (collapsed parent), expand first
     if (node.hasClass('sym-hidden')) {
       const parent = node.parent();
       if (parent.length) toggleFileCollapse(parent);
     }
-    cy.animate({ center: { eles: node }, zoom: 2 }, { duration: 400 });
+    __cy.animate({ center: { eles: node }, zoom: 2 }, { duration: 400 });
     node.select();
     showSymbolPanel(node);
   }
@@ -384,14 +386,14 @@ function toggleFileCollapse(fileNode) {
   const id = fileNode.id();
   const children = fileNode.children();
 
-  if (collapsedFiles.has(id)) {
+  if (__collapsedFiles.has(id)) {
     // Expand
-    collapsedFiles.delete(id);
+    __collapsedFiles.delete(id);
     fileNode.removeClass('collapsed');
     children.removeClass('sym-hidden');
   } else {
     // Collapse
-    collapsedFiles.add(id);
+    __collapsedFiles.add(id);
     fileNode.addClass('collapsed');
     children.addClass('sym-hidden');
   }
@@ -399,15 +401,15 @@ function toggleFileCollapse(fileNode) {
 
 // ── Search / Filter ───────────────────────────────────────
 
-let searchTimeout = null;
+var __searchTimeout = null;
 
 function initSearch() {
   const input = document.getElementById('search-box');
   if (!input) return;
 
   input.addEventListener('input', function() {
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => applySearch(input.value.trim()), 150);
+    clearTimeout(__searchTimeout);
+    __searchTimeout = setTimeout(() => applySearch(input.value.trim()), 150);
   });
 
   // Escape clears search
@@ -421,17 +423,17 @@ function initSearch() {
 }
 
 function applySearch(query) {
-  if (!cy) return;
+  if (!__cy) return;
 
   // Clear previous search classes
-  cy.nodes().removeClass('search-dimmed search-match');
+  __cy.nodes().removeClass('search-dimmed search-match');
 
   if (!query) return;
 
   const q = query.toLowerCase();
   let matchCount = 0;
 
-  cy.nodes().forEach(node => {
+  __cy.nodes().forEach(node => {
     const d = node.data();
     const searchable = [
       d.label, d.name, d.type, d.kind, d.fullPath, d.language
@@ -450,7 +452,7 @@ function applySearch(query) {
   });
 
   // Remove dimmed from matched file parents
-  cy.nodes('.search-match').removeClass('search-dimmed');
+  __cy.nodes('.search-match').removeClass('search-dimmed');
 
   // Update status briefly
   if (matchCount === 0) {
@@ -484,9 +486,9 @@ async function loadGraph() {
       return;
     }
 
-    if (cy) {
-      cy.destroy();
-      cy = null;
+    if (__cy) {
+      __cy.destroy();
+      __cy = null;
     }
     setStatus(null);
     initCytoscape(elements);
@@ -506,7 +508,7 @@ function refreshGraph() {
 }
 
 function fitGraph() {
-  if (cy) cy.fit(undefined, 40);
+  if (__cy) __cy.fit(undefined, 40);
 }
 
 // ── WebSocket Connection ─────────────────────────────────
@@ -556,8 +558,8 @@ function connectWebSocket() {
 // ── Event Handling ───────────────────────────────────────
 
 function handleEvent(event) {
-  eventCount++;
-  document.getElementById('stat-events').textContent = eventCount;
+  __eventCount++;
+  document.getElementById('stat-events').textContent = __eventCount;
 
   if (event.type === 'file_changed') {
     highlightFile(event.path, event.kind);
@@ -577,8 +579,8 @@ function handleEvent(event) {
 }
 
 function applyHeatmap() {
-  if (!cy) return;
-  cy.nodes().forEach(function(node) {
+  if (!__cy) return;
+  __cy.nodes().forEach(function(node) {
     var heat = node.data('heatLevel');
     node.removeClass('heat-hot heat-warm heat-cool');
     if (heat === 'hot') node.addClass('heat-hot');
@@ -588,10 +590,10 @@ function applyHeatmap() {
 }
 
 function highlightFile(path, kind) {
-  if (!cy) return;
+  if (!__cy) return;
 
   var fileName = path.split('/').pop();
-  var fileNodes = cy.nodes('[type="file"]').filter(function(n) {
+  var fileNodes = __cy.nodes('[type="file"]').filter(function(n) {
     var fp = n.data('fullPath') || '';
     return fp === path || fp.endsWith('/' + fileName) || path.endsWith(fp);
   });
