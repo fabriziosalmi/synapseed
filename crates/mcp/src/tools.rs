@@ -13,6 +13,7 @@ use synapseed_husk::guard::SecurityGuard;
 use synapseed_root::sentinel::Sentinel;
 use synapseed_search::indexer::SemanticIndex;
 use synapseed_shadow_check::runner::DiagnosticStore;
+use synapseed_gym::{Scenario, Trainer};
 use synapseed_telemetry_sink::store::SpanStore;
 
 use crate::protocol::{ContentBlock, ToolCallResult, ToolDefinition};
@@ -220,6 +221,29 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
+            name: "train_code".into(),
+            description: "Evaluate Rust code in an isolated sandbox (The Gym). Compiles, tests, and benchmarks the code, returning a detailed report with metrics (compile time, binary size, test results) and a composite score. Use this to compare code variants or validate refactoring safety.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "source": {
+                        "type": "string",
+                        "description": "Rust source code to evaluate (injected as lib.rs)"
+                    },
+                    "tests": {
+                        "type": "string",
+                        "description": "Optional test code (injected as tests/eval.rs). Use `use eval_project::*;` to import from the source."
+                    },
+                    "timeout": {
+                        "type": "integer",
+                        "description": "Max evaluation time in seconds (default: 60)",
+                        "default": 60
+                    }
+                },
+                "required": ["source"]
+            }),
+        },
+        ToolDefinition {
             name: "reset_telemetry".into(),
             description: "Clear all telemetry data (spans and metrics) from the OTLP receiver. Use this to reset the heatmap and start fresh observation.".into(),
             input_schema: json!({
@@ -252,6 +276,7 @@ pub fn handle_tool_call(
         "apply_quick_fix" => tool_apply_quick_fix(args, ctx),
         "ask_whisperer" => tool_ask_whisperer(args, ctx),
         "git_intent_summary" => tool_git_intent_summary(args, ctx),
+        "train_code" => tool_train_code(args),
         "reset_telemetry" => tool_reset_telemetry(ctx),
         _ => ToolCallResult {
             content: vec![ContentBlock::Text {
@@ -694,6 +719,47 @@ fn tool_git_intent_summary(args: &serde_json::Value, ctx: &SynapseContext) -> To
             text_result(format!("{}\n\n{json}", intent.summary))
         }
         Err(e) => error_result(format!("Intent summary failed: {e}")),
+    }
+}
+
+fn tool_train_code(args: &serde_json::Value) -> ToolCallResult {
+    let source = match args.get("source").and_then(|v| v.as_str()) {
+        Some(s) => s,
+        None => return error_result("Missing required parameter: source".into()),
+    };
+    let tests = args
+        .get("tests")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let timeout = args
+        .get("timeout")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(60);
+
+    let mut scenario = Scenario::new(source).with_timeout(timeout);
+    if !tests.is_empty() {
+        scenario = scenario.with_tests(tests);
+    }
+
+    let trainer = Trainer::new();
+    match trainer.evaluate(&scenario) {
+        Ok(report) => {
+            let score = report.score();
+            let json = serde_json::to_string_pretty(&report).unwrap_or_default();
+            text_result(format!(
+                "=== GYM REPORT ===\nScore: {score:.2}/1.00 | Success: {} | Compiled: {} | Warnings: {} | Errors: {}{}\n\nCompile: {}ms | Binary: {} bytes | Tests: {}ms\n\n{json}",
+                report.success,
+                report.compilation.compiled,
+                report.compilation.warnings,
+                report.compilation.errors,
+                report.tests.as_ref().map_or(String::new(), |t| format!(" | Tests: {}/{} passed", t.passed, t.total)),
+                report.metrics.compile_time_ms,
+                report.metrics.binary_size_bytes,
+                report.metrics.test_time_ms,
+            ))
+        }
+        Err(e) => error_result(format!("Gym evaluation failed: {e}")),
     }
 }
 

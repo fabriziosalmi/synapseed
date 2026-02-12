@@ -12,6 +12,7 @@ members = [
     "crates/shadow-check",
     "crates/whisper",
     "crates/telemetry-sink",
+    "crates/gym",
     "bin/synapseed",
 ]
 
@@ -91,6 +92,9 @@ rayon = "1"
 # Directory utilities
 dirs = "6"
 
+# Temp directories (Gym)
+tempfile = "3"
+
 # Internal crates
 synapseed-core = { path = "crates/core" }
 synapseed-cortex = { path = "crates/cortex" }
@@ -103,6 +107,7 @@ synapseed-search = { path = "crates/search" }
 synapseed-shadow-check = { path = "crates/shadow-check" }
 synapseed-whisper = { path = "crates/whisper" }
 synapseed-telemetry-sink = { path = "crates/telemetry-sink" }
+synapseed-gym = { path = "crates/gym" }
 
 [profile.release]
 opt-level = 3

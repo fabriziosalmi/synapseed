@@ -2088,6 +2088,7 @@ dependencies = [
  "synapseed-chronos",
  "synapseed-core",
  "synapseed-cortex",
+ "synapseed-gym",
  "synapseed-husk",
  "synapseed-mcp",
  "synapseed-root",
@@ -2137,6 +2138,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "synapseed-gym"
+version = "1.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "synapseed-core",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "synapseed-husk"
 version = "1.0.0"
 dependencies = [
@@ -2158,6 +2172,7 @@ dependencies = [
  "synapseed-chronos",
  "synapseed-core",
  "synapseed-cortex",
+ "synapseed-gym",
  "synapseed-husk",
  "synapseed-root",
  "synapseed-search",

@@ -25,6 +25,7 @@ synapseed-search = { workspace = true }
 synapseed-shadow-check = { workspace = true }
 synapseed-whisper = { workspace = true }
 synapseed-telemetry-sink = { workspace = true }
+synapseed-gym = { workspace = true }
 git2 = { workspace = true }
 tokio = { workspace = true }
 clap = { workspace = true }
