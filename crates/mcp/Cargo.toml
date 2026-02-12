@@ -1,0 +1,22 @@
+[package]
+name = "synapseed-mcp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MCP (Model Context Protocol) server — the bridge between SYNAPSEED and LLMs"
+
+[dependencies]
+synapseed-core = { workspace = true }
+synapseed-cortex = { workspace = true }
+synapseed-husk = { workspace = true }
+synapseed-root = { workspace = true }
+synapseed-chronos = { workspace = true }
+synapseed-search = { workspace = true }
+synapseed-shadow-check = { workspace = true }
+synapseed-whisper = { workspace = true }
+synapseed-telemetry-sink = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }

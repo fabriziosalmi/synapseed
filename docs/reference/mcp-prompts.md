@@ -1,0 +1,117 @@
+# MCP Prompts
+
+SYNAPSEED provides 6 prompt templates that guide the LLM through complex multi-step workflows using the available tools and resources.
+
+## `describe_architecture`
+
+Analyze and describe the project architecture using SYNAPSEED's semantic understanding.
+
+**Arguments:**
+| Name | Required | Description |
+| :--- | :--- | :--- |
+| `path` | No | Directory to analyze (default: project root) |
+| `depth` | No | `overview`, `detailed` (default), or `deep` |
+
+**Workflow:**
+1. `get_code_skeleton` to index the project
+2. Read `synapseed://status` for project state
+3. Read `synapseed://dna` for configuration
+4. `lookup_symbol` for key types (detailed/deep modes)
+5. `git_history` on key files (deep mode only)
+
+---
+
+## `visualize_architecture`
+
+Open the live dashboard and guide the user through the interactive visualization.
+
+**Arguments:**
+| Name | Required | Description |
+| :--- | :--- | :--- |
+| `focus` | No | File, module, or symbol to highlight |
+
+**Workflow:**
+1. Read `synapseed://visualizer/url` for dashboard URL
+2. `get_code_skeleton` to ensure graph data is ready
+3. Guide user to open the dashboard
+4. Explain graph features and color legend
+
+---
+
+## `fix_build_errors`
+
+Diagnose and fix current build errors using the shadow compiler.
+
+**Arguments:**
+| Name | Required | Description |
+| :--- | :--- | :--- |
+| `auto_fix` | No | `true` to auto-apply, `false` (default) to ask first |
+
+**Workflow:**
+1. Read `synapseed://diagnostics/active`
+2. `get_diagnostics` for full error list
+3. Group by file and severity
+4. `apply_quick_fix` for `MachineApplicable` suggestions
+5. Re-check diagnostics to verify
+
+---
+
+## `explain_evolution`
+
+Analyze why code looks the way it does by tracing its git evolution.
+
+**Arguments:**
+| Name | Required | Description |
+| :--- | :--- | :--- |
+| `file` | Yes | File path to analyze |
+| `start_line` | No | Start line of region |
+| `end_line` | No | End line of region |
+
+**Workflow:**
+1. `get_code_skeleton` for project structure
+2. `lookup_symbol` for symbols in the file
+3. `analyze_history` for churn and patterns
+4. `git_history` for detailed blame
+
+**Output:** Timeline, complexity narrative, risk assessment, recommendations.
+
+---
+
+## `security_audit`
+
+Perform a security audit of the project.
+
+**Arguments:**
+| Name | Required | Description |
+| :--- | :--- | :--- |
+| `scope` | No | `quick`, `standard` (default), or `full` |
+
+**Workflow (standard):**
+1. Read `synapseed://security/policy`
+2. Read `synapseed://status`
+3. `get_code_skeleton` to find all files
+4. `scan_security` on each config file
+5. `check_command` on common project commands
+6. `project_diagnose` for overall health
+
+**Output:** DLP findings, command policy evaluation, risk assessment.
+
+---
+
+## `optimize_hotspots`
+
+Analyze runtime performance hotspots from OTLP telemetry data.
+
+**Arguments:**
+| Name | Required | Description |
+| :--- | :--- | :--- |
+| `threshold` | No | Minimum avg_duration_ms to flag (default: 100) |
+
+**Workflow:**
+1. Read `synapseed://telemetry/hotspots`
+2. Filter by threshold
+3. `lookup_symbol` for each hot function
+4. `analyze_history` for churn context
+5. `get_diagnostics` for compiler warnings
+
+**Output:** Hotspot report, optimization suggestions, priority-ordered action plan.

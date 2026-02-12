@@ -1,0 +1,18 @@
+[package]
+name = "synapseed-whisper"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The Whisperer — Intent Router that orchestrates all SYNAPSEED subsystems from a single query"
+
+[dependencies]
+synapseed-core = { workspace = true }
+synapseed-cortex = { workspace = true }
+synapseed-husk = { workspace = true }
+synapseed-root = { workspace = true }
+synapseed-chronos = { workspace = true }
+synapseed-search = { workspace = true }
+synapseed-shadow-check = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }

@@ -1,0 +1,18 @@
+[package]
+name = "synapseed-telemetry-sink"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "OTLP gRPC receiver — ingests traces from running apps and maps them to source code"
+
+[dependencies]
+synapseed-core = { workspace = true }
+synapseed-cortex = { workspace = true }
+tonic = { workspace = true }
+prost = { workspace = true }
+opentelemetry-proto = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
