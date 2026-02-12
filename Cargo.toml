@@ -80,7 +80,7 @@ opentelemetry-otlp = { version = "0.27", features = ["grpc-tonic", "trace"] }
 tracing-opentelemetry = "0.28"
 
 # Full-Text Search
-tantivy = "0.22"
+tantivy = "0.25"
 
 # Identifiers
 uuid = { version = "1", features = ["v4", "serde"] }
