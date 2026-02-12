@@ -36,7 +36,7 @@ function setStatus(text, isError) {
 
 // ── Initialize Cytoscape ─────────────────────────────────────
 
-function initCytoscape(elements) {
+function initCytoscape(elements, autoCollapse) {
   try {
     __cy = cytoscape({
       container: document.getElementById('cy'),
@@ -85,14 +85,23 @@ function initCytoscape(elements) {
             'min-width': '140px',
           }
         },
-        // Collapsed file nodes
+        // Collapsed file nodes — compact labeled boxes
         {
           selector: 'node[type="file"].collapsed',
           style: {
-            'padding': '10px',
-            'min-width': '100px',
-            'border-style': 'dashed',
+            'width': 140,
+            'height': 36,
+            'padding': '6px',
+            'min-width': '140px',
+            'min-height': '36px',
+            'border-style': 'solid',
+            'border-width': 2,
+            'border-color': '#58a6ff',
+            'background-color': '#161b22',
             'text-valign': 'center',
+            'text-halign': 'center',
+            'text-margin-y': 0,
+            'font-size': '11px',
           }
         },
         // ── SYMBOL nodes — colored circles by type ──
@@ -183,14 +192,23 @@ function initCytoscape(elements) {
       wheelSensitivity: 0.2,
     });
 
-    // Re-apply collapsed state from previous render
-    __collapsedFiles.forEach(fileId => {
-      const fileNode = __cy.getElementById(fileId);
-      if (fileNode.length) {
+    // Auto-collapse all files on large graphs (reduces 900+ nodes to ~56)
+    if (autoCollapse) {
+      __cy.nodes('[type="file"]').forEach(function(fileNode) {
+        __collapsedFiles.add(fileNode.id());
         fileNode.addClass('collapsed');
         fileNode.children().addClass('sym-hidden');
-      }
-    });
+      });
+    } else {
+      // Re-apply collapsed state from previous render
+      __collapsedFiles.forEach(fileId => {
+        const fileNode = __cy.getElementById(fileId);
+        if (fileNode.length) {
+          fileNode.addClass('collapsed');
+          fileNode.children().addClass('sym-hidden');
+        }
+      });
+    }
 
     // Apply telemetry heatmap from data
     applyHeatmap();
@@ -260,25 +278,37 @@ function initCytoscape(elements) {
 
 function runLayout() {
   if (!__cy) return;
+  // Adapt physics based on visible (non-hidden) node count
+  var visibleCount = __cy.nodes(':visible').length;
+  var isLarge = visibleCount > 30;
+
   var layout = __cy.layout({
     name: 'cose',
     animate: true,
+    animationDuration: isLarge ? 500 : 800,
     randomize: true,
-    // Physics — contained chaos
-    componentSpacing: 60,
-    nodeRepulsion: function() { return 2000; },
+    // Physics — scale to graph size
+    componentSpacing: isLarge ? 30 : 60,
+    nodeRepulsion: function() { return isLarge ? 400 : 2000; },
     nodeOverlap: 20,
-    idealEdgeLength: function() { return 50; },
+    idealEdgeLength: function() { return isLarge ? 30 : 50; },
     edgeElasticity: function() { return 100; },
-    nestingFactor: 5,
-    gravity: 1.2,
+    nestingFactor: isLarge ? 10 : 5,
+    gravity: isLarge ? 80 : 1.2,
     numIter: 1000,
-    initialTemp: 200,
+    initialTemp: isLarge ? 50 : 200,
     coolingFactor: 0.95,
     minTemp: 1.0,
     nodeDimensionsIncludeLabels: true,
     fit: true,
-    padding: 50,
+    padding: 40,
+    // Force fit + zoom clamp when layout finishes
+    stop: function() {
+      __cy.fit(__cy.elements(':visible'), 40);
+      // Clamp zoom to a readable range
+      if (__cy.zoom() > 1.5) { __cy.zoom(1.5); __cy.center(); }
+      if (__cy.zoom() < 0.3) { __cy.zoom(0.3); __cy.center(); }
+    }
   });
   layout.run();
 }
@@ -525,14 +555,11 @@ async function loadGraph() {
       __cy = null;
     }
     setStatus(null);
-    initCytoscape(elements);
 
-    // Clamp zoom after layout settles — don't over-zoom on small graphs
-    __cy.ready(function() {
-      __cy.fit();
-      if (__cy.zoom() > 1.5) __cy.zoom(1.5);
-      __cy.center();
-    });
+    // Auto-collapse on large graphs (>8 files) so only file boxes are visible
+    var fileCount = elements.filter(function(e) { return e.data && e.data.type === 'file'; }).length;
+    var autoCollapse = fileCount > 8;
+    initCytoscape(elements, autoCollapse);
 
     // Re-apply search if active
     const searchVal = document.getElementById('search-box').value.trim();
