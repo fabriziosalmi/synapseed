@@ -2,7 +2,7 @@
 
 ## [3.2.0] — 2026-02-12
 
-### "Tutto Perfetto" Release
+### "CLI Polish" Release
 
 Quality polish: CLI/MCP argument parity, stderr-only telemetry, default ask
 fallback, visible aliases, and dead code cleanup.
