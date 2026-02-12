@@ -8,29 +8,25 @@ designed to be copy-pasted into your AI coding session.
 
 ---
 
-## Baseline (as of v2.2.0)
+## Baseline (as of v3.4.0)
 
 | Metric | Value |
 |--------|-------|
-| Architecture Score | **97/100 (Grade A)** |
-| Modules | 131 |
-| Edges | 44 |
-| Topological Density | 0.0026 |
-| Violations | 1 (god\_object: `assets::graph` — 81 symbols) |
-| Avg Instability | 0.16 |
-| Max Coupling | 2 |
-| Tests | 89 passing, 0 failing |
-| MCP Surface | 19 tools, 9 resources, 6 prompts |
+| Architecture Score | **100/100 (Grade A)** |
+| Modules | 172 |
+| Symbols | 1741 |
+| Tests | 255 passing, 0 failing |
+| MCP Surface | 20 tools, 9 resources, 6 prompts |
 
 ---
 
-## The 19 MCP Tools — Organized by Role
+## The 20 MCP Tools — Organized by Role
 
 ### Tier 1: Orchestration (start here)
 
 | Tool | When to Use | Latency |
 |------|------------|---------|
-| `ask` | **Every session opener**. Natural-language triage: auto-routes to compiler, search, history, security, architecture. Returns enriched context + smart summary. | ~2s |
+| `ask` | **Every session opener**. Natural-language triage: auto-routes to compiler, search, history, security, architecture. Returns enriched context + smart summary. Use `--raw` for Direct Symbol Injection (source code in prompt). | ~2s |
 
 ### Tier 2: Quality Gates (run at every cycle boundary)
 
@@ -113,8 +109,8 @@ architect(refresh: true)
 ```
 
 Check:
-- Score must not drop below current baseline (97)
-- No new violations beyond the known ones
+- Score must not drop below current baseline (100)
+- No new violations
 - `max_coupling` must stay <= 2
 
 ### Step 3: Debt Pass (5-10 min)

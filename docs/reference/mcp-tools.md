@@ -1,6 +1,6 @@
 # MCP Tools
 
-SYNAPSEED exposes 19 tools via the Model Context Protocol. Tools are callable actions that the LLM can invoke.
+SYNAPSEED exposes 20 tools via the Model Context Protocol. Tools are callable actions that the LLM can invoke.
 
 ## `hoist`
 
@@ -158,8 +158,9 @@ The Intent Router. Ask a natural-language question and get an orchestrated respo
 | Name | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
 | `query` | string | Yes | Natural-language question |
+| `raw` | boolean | No | When true, inject the exact source code of discovered symbols into the prompt (Direct Symbol Injection). Default: false |
 
-**Returns:** Enriched context with diagnostics, history, code context, and security status.
+**Returns:** Enriched context with diagnostics, history, code context, and security status. When `raw: true`, includes verbatim source code between `[SOURCE_START]` / `[SOURCE_END]` tags.
 
 ---
 

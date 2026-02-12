@@ -85,4 +85,4 @@ Intent Router that classifies natural-language queries and orchestrates multiple
 ## Bridge Layer
 
 ### MCP
-JSON-RPC 2.0 server over stdin/stdout. Exposes 19 tools, 9 resources, and 6 prompt templates. Handles initialization handshake, method routing, and error responses.
+JSON-RPC 2.0 server over stdin/stdout. Exposes 20 tools, 9 resources, and 6 prompt templates. Handles initialization handshake, method routing, and error responses.

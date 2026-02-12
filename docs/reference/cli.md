@@ -148,3 +148,97 @@ This is the primary mode for LLM integration. All output goes to stderr; stdout 
 | :--- | :--- |
 | `RUST_LOG` | Log level (default: `info`) |
 | `SYNAPSEED_SELF_TELEMETRY` | Set to `1` for self-instrumentation |
+
+---
+
+### `ask <QUERY>`
+
+Ask a natural-language question — SYNAPSEED orchestrates all subsystems (compiler, search, history, security, architecture) and returns enriched context.
+
+```bash
+synapseed ask "why is the login broken?"
+
+# With Direct Symbol Injection (source code in prompt)
+synapseed ask --raw "explain the router module"
+```
+
+Options:
+- `--raw` — Inject the exact source code of discovered symbols into the prompt
+
+Aliases: `ask_synapseed`, `whisper`
+
+---
+
+### `search <QUERY>`
+
+Search for code by concept using the Tantivy keyword index.
+
+```bash
+synapseed search "authentication flow" --limit 10
+```
+
+Options:
+- `--limit, -l <N>` — Maximum results (default: 5)
+
+---
+
+### `similar <QUERY>`
+
+Find code similar to a query using vector embeddings (cosine similarity).
+
+```bash
+synapseed similar "error handling" --top-k 5 --min-similarity 0.4
+```
+
+Options:
+- `--top-k, -k <N>` — Number of results (default: 5)
+- `--min-similarity, -m <FLOAT>` — Minimum cosine similarity (default: 0.3)
+
+---
+
+### `architect`
+
+Analyze project structural health: score, coupling, cycles, violations.
+
+```bash
+synapseed architect --refresh
+```
+
+Options:
+- `--refresh` — Force fresh analysis (skip cache)
+
+---
+
+### `consult <QUERY>`
+
+Consult the project's architecture policy (DNA config).
+
+```bash
+synapseed consult "what libraries should I use for HTTP?"
+```
+
+---
+
+### `janitor`
+
+Run the Janitor: scan for clippy warnings and unused dependencies.
+
+```bash
+synapseed janitor
+```
+
+---
+
+### `train <SOURCE>`
+
+Evaluate Rust code in the Gym sandbox.
+
+```bash
+synapseed train src/lib.rs --tests tests/eval.rs --fuzz --adversarial
+```
+
+Options:
+- `--tests, -t <FILE>` — Test file path
+- `--timeout <SECS>` — Timeout (default: 60)
+- `--fuzz` — Enable proptest fuzzing
+- `--adversarial` — Enable mutation testing
