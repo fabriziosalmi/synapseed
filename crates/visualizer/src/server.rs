@@ -219,6 +219,24 @@ fn build_cytoscape_data(
         })
         .unwrap_or_default();
 
+    // Build coupling lookup (efferent + afferent) for "Visual Physics"
+    let coupling_map: std::collections::HashMap<String, (usize, usize)> = architect_report
+        .map(|r| {
+            r.modules
+                .iter()
+                .map(|m| {
+                    (
+                        m.module_name.clone(),
+                        (m.efferent_coupling, m.afferent_coupling),
+                    )
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    // Topological density for the whole graph
+    let topological_density: Option<f64> = architect_report.map(|r| r.topological_density);
+
     // Track unknown-language files for compound grouping (HCI Req 2: Chaos Tolerance)
     let mut unknown_file_count = 0usize;
 
@@ -251,6 +269,14 @@ fn build_cytoscape_data(
             .find(|(k, _)| k.ends_with(file_stem_no_ext))
             .map(|(_, v)| *v);
 
+        // Visual Physics: coupling and rigidity classification
+        let coupling = coupling_map
+            .iter()
+            .find(|(k, _)| k.ends_with(file_stem_no_ext))
+            .map(|(_, v)| *v);
+        let total_coupling = coupling.map(|(ce, ca)| ce + ca).unwrap_or(0);
+        let physics_class = physics_level(total_coupling, instability.unwrap_or(0.5));
+
         // File node (compound parent)
         let mut file_data = json!({
             "id": file_id,
@@ -262,6 +288,8 @@ fn build_cytoscape_data(
             "heatMs": file_heat,
             "inCycle": in_cycle,
             "instability": instability,
+            "coupling": total_coupling,
+            "physicsClass": physics_class,
         });
 
         // Group unknown-language files under a "Unrecognized" compound node
@@ -403,6 +431,7 @@ fn build_cytoscape_data(
             "score": report.score,
             "grade": report.grade,
             "violations": report.violations.len(),
+            "topologicalDensity": topological_density,
         });
     }
 
@@ -527,6 +556,25 @@ fn heat_level(avg_ms: f64) -> &'static str {
         "cool"
     } else {
         "none"
+    }
+}
+
+/// Classify coupling/instability into a physics metaphor for the visualizer.
+///
+/// - **rigid**: high coupling + low instability → monolith, hard to change.
+/// - **gaseous**: almost no coupling → isolated island, potentially dead code.
+/// - **fluid**: balanced coupling + moderate instability → healthy module.
+/// - **none**: no data available.
+fn physics_level(total_coupling: usize, instability: f64) -> &'static str {
+    if total_coupling == 0 {
+        return "gaseous";
+    }
+    if total_coupling >= 8 && instability < 0.3 {
+        "rigid"
+    } else if total_coupling <= 1 {
+        "gaseous"
+    } else {
+        "fluid"
     }
 }
 

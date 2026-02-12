@@ -63,6 +63,125 @@ pub fn check_consistency(project_root: &Path) -> ConsistencyReport {
     }
 }
 
+/// Auto-fix drifted documentation by updating version numbers, crate counts,
+/// and MCP surface numbers in README.md.
+///
+/// Returns a list of human-readable changes made, or an empty vec if nothing changed.
+pub fn fix_docs(project_root: &Path) -> Vec<String> {
+    let mut changes = Vec::new();
+
+    // 1. Read the project version from root Cargo.toml
+    let cargo_content = match std::fs::read_to_string(project_root.join("Cargo.toml")) {
+        Ok(c) => c,
+        Err(_) => return changes,
+    };
+    let version = cargo_content
+        .lines()
+        .find(|l| l.trim().starts_with("version") && l.contains('='))
+        .and_then(|l| l.split('"').nth(1))
+        .unwrap_or("0.0.0")
+        .to_string();
+
+    // 2. Count crates in workspace
+    let crate_count = count_crates(project_root);
+
+    // 3. Count MCP tools/resources by scanning Cargo.toml workspace members
+    let tool_count = count_pattern_in_file(
+        &project_root.join("crates/mcp/src/tools/mod.rs"),
+        "ToolDefinition {",
+    );
+    let resource_count = count_pattern_in_file(
+        &project_root.join("crates/mcp/src/resources.rs"),
+        "ResourceDefinition {",
+    );
+
+    // 4. Read and patch README.md
+    let readme_path = project_root.join("README.md");
+    let readme = match std::fs::read_to_string(&readme_path) {
+        Ok(c) => c,
+        Err(_) => return changes,
+    };
+
+    let mut patched = readme.clone();
+
+    // Patch version strings like "v2.1.0" → current version
+    let version_re = regex::Regex::new(r"v\d+\.\d+\.\d+").unwrap();
+    let new_version = format!("v{version}");
+    if let Some(first) = version_re.find(&patched) {
+        if first.as_str() != new_version {
+            patched = version_re.replace_all(&patched, new_version.as_str()).to_string();
+            changes.push(format!("Updated version references to {new_version}"));
+        }
+    }
+
+    // Patch "N crates" pattern
+    let crate_re = regex::Regex::new(r"\b(\d+)\s+crates?\b").unwrap();
+    if let Some(cap) = crate_re.captures(&patched) {
+        let old: usize = cap[1].parse().unwrap_or(0);
+        if old != crate_count && crate_count > 0 {
+            patched = crate_re
+                .replace(&patched, format!("{crate_count} crates").as_str())
+                .to_string();
+            changes.push(format!("Updated crate count: {old} → {crate_count}"));
+        }
+    }
+
+    // Patch "N tools" pattern
+    let tool_re = regex::Regex::new(r"\b(\d+)\s+tools?\b").unwrap();
+    if let Some(cap) = tool_re.captures(&patched) {
+        let old: usize = cap[1].parse().unwrap_or(0);
+        if old != tool_count && tool_count > 0 {
+            patched = tool_re
+                .replace(&patched, format!("{tool_count} tools").as_str())
+                .to_string();
+            changes.push(format!("Updated tool count: {old} → {tool_count}"));
+        }
+    }
+
+    // Patch "N resources" pattern
+    let resource_re = regex::Regex::new(r"\b(\d+)\s+resources?\b").unwrap();
+    if let Some(cap) = resource_re.captures(&patched) {
+        let old: usize = cap[1].parse().unwrap_or(0);
+        if old != resource_count && resource_count > 0 {
+            patched = resource_re
+                .replace(&patched, format!("{resource_count} resources").as_str())
+                .to_string();
+            changes.push(format!("Updated resource count: {old} → {resource_count}"));
+        }
+    }
+
+    // Write back if changed
+    if patched != readme {
+        let _ = std::fs::write(&readme_path, &patched);
+    }
+
+    changes
+}
+
+/// Count crate directories under crates/ and bin/.
+fn count_crates(root: &Path) -> usize {
+    let mut count = 0;
+    for dir_name in &["crates", "bin"] {
+        let dir = root.join(dir_name);
+        if let Ok(entries) = std::fs::read_dir(&dir) {
+            for entry in entries.flatten() {
+                if entry.path().join("Cargo.toml").exists() {
+                    count += 1;
+                }
+            }
+        }
+    }
+    count
+}
+
+/// Count occurrences of a literal pattern in a file.
+fn count_pattern_in_file(path: &Path, pattern: &str) -> usize {
+    std::fs::read_to_string(path)
+        .unwrap_or_default()
+        .matches(pattern)
+        .count()
+}
+
 /// Check that all workspace members listed in root Cargo.toml exist on disk.
 fn check_workspace_members(root: &Path, total: &mut usize) -> Vec<Inconsistency> {
     let cargo_path = root.join("Cargo.toml");

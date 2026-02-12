@@ -53,6 +53,53 @@ pub struct AdversarialResult {
     pub mutations: Vec<MutationOutcome>,
 }
 
+impl AdversarialResult {
+    /// Generate Rust test stubs for mutations that survived (i.e. tests didn't
+    /// catch the defect). These stubs are scaffolding for the developer to
+    /// fill in, turning weaknesses into permanent regression tests.
+    pub fn generate_repro_tests(&self) -> Option<String> {
+        let survived: Vec<&MutationOutcome> =
+            self.mutations.iter().filter(|o| !o.detected).collect();
+        if survived.is_empty() {
+            return None;
+        }
+
+        let mut out = String::from(
+            "//! Auto-generated regression test stubs for survived mutations.\n\
+             //! The Saboteur found mutations your tests couldn't catch.\n\
+             //! Fill in the TODO bodies to harden your test suite.\n\n\
+             use eval_project::*;\n\n",
+        );
+
+        for (i, outcome) in survived.iter().enumerate() {
+            let m = &outcome.mutation;
+            let strategy = format!("{:?}", m.strategy);
+            out.push_str(&format!(
+                "/// SURVIVED: {strategy} at line {line}\n\
+                 /// Original: `{original}`\n\
+                 /// Mutated:  `{mutated}`\n\
+                 #[test]\n\
+                 fn repro_survived_mutation_{idx}() {{\n\
+                 {indent}// TODO: add an assertion that would catch the {strategy} mutation\n\
+                 {indent}// on line {line}. The mutant changed:\n\
+                 {indent}//   {original}\n\
+                 {indent}// to:\n\
+                 {indent}//   {mutated}\n\
+                 {indent}todo!(\"harden: catch {strategy} at line {line}\")\n\
+                 }}\n\n",
+                strategy = strategy,
+                line = m.line,
+                original = m.original.trim(),
+                mutated = m.mutated.trim(),
+                idx = i + 1,
+                indent = "    ",
+            ));
+        }
+
+        Some(out)
+    }
+}
+
 /// Outcome of a single mutation attempt.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MutationOutcome {

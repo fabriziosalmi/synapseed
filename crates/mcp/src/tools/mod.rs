@@ -9,6 +9,7 @@ mod diagnose;
 mod diagnostics;
 mod history;
 mod janitor;
+mod oracle;
 mod search;
 mod security;
 mod skeleton;
@@ -325,6 +326,14 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
+            name: "oracle_fix_docs".into(),
+            description: "SPECIALIZED — Auto-repair drifted documentation. Updates version numbers, crate counts, and MCP tool/resource counts in README.md to match the actual codebase. Returns a list of changes made.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {}
+            }),
+        },
+        ToolDefinition {
             name: "semantic_similarity".into(),
             description: "SPECIALIZED — Find code similar to a natural-language query using vector embeddings (cosine similarity). Requires `search.embeddings: true` in DNA config. Use for meaning-based code search beyond keyword matching.".into(),
             input_schema: json!({
@@ -380,6 +389,7 @@ pub fn handle_tool_call(
         "janitor_run_now" => janitor::tool_janitor_run_now(ctx),
         "janitor_apply_fix" => janitor::tool_janitor_apply_fix(args, ctx),
         "architect_analyze" => architect::tool_architect_analyze(args, ctx),
+        "oracle_fix_docs" => oracle::tool_oracle_fix_docs(ctx),
         "semantic_similarity" => search::tool_semantic_similarity(args, ctx),
         _ => ToolCallResult {
             content: vec![ContentBlock::Text {

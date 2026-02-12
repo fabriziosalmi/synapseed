@@ -64,8 +64,22 @@ pub(super) fn tool_train_code(args: &serde_json::Value) -> ToolCallResult {
                 )
             });
 
+            // Auto-Hardener: generate repro test stubs for survived mutations
+            let repro_section = report
+                .adversarial
+                .as_ref()
+                .and_then(|a| a.generate_repro_tests())
+                .map(|code| {
+                    format!(
+                        "\n\n=== AUTO-HARDENER: REPRO TESTS ===\n\
+                         Copy these stubs into your test file to harden your suite:\n\n\
+                         ```rust\n{code}```"
+                    )
+                })
+                .unwrap_or_default();
+
             text_result(format!(
-                "=== GYM REPORT ===\nScore: {score:.2}/1.00 | Success: {} | Compiled: {} | Warnings: {} | Errors: {}{}{}{}\n\nCompile: {}ms | Binary: {} bytes | Tests: {}ms\n\n{json}",
+                "=== GYM REPORT ===\nScore: {score:.2}/1.00 | Success: {} | Compiled: {} | Warnings: {} | Errors: {}{}{}{}\n\nCompile: {}ms | Binary: {} bytes | Tests: {}ms\n\n{json}{repro_section}",
                 report.success,
                 report.compilation.compiled,
                 report.compilation.warnings,

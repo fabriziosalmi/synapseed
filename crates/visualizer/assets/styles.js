@@ -181,6 +181,10 @@ function buildCytoscapeStyles() {
     { selector: '.heat-hot', style: { 'border-color': '#ff4433', 'border-width': 6, 'background-color': '#550000' } },
     { selector: '.heat-warm', style: { 'border-color': '#d29922', 'border-width': 4 } },
     { selector: '.heat-cool', style: { 'border-color': '#3fb950', 'border-width': 4 } },
+    // ── Visual Physics (coupling/rigidity) ──
+    { selector: '.physics-rigid', style: { 'border-color': '#f0883e', 'border-width': 8, 'border-style': 'double' } },
+    { selector: '.physics-gaseous', style: { 'opacity': 0.4, 'border-style': 'dashed', 'border-color': '#484f58' } },
+    { selector: '.physics-fluid', style: { 'border-color': '#58a6ff', 'border-width': 3 } },
     // ── Selected ──
     { selector: ':selected', style: { 'border-color': '#58a6ff', 'border-width': 4 } },
   ];

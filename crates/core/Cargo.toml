@@ -1,24 +1,25 @@
 [package]
-name = "synapseed-core"
-version.workspace = true
+description = "Shared types, traits and domain primitives for SYNAPSEED"
 edition.workspace = true
 license.workspace = true
-description = "Shared types, traits and domain primitives for SYNAPSEED"
+name = "synapseed-core"
+version.workspace = true
 
 [dependencies]
-serde = { workspace = true }
-serde_json = { workspace = true }
-serde_yaml = { workspace = true }
-toml = { workspace = true }
-thiserror = { workspace = true }
-uuid = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
-tracing-opentelemetry = { workspace = true }
-opentelemetry = { workspace = true }
-opentelemetry_sdk = { workspace = true }
-opentelemetry-otlp = { workspace = true }
-chrono = { workspace = true }
-dirs = { workspace = true }
-tokio = { workspace = true }
-tokio-util = { workspace = true }
+chrono = {workspace = true}
+dirs = {workspace = true}
+opentelemetry = {workspace = true}
+opentelemetry-otlp = {workspace = true}
+opentelemetry_sdk = {workspace = true}
+regex = {workspace = true}
+serde = {workspace = true}
+serde_json = {workspace = true}
+serde_yaml = {workspace = true}
+thiserror = {workspace = true}
+tokio = {workspace = true}
+tokio-util = {workspace = true}
+toml = {workspace = true}
+tracing = {workspace = true}
+tracing-opentelemetry = {workspace = true}
+tracing-subscriber = {workspace = true}
+uuid = {workspace = true}

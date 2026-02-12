@@ -20,6 +20,7 @@ function initCytoscape(elements, autoCollapse) {
 
     applyCollapseState(autoCollapse);
     applyHeatmap();
+    applyPhysics();
     setupHoverAnimations();
     setupTooltips();
     setupClickHandlers();

@@ -110,7 +110,7 @@ fn test_mcp_full_lifecycle() {
     let tools_list = &responses[1];
     assert_eq!(tools_list["id"], 2);
     let tools = tools_list["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 19, "Expected 19 tools, got {}", tools.len());
+    assert_eq!(tools.len(), 20, "Expected 20 tools, got {}", tools.len());
 
     // Verify all tool names are present
     let tool_names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
@@ -132,6 +132,7 @@ fn test_mcp_full_lifecycle() {
     assert!(tool_names.contains(&"janitor_run_now"));
     assert!(tool_names.contains(&"janitor_apply_fix"));
     assert!(tool_names.contains(&"architect_analyze"));
+    assert!(tool_names.contains(&"oracle_fix_docs"));
     assert!(tool_names.contains(&"semantic_similarity"));
 
     // ── 3. check_command "ls" → ALLOWED ──

@@ -144,19 +144,21 @@ pub(crate) fn detect_cycles(dep_graph: &DependencyGraph) -> Vec<Violation> {
                 .map(|idx| dep_graph.node(*idx).name.clone())
                 .collect();
 
-            let cycle_str = module_names.join(" -> ");
+            let cycle_str = module_names.join(" → ");
             violations.push(Violation {
                 rule: "circular_dependency".to_string(),
                 description: format!(
-                    "Circular dependency detected: {} -> {}",
+                    "🔄 Circular dependency: {} → {} — these modules import each other, \
+                     creating a loop that makes them impossible to change independently.",
                     cycle_str,
                     module_names.first().unwrap_or(&String::new())
                 ),
                 severity: ViolationSeverity::Error,
                 modules: module_names.clone(),
                 suggestion: format!(
-                    "Break the cycle by extracting shared types into a separate module, \
-                     or use dependency inversion (traits) between {} and {}.",
+                    "Break the loop: extract the shared types that {} and {} both need \
+                     into a new module, or use a trait (dependency inversion) so one side \
+                     depends on an abstraction instead of the concrete implementation.",
                     module_names.first().unwrap_or(&String::new()),
                     module_names.last().unwrap_or(&String::new()),
                 ),
@@ -186,12 +188,14 @@ pub(crate) fn detect_god_objects(
             if too_many_symbols || too_large_and_popular {
                 let reason = if too_many_symbols {
                     format!(
-                        "{} has {} public symbols (threshold: {})",
+                        "🚨 {} is a monolith — it exposes {} public symbols (limit: {}). \
+                         When a single file does everything, every change risks breaking something else.",
                         m.module_name, node.public_symbol_count, thresholds.max_public_symbols
                     )
                 } else {
                     format!(
-                        "{} has ~{} lines and fan-in {} (thresholds: {} lines, {} fan-in)",
+                        "🚨 {} is a God Object — ~{} lines with {} modules depending on it \
+                         (limits: {} lines, {} dependents). It's doing too much.",
                         m.module_name, node.approx_lines, m.fan_in,
                         thresholds.max_lines, thresholds.min_fan_in
                     )
@@ -203,7 +207,8 @@ pub(crate) fn detect_god_objects(
                     severity: ViolationSeverity::Warning,
                     modules: vec![m.module_name.clone()],
                     suggestion: format!(
-                        "Split {} into smaller, focused modules with single responsibilities.",
+                        "Split {} into smaller, focused modules — each doing ONE thing well. \
+                         Look for logical clusters of functions and extract them.",
                         m.module_name
                     ),
                 });
@@ -263,14 +268,16 @@ pub(crate) fn detect_layer_violations(
                 violations.push(Violation {
                     rule: "layer_violation".to_string(),
                     description: format!(
-                        "Layer violation: {source} (layer: {src_layer}, rank {src_rank}) \
-                         imports from {target} (layer: {tgt_layer}, rank {tgt_rank})"
+                        "⛔ Layer violation: {source} ({src_layer}) is importing from \
+                         {target} ({tgt_layer}) — a lower layer is reaching into a higher one. \
+                         This breaks the layered architecture."
                     ),
                     severity: ViolationSeverity::Error,
                     modules: vec![source.clone(), target.clone()],
                     suggestion: format!(
-                        "Move the dependency from {source} to {target} behind a trait, \
-                         or restructure so {src_layer} does not depend on {tgt_layer}."
+                        "Either move the needed logic down to {src_layer}, \
+                         or define a trait in {src_layer} that {tgt_layer} implements — \
+                         so the dependency arrow points downward, not upward."
                     ),
                 });
             }
@@ -297,32 +304,36 @@ pub(crate) fn detect_density_anomaly(
         violations.push(Violation {
             rule: "high_density".to_string(),
             description: format!(
-                "Topological density {density:.4} exceeds threshold {:.2} \
-                 ({} modules, {} edges). The module graph is over-connected.",
+                "⚠️ Your module graph is tangled — density {density:.4} exceeds {:.2} \
+                 ({} modules, {} edges). Almost every module depends on every other. \
+                 Changes will ripple everywhere.",
                 thresholds.high,
                 v,
                 dep_graph.edge_count(),
             ),
             severity: ViolationSeverity::Warning,
             modules: vec![],
-            suggestion: "Consider splitting tightly-coupled clusters into separate \
-                         sub-graphs or introducing facade modules to reduce cross-dependencies."
+            suggestion: "Introduce facade modules as chokepoints: group related modules \
+                         behind a single public API, reducing cross-dependencies. \
+                         Think \"firewall between neighborhoods\"."
                 .to_string(),
         });
     } else if v >= thresholds.low_min_modules && density < thresholds.low {
         violations.push(Violation {
             rule: "low_density".to_string(),
             description: format!(
-                "Topological density {density:.4} is below threshold {:.2} \
-                 ({} modules, {} edges). The module graph may be fragmented.",
+                "⚠️ Your modules are isolated islands — density {density:.4} is below {:.2} \
+                 ({} modules, {} edges). Very few connections means modules may be \
+                 duplicating logic or have lost shared abstractions.",
                 thresholds.low,
                 v,
                 dep_graph.edge_count(),
             ),
             severity: ViolationSeverity::Warning,
             modules: vec![],
-            suggestion: "Review whether isolated modules should share common abstractions \
-                         or whether the project has disconnected clusters that should be unified."
+            suggestion: "Look for repeated patterns across modules and extract shared \
+                         abstractions. If modules truly have nothing in common, \
+                         consider whether they belong in the same project."
                 .to_string(),
         });
     }
