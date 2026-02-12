@@ -1,0 +1,121 @@
+use synapseed_core::context::SynapseContext;
+use synapseed_cortex::graph::CodeGraph;
+use synapseed_search::indexer::SemanticIndex;
+use tracing::info;
+
+use super::{error_result, text_result};
+use crate::protocol::ToolCallResult;
+
+pub(super) fn tool_semantic_search(
+    args: &serde_json::Value,
+    ctx: &SynapseContext,
+) -> ToolCallResult {
+    let query = match args.get("query").and_then(|v| v.as_str()) {
+        Some(q) => q,
+        None => return error_result("Missing required parameter: query".into()),
+    };
+    let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
+
+    // Try to use the persistent index from SearchPlugin
+    let results = if let Some(index) = ctx.get_extension::<SemanticIndex>() {
+        index.search(query, limit)
+    } else {
+        // Fallback: build an ephemeral index on demand
+        info!("Search: No persistent index, building ephemeral index");
+        let root = ctx.project_root();
+        let graph = CodeGraph::new();
+        if let Err(e) = graph.index_directory(&root) {
+            return error_result(format!("Failed to index project: {e}"));
+        }
+        let index = match SemanticIndex::new() {
+            Ok(idx) => idx,
+            Err(e) => return error_result(format!("Failed to create search index: {e}")),
+        };
+        let files = graph.all_files();
+        index.index_all(&files, &root);
+        index.search(query, limit)
+    };
+
+    if results.is_empty() {
+        text_result(format!("No results found for: \"{query}\""))
+    } else {
+        let json = serde_json::to_string_pretty(&results).unwrap_or_default();
+        text_result(format!(
+            "Found {} result(s) for \"{query}\":\n{json}",
+            results.len()
+        ))
+    }
+}
+
+pub(super) fn tool_semantic_similarity(
+    args: &serde_json::Value,
+    ctx: &SynapseContext,
+) -> ToolCallResult {
+    let query = match args.get("query").and_then(|v| v.as_str()) {
+        Some(q) => q.trim(),
+        None => return error_result("Missing required parameter: query".into()),
+    };
+    if query.is_empty() {
+        return error_result("Query must not be empty".into());
+    }
+    let top_k = args.get("top_k").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
+    let min_similarity = args
+        .get("min_similarity")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.3) as f32;
+
+    #[cfg(feature = "embeddings")]
+    {
+        use synapseed_search::embeddings::EmbeddingEngine;
+        use synapseed_search::vector_index::VectorIndex;
+
+        let engine = match ctx.get_extension::<EmbeddingEngine>() {
+            Some(e) => e,
+            None => {
+                return text_result(
+                    "Embeddings not available. Enable with `search.embeddings: true` in your DNA config (.synapseed/dna.yaml).".into(),
+                );
+            }
+        };
+
+        let vector_index = match ctx.get_extension::<VectorIndex>() {
+            Some(vi) => vi,
+            None => {
+                return text_result(
+                    "Vector index not ready. Embeddings may still be loading.".into(),
+                );
+            }
+        };
+
+        let query_vector = match engine.embed(query) {
+            Ok(v) => v,
+            Err(e) => return error_result(format!("Failed to embed query: {e}")),
+        };
+
+        let results = vector_index.search(&query_vector, top_k);
+        let filtered: Vec<_> = results
+            .into_iter()
+            .filter(|r| r.similarity >= min_similarity)
+            .collect();
+
+        if filtered.is_empty() {
+            text_result(format!(
+                "No results above similarity threshold ({min_similarity}) for: \"{query}\""
+            ))
+        } else {
+            let json = serde_json::to_string_pretty(&filtered).unwrap_or_default();
+            text_result(format!(
+                "Found {} similar symbol(s) for \"{query}\":\n{json}",
+                filtered.len()
+            ))
+        }
+    }
+
+    #[cfg(not(feature = "embeddings"))]
+    {
+        let _ = (query, top_k, min_similarity, ctx);
+        text_result(
+            "Embeddings not compiled. Rebuild with the `embeddings` feature enabled.".into(),
+        )
+    }
+}

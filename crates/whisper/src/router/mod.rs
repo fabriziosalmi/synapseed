@@ -7,19 +7,17 @@
 //! Level 0: Deterministic keyword heuristics.
 //! Level 1 (future): Pluggable small-LLM classifier.
 
-use std::path::Path;
+mod code;
+mod diagnostics;
+mod history;
+mod security;
 
 use serde::Serialize;
 use tracing::{debug, info};
 
 use synapseed_core::context::SynapseContext;
 use synapseed_cortex::graph::CodeGraph;
-use synapseed_husk::guard::SecurityGuard;
-
-use synapseed_chronos::historian::Historian;
 use synapseed_search::indexer::SemanticIndex;
-use synapseed_shadow_check::diagnostic::DiagnosticLevel;
-use synapseed_shadow_check::runner::DiagnosticStore;
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -143,19 +141,19 @@ pub fn ask(query: &str, ctx: &SynapseContext) -> WhisperResult {
     debug!(target_count = targets.len(), "Whisperer: Extracted targets");
 
     // Execute plan based on intent — each gather fn knows when to activate
-    let diagnostics = gather_diagnostics(&intent, &targets, ctx);
-    let history = gather_history(&intent, &targets, ctx);
-    let code_context = gather_code_context(&intent, &targets, ctx);
-    let security_status = gather_security(&intent, &targets, ctx);
+    let diag = diagnostics::gather_diagnostics(&intent, &targets, ctx);
+    let hist = history::gather_history(&intent, &targets, ctx);
+    let code_ctx = code::gather_code_context(&intent, &targets, ctx);
+    let sec_status = security::gather_security(&intent, &targets, ctx);
 
     let smart_context = build_smart_context(
         query,
         &intent,
         complexity,
-        &diagnostics,
-        &history,
-        &code_context,
-        &security_status,
+        &diag,
+        &hist,
+        &code_ctx,
+        &sec_status,
     );
 
     WhisperResult {
@@ -163,10 +161,10 @@ pub fn ask(query: &str, ctx: &SynapseContext) -> WhisperResult {
         complexity,
         query: query.to_string(),
         targets,
-        diagnostics,
-        history,
-        code_context,
-        security_status,
+        diagnostics: diag,
+        history: hist,
+        code_context: code_ctx,
+        security_status: sec_status,
         smart_context,
     }
 }
@@ -331,169 +329,6 @@ fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> {
     targets.dedup_by(|a, b| a.name == b.name && a.file_path == b.file_path);
     targets.truncate(5);
     targets
-}
-
-// ── Plan Execution ─────────────────────────────────────────────────────
-
-fn gather_diagnostics(
-    intent: &Intent,
-    targets: &[Target],
-    ctx: &SynapseContext,
-) -> Option<DiagnosticsContext> {
-    if !matches!(intent, Intent::BugFix | Intent::Refactor | Intent::General) {
-        return None;
-    }
-
-    let store = ctx.get_extension::<DiagnosticStore>()?;
-
-    let file_paths: Vec<&str> = targets
-        .iter()
-        .filter_map(|t| t.file_path.as_deref())
-        .collect();
-
-    let diagnostics = if file_paths.is_empty() {
-        store.snapshot().diagnostics
-    } else {
-        file_paths.iter().flat_map(|f| store.for_file(f)).collect()
-    };
-
-    let error_count = diagnostics
-        .iter()
-        .filter(|d| d.level == DiagnosticLevel::Error)
-        .count();
-    let warning_count = diagnostics
-        .iter()
-        .filter(|d| d.level == DiagnosticLevel::Warning)
-        .count();
-
-    let items: Vec<serde_json::Value> = diagnostics
-        .iter()
-        .map(|d| serde_json::to_value(d).unwrap_or_default())
-        .collect();
-
-    Some(DiagnosticsContext {
-        error_count,
-        warning_count,
-        items,
-    })
-}
-
-fn gather_history(
-    intent: &Intent,
-    targets: &[Target],
-    ctx: &SynapseContext,
-) -> Option<HistoryContext> {
-    if !matches!(
-        intent,
-        Intent::BugFix | Intent::Explain | Intent::Refactor | Intent::General
-    ) {
-        return None;
-    }
-
-    let historian = ctx.get_extension::<Historian>()?;
-
-    // Analyze the first target file
-    let target = targets.iter().find(|t| t.file_path.is_some())?;
-    let file_path = target.file_path.as_deref()?;
-
-    let analysis = historian.analyze_history(file_path, None, None).ok()?;
-
-    let recent_commits: Vec<serde_json::Value> = analysis
-        .commits
-        .iter()
-        .take(5)
-        .map(|c| serde_json::to_value(c).unwrap_or_default())
-        .collect();
-
-    Some(HistoryContext {
-        file: file_path.to_string(),
-        total_commits: analysis.total_commits,
-        hotspot_score: analysis.hotspot_score,
-        risk: analysis.semantic_summary.risk_indicator.clone(),
-        recent_commits,
-        top_authors: analysis.top_authors.clone(),
-    })
-}
-
-fn gather_code_context(
-    intent: &Intent,
-    targets: &[Target],
-    ctx: &SynapseContext,
-) -> Option<CodeContext> {
-    if !matches!(
-        intent,
-        Intent::BugFix | Intent::Explain | Intent::Refactor | Intent::General
-    ) {
-        return None;
-    }
-
-    let root = ctx.project_root();
-    let graph = CodeGraph::new();
-    graph.index_directory(&root).ok()?;
-
-    let mut symbols = Vec::new();
-    for target in targets {
-        for sym in graph.lookup(&target.name).into_iter().take(3) {
-            symbols.push(serde_json::to_value(&sym).unwrap_or_default());
-        }
-    }
-
-    if symbols.is_empty() {
-        return None;
-    }
-
-    // Dedup by symbol name
-    symbols.dedup_by(|a, b| a["name"] == b["name"]);
-    Some(CodeContext { symbols })
-}
-
-fn gather_security(intent: &Intent, targets: &[Target], ctx: &SynapseContext) -> String {
-    // Always scan for Security intent; also scan for BugFix (might reveal root cause)
-    if !matches!(intent, Intent::Security | Intent::BugFix) {
-        return "NOT_SCANNED".to_string();
-    }
-
-    let root = ctx.project_root();
-    let guard = SecurityGuard::with_defaults();
-
-    // If we have specific target files, scan them
-    let mut findings = Vec::new();
-    for target in targets {
-        if let Some(file_path) = &target.file_path {
-            let abs_path = if Path::new(file_path).is_absolute() {
-                file_path.into()
-            } else {
-                root.join(file_path)
-            };
-
-            if let Ok(content) = std::fs::read_to_string(&abs_path) {
-                if let Err(e) = guard.check(&content) {
-                    findings.push(format!("{}: {}", file_path, e));
-                }
-            }
-        }
-    }
-
-    // If no targets but Security intent, scan all indexed source files
-    if findings.is_empty() && matches!(intent, Intent::Security) && targets.is_empty() {
-        let graph = CodeGraph::new();
-        if graph.index_directory(&root).is_ok() {
-            for file in graph.all_files() {
-                let abs_path = root.join(&file.path);
-                if let Ok(content) = std::fs::read_to_string(&abs_path) {
-                    if let Err(e) = guard.check(&content) {
-                        findings.push(format!("{}: {}", file.path, e));
-                    }
-                }
-            }
-        }
-    }
-
-    if findings.is_empty() {
-        "CLEAN".to_string()
-    } else {
-        format!("ALERT: {}", findings.join("; "))
-    }
 }
 
 // ── Smart Context Builder ──────────────────────────────────────────────

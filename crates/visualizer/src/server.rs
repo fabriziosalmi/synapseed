@@ -3,7 +3,7 @@
 use std::net::SocketAddr;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::get;
@@ -89,7 +89,7 @@ pub async fn start(
 
     let app = Router::new()
         .route("/", get(serve_index))
-        .route("/graph.js", get(serve_graph_js))
+        .route("/{name}.js", get(serve_js))
         .route("/api/graph", get(api_graph))
         .route("/api/xray", get(api_xray))
         .route("/ws", get(ws_upgrade))
@@ -112,8 +112,9 @@ async fn serve_index() -> impl IntoResponse {
     serve_embedded("index.html", "text/html; charset=utf-8")
 }
 
-async fn serve_graph_js() -> impl IntoResponse {
-    serve_embedded("graph.js", "application/javascript; charset=utf-8")
+async fn serve_js(Path(name): Path<String>) -> impl IntoResponse {
+    let filename = format!("{name}.js");
+    serve_embedded(&filename, "application/javascript; charset=utf-8")
 }
 
 fn serve_embedded(path: &str, content_type: &str) -> impl IntoResponse {
@@ -603,17 +604,36 @@ mod tests {
 
     #[tokio::test]
     async fn test_bind_with_retry_exhausts_limit() {
-        // Occupy PORT_RETRY_LIMIT + 1 consecutive ports.
-        let (first_hold, base_port) = occupy_port().await;
-        let mut holders = vec![first_hold];
+        // Find a consecutive range of PORT_RETRY_LIMIT + 1 free ports.
+        // We try multiple base ports until we can occupy the full range.
+        let mut holders = Vec::new();
+        let mut base_port = 0u16;
 
-        for offset in 1..=PORT_RETRY_LIMIT {
-            if let Ok(l) =
-                tokio::net::TcpListener::bind((LOCALHOST, base_port + offset)).await
-            {
-                holders.push(l);
+        'outer: for attempt_base in (40_000u16..50_000).step_by(20) {
+            holders.clear();
+            let mut all_bound = true;
+
+            for offset in 0..=PORT_RETRY_LIMIT {
+                match tokio::net::TcpListener::bind((LOCALHOST, attempt_base + offset)).await {
+                    Ok(l) => holders.push(l),
+                    Err(_) => {
+                        all_bound = false;
+                        break;
+                    }
+                }
+            }
+
+            if all_bound {
+                base_port = attempt_base;
+                break 'outer;
             }
         }
+
+        assert!(
+            !holders.is_empty() && holders.len() == (PORT_RETRY_LIMIT + 1) as usize,
+            "Could not find a consecutive range of {} free ports",
+            PORT_RETRY_LIMIT + 1
+        );
 
         let result = bind_with_retry(LOCALHOST, base_port, true).await;
         assert!(result.is_err(), "Expected error when all ports exhausted");
