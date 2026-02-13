@@ -3618,7 +3618,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-architect"
-version = "3.6.0"
+version = "3.6.1"
 dependencies = [
  "parking_lot",
  "petgraph",
@@ -3632,7 +3632,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-chronos"
-version = "3.6.0"
+version = "3.6.1"
 dependencies = [
  "chrono",
  "git2",
@@ -3644,11 +3644,12 @@ dependencies = [
 
 [[package]]
 name = "synapseed-cli"
-version = "3.6.0"
+version = "3.6.1"
 dependencies = [
  "anyhow",
  "clap",
  "git2",
+ "ort",
  "serde",
  "serde_json",
  "synapseed-architect",
@@ -3672,7 +3673,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-core"
-version = "3.6.0"
+version = "3.6.1"
 dependencies = [
  "chrono",
  "dirs",
@@ -3697,7 +3698,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-cortex"
-version = "3.6.0"
+version = "3.6.1"
 dependencies = [
  "criterion",
  "dashmap",
@@ -3716,7 +3717,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-gym"
-version = "3.6.0"
+version = "3.6.1"
 dependencies = [
  "regex",
  "serde",
@@ -3730,7 +3731,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-husk"
-version = "3.6.0"
+version = "3.6.1"
 dependencies = [
  "aho-corasick",
  "proptest",
@@ -3743,7 +3744,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-janitor"
-version = "3.6.0"
+version = "3.6.1"
 dependencies = [
  "chrono",
  "dashmap",
@@ -3761,7 +3762,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-mcp"
-version = "3.6.0"
+version = "3.6.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3787,7 +3788,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-root"
-version = "3.6.0"
+version = "3.6.1"
 dependencies = [
  "proptest",
  "regex",
@@ -3801,7 +3802,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-search"
-version = "3.6.0"
+version = "3.6.1"
 dependencies = [
  "bincode",
  "criterion",
@@ -3820,7 +3821,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-shadow-check"
-version = "3.6.0"
+version = "3.6.1"
 dependencies = [
  "fxhash",
  "parking_lot",
@@ -3833,7 +3834,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-telemetry-sink"
-version = "3.6.0"
+version = "3.6.1"
 dependencies = [
  "chrono",
  "opentelemetry-proto",
@@ -3850,7 +3851,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-visualizer"
-version = "3.6.0"
+version = "3.6.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -3869,7 +3870,7 @@ dependencies = [
 
 [[package]]
 name = "synapseed-whisper"
-version = "3.6.0"
+version = "3.6.1"
 dependencies = [
  "serde",
  "serde_json",

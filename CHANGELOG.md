@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.6.1] — 2026-02-13
+
+### CI Hardening & CLI JSON Integration
+
+- **CI**: Fixed `ort` feature conflict across platforms by moving features to CLI crate.
+- **CLI**: Added `--json` global flag for structured output in all commands.
+- **CLI**: Replaced local handlers with unified MCP bridge for `diagnose` and `check`.
+
 ## [3.6.0] — 2026-02-13
 
 ### "Direct Vision" Release — Symbol Injection + Metric Precision

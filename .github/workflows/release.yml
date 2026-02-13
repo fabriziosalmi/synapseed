@@ -52,13 +52,15 @@ jobs:
         if: ${{ !matrix.cross }}
         run: cargo build --release --target ${{ matrix.target }} -p synapseed-cli
 
-      - name: Build (cross - vendored OpenSSL)
+      - name: Build (cross)
         if: matrix.cross
+        uses: houseabsolute/actions-rust-cross@v0
+        with:
+          command: build
+          target: ${{ matrix.target }}
+          args: "--release -p synapseed-cli --features vendored-openssl"
         env:
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
-          CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
-          CXX_aarch64_unknown_linux_gnu: aarch64-linux-gnu-g++
-        run: cargo build --release --target ${{ matrix.target }} -p synapseed-cli --features vendored-openssl
+          ORT_STRATEGY: download
 
       - name: Package
         run: |

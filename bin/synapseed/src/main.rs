@@ -30,7 +30,7 @@ use synapseed_whisper::plugin::WhisperPlugin;
 use synapseed_mcp::protocol::ContentBlock;
 use synapseed_mcp::tools::handle_tool_call;
 
-mod handlers;
+// mod handlers; (removed)
 
 #[derive(Parser)]
 #[command(
@@ -48,6 +48,10 @@ struct Cli {
     /// Project root directory
     #[arg(short, long, global = true, default_value = ".")]
     project: PathBuf,
+
+    /// Output in JSON format
+    #[arg(short, long, global = true)]
+    json: bool,
 }
 
 #[derive(Subcommand)]
@@ -125,6 +129,7 @@ enum Commands {
     #[command(visible_alias = "ask_synapseed", visible_alias = "whisper")]
     Ask {
         /// Natural-language question
+        #[arg(short, long)]
         query: String,
         /// Inject raw source code of discovered symbols into the prompt
         #[arg(long)]
@@ -135,6 +140,7 @@ enum Commands {
     #[command(visible_alias = "semantic_search")]
     Search {
         /// Search query
+        #[arg(short, long)]
         query: String,
         /// Maximum number of results
         #[arg(short, long, default_value = "5")]
@@ -277,7 +283,7 @@ async fn main() -> Result<()> {
             if let Some(p) = path {
                 args["path"] = json!(p);
             }
-            cmd_mcp(&project_root, "hoist", args).await?
+            cmd_mcp(&project_root, "hoist", args, cli.json).await?
         }
         Commands::Lookup { name } => cmd_lookup(&name, &project_root)?,
         Commands::Scan { content, mode } => {
@@ -290,10 +296,14 @@ async fn main() -> Result<()> {
                     buf
                 }
             };
-            cmd_mcp(&project_root, "scan", json!({"content": text, "mode": mode})).await?
+            cmd_mcp(&project_root, "scan", json!({"content": text, "mode": mode}), cli.json).await?
         }
-        Commands::Check { command } => handlers::run_check(&command)?,
-        Commands::Diagnose => handlers::run_diagnose(&project_root).await?,
+        Commands::Check { command } => {
+            cmd_mcp(&project_root, "check", json!({"command": command}), cli.json).await?
+        }
+        Commands::Diagnose => {
+            cmd_mcp(&project_root, "diagnose", json!({}), cli.json).await?
+        }
         Commands::History { limit } => cmd_history(&project_root, limit)?,
         Commands::Blame { file, start, end } => cmd_blame(&project_root, &file, start, end)?,
         Commands::Status => cmd_status(&project_root).await?,
@@ -302,63 +312,62 @@ async fn main() -> Result<()> {
 
         // ── MCP-bridged commands ────────────────────────────────────
         Commands::Ask { query, raw } => {
-            cmd_ask(&project_root, &query, raw).await?
+            cmd_ask(&project_root, &query, raw, cli.json).await?
         }
         Commands::Search { query, limit } => {
-            cmd_mcp(&project_root, "search", json!({"query": query, "limit": limit})).await?
+            cmd_mcp(&project_root, "search", json!({"query": query, "limit": limit}), cli.json).await?
         }
         Commands::Diagnostics { file, min_severity } => {
             let mut args = json!({"min_severity": min_severity});
             if let Some(f) = file {
                 args["file"] = json!(f);
             }
-            cmd_mcp(&project_root, "diagnostics", args).await?
+            cmd_mcp(&project_root, "diagnostics", args, cli.json).await?
         }
         Commands::Analyze { file, start, end } => {
             let mut args = json!({"file": file});
             if let Some(s) = start { args["start_line"] = json!(s); }
             if let Some(e) = end { args["end_line"] = json!(e); }
-            cmd_mcp(&project_root, "analyze", args).await?
+            cmd_mcp(&project_root, "analyze", args, cli.json).await?
         }
         Commands::Quickfix { file, error_code } => {
-            cmd_mcp(&project_root, "quickfix", json!({"file": file, "error_code": error_code})).await?
+            cmd_mcp(&project_root, "quickfix", json!({"file": file, "error_code": error_code}), cli.json).await?
         }
         Commands::Intent { limit } => {
-            cmd_mcp(&project_root, "intent", json!({"limit": limit})).await?
+            cmd_mcp(&project_root, "intent", json!({"limit": limit}), cli.json).await?
         }
         Commands::Train { source, tests, timeout, fuzz, adversarial } => {
             let src = read_source_or_stdin(&source)?;
             let mut args = json!({"source": src, "timeout": timeout, "fuzz": fuzz, "adversarial": adversarial});
             if let Some(t) = tests {
-                args["tests"] = json!(std::fs::read_to_string(&t)?);
+                args["tests"] = json!(read_source_or_stdin(&t)?);
             }
-            cmd_mcp(&project_root, "train", args).await?
+            cmd_mcp(&project_root, "train", args, cli.json).await?
         }
         Commands::ResetTelemetry => {
-            cmd_mcp(&project_root, "reset-telemetry", json!({})).await?
+            cmd_mcp(&project_root, "reset-telemetry", json!({}), cli.json).await?
         }
         Commands::Janitor => {
-            cmd_mcp(&project_root, "janitor", json!({})).await?
+            cmd_mcp(&project_root, "janitor", json!({}), cli.json).await?
         }
         Commands::JanitorFix { proposal_id, confirm } => {
-            cmd_mcp(&project_root, "janitor-fix", json!({"proposal_id": proposal_id, "confirm": confirm})).await?
+            cmd_mcp(&project_root, "janitor-fix", json!({"proposal_id": proposal_id, "confirm": confirm}), cli.json).await?
         }
         Commands::Architect { refresh } => {
-            cmd_mcp(&project_root, "architect", json!({"refresh": refresh})).await?
+            cmd_mcp(&project_root, "architect", json!({"refresh": refresh}), cli.json).await?
         }
         Commands::Consult { query } => {
-            cmd_mcp(&project_root, "consult", json!({"query": query})).await?
+            cmd_mcp(&project_root, "consult", json!({"query": query}), cli.json).await?
         }
         Commands::Oracle => {
-            cmd_mcp(&project_root, "oracle", json!({})).await?
+            cmd_mcp(&project_root, "oracle", json!({}), cli.json).await?
         }
         Commands::Similar { query, top_k, min_similarity } => {
-            cmd_mcp(&project_root, "similar", json!({"query": query, "top_k": top_k, "min_similarity": min_similarity})).await?
+            cmd_mcp(&project_root, "similar", json!({"query": query, "top_k": top_k, "min_similarity": min_similarity}), cli.json).await?
         }
         Commands::External(args) => {
             let query = args.join(" ");
-            eprintln!("[ask] {query}");
-            cmd_ask(&project_root, &query, false).await?
+            cmd_ask(&project_root, &query, false, cli.json).await?
         }
     }
 
@@ -404,54 +413,18 @@ async fn init_full_context(path: &Path) -> Result<SynapseContext> {
 /// may still be empty when the Whisperer processes the query.  This function
 /// detects that situation and performs a **synchronous** hoist (equivalent to
 /// `synapseed hoist . && synapseed ask "..."`) in a single process.
-async fn cmd_ask(path: &Path, query: &str, raw: bool) -> Result<()> {
+async fn cmd_ask(path: &Path, query: &str, raw: bool, json_output: bool) -> Result<()> {
     let ctx = init_full_context(path).await?;
-
-    // Wait briefly for the background indexer, then fall back to synchronous.
-    if let Some(graph) = ctx.get_extension::<CodeGraph>() {
-        // Give the background thread up to 500 ms to finish.
-        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(500);
-        while graph.file_count() == 0 && std::time::Instant::now() < deadline {
-            std::thread::sleep(std::time::Duration::from_millis(25));
-        }
-
-        if graph.file_count() == 0 {
-            // Background indexing didn't finish in time — do it synchronously.
-            info!("ask: auto-hoisting project (synchronous index)");
-            if let Err(e) = graph.index_directory(path) {
-                eprintln!("[WARN] auto-hoist failed: {e}");
-            } else {
-                ctx.update_metrics(|m| {
-                    m.files_indexed = graph.file_count();
-                    m.symbols_found = graph.symbol_count();
-                });
-                info!(
-                    files = graph.file_count(),
-                    symbols = graph.symbol_count(),
-                    "ask: auto-hoist complete"
-                );
-            }
-        }
-    } else {
-        // No graph registered at all — build one from scratch.
-        info!("ask: no code graph found, auto-hoisting");
-        let graph = std::sync::Arc::new(CodeGraph::new());
-        if let Err(e) = graph.index_directory(path) {
-            eprintln!("[WARN] auto-hoist failed: {e}");
-        } else {
-            ctx.update_metrics(|m| {
-                m.files_indexed = graph.file_count();
-                m.symbols_found = graph.symbol_count();
-            });
-            ctx.set_extension(graph);
-        }
-    }
-
+/* ... existing code ... */
     let result = handle_tool_call("ask", &json!({"query": query, "raw": raw}), &ctx);
 
-    for block in &result.content {
-        match block {
-            ContentBlock::Text { text } => println!("{text}"),
+    if json_output {
+        println!("{}", serde_json::to_string(&result)?);
+    } else {
+        for block in &result.content {
+            match block {
+                ContentBlock::Text { text } => println!("{text}"),
+            }
         }
     }
 
@@ -463,13 +436,17 @@ async fn cmd_ask(path: &Path, query: &str, raw: bool) -> Result<()> {
 }
 
 /// Generic MCP tool bridge: init context, call tool, print result.
-async fn cmd_mcp(path: &Path, tool: &str, args: serde_json::Value) -> Result<()> {
+async fn cmd_mcp(path: &Path, tool: &str, args: serde_json::Value, json_output: bool) -> Result<()> {
     let ctx = init_full_context(path).await?;
     let result = handle_tool_call(tool, &args, &ctx);
 
-    for block in &result.content {
-        match block {
-            ContentBlock::Text { text } => println!("{text}"),
+    if json_output {
+        println!("{}", serde_json::to_string(&result)?);
+    } else {
+        for block in &result.content {
+            match block {
+                ContentBlock::Text { text } => println!("{text}"),
+            }
         }
     }
 

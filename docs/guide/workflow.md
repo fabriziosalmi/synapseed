@@ -8,13 +8,13 @@ designed to be copy-pasted into your AI coding session.
 
 ---
 
-## Baseline (as of v3.6.0)
+## Baseline (as of v3.6.1)
 
 | Metric | Value |
 |--------|-------|
 | Architecture Score | **100/100 (Grade A)** |
 | Modules | 172 |
-| Symbols | 1741 |
+| Symbols | 1746 |
 | Tests | 255 passing, 0 failing |
 | MCP Surface | 20 tools, 9 resources, 6 prompts |
 
