@@ -317,9 +317,13 @@ impl SemanticIndex {
             };
             let temporal_boost = 0.7 + 0.3 * (-self.temporal_decay_lambda * age_days).exp();
 
+            // Source-First (v3.9.3): boost non-test files, penalize test files
+            let file_path = get_text(self.fields.file_path);
+            let source_boost: f32 = if is_test_path(&file_path) { 0.5 } else { 1.5 };
+
             results.push(SearchResult {
-                score: score * temporal_boost as f32,
-                file: get_text(self.fields.file_path),
+                score: score * temporal_boost as f32 * source_boost,
+                file: file_path,
                 symbol: get_text(self.fields.symbol_name),
                 kind: get_text(self.fields.kind),
                 line_start: get_u64(self.fields.line_start),
@@ -428,6 +432,23 @@ fn extract_body_snippet(source: &str, line_start: usize, line_end: usize) -> Str
     lines[start..end].join("\n")
 }
 
+/// Returns true if the path looks like a test file.
+/// Used by Source-First scoring to penalize test results (v3.9.3).
+fn is_test_path(path: &str) -> bool {
+    let p = path.to_ascii_lowercase();
+    p.contains("/test/")
+        || p.contains("/tests/")
+        || p.starts_with("test/")
+        || p.starts_with("tests/")
+        || p.contains("test_")
+        || p.contains("_test.")
+        || p.contains(".test.")
+        || p.contains("/spec/")
+        || p.starts_with("spec/")
+        || p.contains("_spec.")
+        || p.contains(".spec.")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -460,5 +481,25 @@ pub fn authenticate_user(credentials: &Credentials) -> Result<Token> {
         let source = "fn foo() {}\n";
         let comment = extract_doc_comment(source, 1);
         assert!(comment.is_empty());
+    }
+
+    // ── Source-First Scoring tests (v3.9.3) ──────────────────────────
+
+    #[test]
+    fn test_is_test_path_positive() {
+        assert!(is_test_path("tests/test_lowlevel.py"));
+        assert!(is_test_path("test_requests.py"));
+        assert!(is_test_path("src/models_test.go"));
+        assert!(is_test_path("auth.test.ts"));
+        assert!(is_test_path("spec/handler_spec.rb"));
+        assert!(is_test_path("__tests__/utils.spec.js"));
+    }
+
+    #[test]
+    fn test_is_test_path_negative() {
+        assert!(!is_test_path("src/requests/models.py"));
+        assert!(!is_test_path("src/main.rs"));
+        assert!(!is_test_path("lib/auth.ts"));
+        assert!(!is_test_path("src/attestation/verify.rs"));
     }
 }

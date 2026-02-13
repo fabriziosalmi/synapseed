@@ -458,6 +458,98 @@ fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> {
         }
     }
 
+    // ── Source-First Heuristics (v3.9.3) ──────────────────────────────
+    // When search results are dominated by test files, expand to find the
+    // actual implementation code that those tests exercise.
+
+    let has_test_targets = targets
+        .iter()
+        .any(|t| t.file_path.as_deref().map_or(false, is_test_path));
+
+    if has_test_targets {
+        let graph = ctx.get_extension::<CodeGraph>();
+
+        // Pass 4: Implementation Twin — derive source paths from test paths
+        let test_targets: Vec<Target> = targets
+            .iter()
+            .filter(|t| t.file_path.as_deref().map_or(false, is_test_path))
+            .cloned()
+            .collect();
+
+        for target in &test_targets {
+            let fp = match &target.file_path {
+                Some(p) => p.clone(),
+                None => continue,
+            };
+            for candidate in derive_source_paths(&fp) {
+                if let Some(ref g) = graph {
+                    let abs_candidate = ctx.project_root().join(&candidate);
+                    if let Some(file_struct) = g.hoist(&abs_candidate) {
+                        debug!(
+                            test = %fp, twin = %candidate,
+                            "Whisper: Twin Pattern found implementation file"
+                        );
+                        for sym in file_struct.symbols.iter().take(3) {
+                            if matches!(sym.kind, SymbolKind::Import | SymbolKind::Variable) {
+                                continue;
+                            }
+                            targets.push(Target {
+                                kind: TargetKind::Symbol,
+                                name: sym.name.clone(),
+                                file_path: Some(sym.file_path.clone()),
+                                line_start: Some(sym.line_start),
+                            });
+                        }
+                        break; // Found the twin, stop searching candidates
+                    }
+                }
+            }
+        }
+
+        // Pass 5: Call Graph Lite — extract identifiers from test bodies
+        if let Some(ref g) = graph {
+            for target in &test_targets {
+                let fp = match &target.file_path {
+                    Some(p) => p,
+                    None => continue,
+                };
+                let abs_path = ctx.project_root().join(fp);
+                if let Ok(content) = std::fs::read_to_string(&abs_path) {
+                    let identifiers = extract_call_identifiers(&content, &target.name);
+                    debug!(
+                        test_fn = %target.name, ids = ?identifiers,
+                        "Whisper: Call Graph Lite extracted identifiers"
+                    );
+                    for ident in identifiers {
+                        for sym in g.lookup(&ident).into_iter().take(2) {
+                            if matches!(sym.kind, SymbolKind::Import | SymbolKind::Variable) {
+                                continue;
+                            }
+                            if is_test_path(&sym.file_path) {
+                                continue;
+                            }
+                            targets.push(Target {
+                                kind: TargetKind::Symbol,
+                                name: sym.name.clone(),
+                                file_path: Some(sym.file_path.clone()),
+                                line_start: Some(sym.line_start),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Source-first ordering: non-test targets before test targets (v3.9.3)
+    targets.sort_by_key(|t| {
+        if t.file_path.as_deref().map_or(false, is_test_path) {
+            1
+        } else {
+            0
+        }
+    });
+
     // Dedup by (name, file_path)
     targets.dedup_by(|a, b| a.name == b.name && a.file_path == b.file_path);
     // Configurable pruning (v3.6.2): respect DNA context.max_symbols
@@ -478,6 +570,123 @@ fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> {
     }
 
     targets
+}
+
+// ── Source-First Helpers (v3.9.3) ─────────────────────────────────────
+
+/// Returns true if the path looks like a test file.
+fn is_test_path(path: &str) -> bool {
+    let p = path.to_ascii_lowercase();
+    p.contains("/test/")
+        || p.contains("/tests/")
+        || p.starts_with("test/")
+        || p.starts_with("tests/")
+        || p.contains("test_")
+        || p.contains("_test.")
+        || p.contains(".test.")
+        || p.contains("/spec/")
+        || p.starts_with("spec/")
+        || p.contains("_spec.")
+        || p.contains(".spec.")
+}
+
+/// Derive candidate source file paths from a test file path.
+///
+/// `"tests/test_requests.py"` → `["src/requests.py", "src/requests/__init__.py", ...]`
+fn derive_source_paths(test_path: &str) -> Vec<String> {
+    let path = std::path::Path::new(test_path);
+    let file_name = path
+        .file_name()
+        .and_then(|f| f.to_str())
+        .unwrap_or("");
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+
+    // Strip test_ prefix and _test / .test suffix
+    let base = file_name
+        .strip_prefix("test_")
+        .unwrap_or(file_name);
+    let base = base
+        .strip_suffix(&format!("_test.{ext}"))
+        .or_else(|| base.strip_suffix(&format!(".test.{ext}")))
+        .unwrap_or(base)
+        .trim_end_matches(&format!(".{ext}"));
+
+    let mut candidates = Vec::new();
+    // Python conventions
+    candidates.push(format!("src/{base}.{ext}"));
+    candidates.push(format!("src/{base}/{base}.{ext}"));
+    candidates.push(format!("src/{base}/__init__.{ext}"));
+    candidates.push(format!("{base}.{ext}"));
+    candidates.push(format!("{base}/{base}.{ext}"));
+    // Rust conventions
+    candidates.push(format!("src/{base}/mod.rs"));
+    candidates.push(format!("src/{base}.rs"));
+    // JS/TS conventions
+    candidates.push(format!("src/{base}/index.{ext}"));
+    candidates
+}
+
+/// Extract function/method call identifiers from the body of a named function.
+///
+/// Regex-based: looks for `module.method(` and bare `function(` patterns
+/// within the function body (delimited by indentation for Python, braces
+/// for Rust/JS).
+fn extract_call_identifiers(source: &str, fn_name: &str) -> Vec<String> {
+    let mut identifiers = Vec::new();
+    let lines: Vec<&str> = source.lines().collect();
+    let mut in_body = false;
+    let mut body_indent = 0usize;
+    let mut body_text = String::new();
+
+    for line in &lines {
+        if !in_body {
+            // Match function definition containing fn_name
+            if line.contains(&format!("def {fn_name}"))
+                || line.contains(&format!("fn {fn_name}"))
+                || line.contains(&format!("function {fn_name}"))
+            {
+                in_body = true;
+                body_indent = line.len() - line.trim_start().len() + 4;
+            }
+        } else {
+            let trimmed = line.trim_start();
+            let indent = line.len() - trimmed.len();
+            // End of function: non-empty line at same or lower indent (Python)
+            if !trimmed.is_empty()
+                && indent < body_indent
+                && !trimmed.starts_with('#')
+                && !trimmed.starts_with("//")
+            {
+                break;
+            }
+            body_text.push_str(line);
+            body_text.push('\n');
+        }
+    }
+
+    // Extract `module.method(` patterns → take the method name
+    if let Ok(call_re) = regex::Regex::new(r"(\w+)\.(\w+)\s*\(") {
+        for cap in call_re.captures_iter(&body_text) {
+            identifiers.push(cap[2].to_string());
+        }
+    }
+
+    // Extract bare `function(` patterns (≥3 chars, not a stop word)
+    if let Ok(bare_re) = regex::Regex::new(r"(?:^|[^.\w])(\w{3,})\s*\(") {
+        for cap in bare_re.captures_iter(&body_text) {
+            let name = &cap[1];
+            if !STOP_WORDS.contains(&name.to_lowercase().as_str()) && name != fn_name {
+                identifiers.push(name.to_string());
+            }
+        }
+    }
+
+    identifiers.sort();
+    identifiers.dedup();
+    identifiers
 }
 
 // ── Human Summary Builder ─────────────────────────────────────────────
@@ -1488,5 +1697,117 @@ mod tests {
     fn test_clean_query_empty_result() {
         let cleaned = clean_query_for_search("come il la un");
         assert!(cleaned.is_empty());
+    }
+
+    // ── Source-First Heuristics tests (v3.9.3) ───────────────────────
+
+    #[test]
+    fn test_is_test_path_detects_test_directories() {
+        assert!(is_test_path("tests/test_lowlevel.py"));
+        assert!(is_test_path("src/tests/helper.rs"));
+        assert!(is_test_path("/abs/path/tests/unit.py"));
+        assert!(is_test_path("test/integration.js"));
+        assert!(is_test_path("spec/models_spec.rb"));
+    }
+
+    #[test]
+    fn test_is_test_path_detects_test_files() {
+        assert!(is_test_path("test_requests.py"));
+        assert!(is_test_path("models_test.go"));
+        assert!(is_test_path("auth.test.ts"));
+        assert!(is_test_path("handler_spec.rb"));
+        assert!(is_test_path("utils.spec.js"));
+    }
+
+    #[test]
+    fn test_is_test_path_rejects_source_files() {
+        assert!(!is_test_path("src/requests/models.py"));
+        assert!(!is_test_path("src/main.rs"));
+        assert!(!is_test_path("lib/auth/handler.ts"));
+        assert!(!is_test_path("crates/core/src/context.rs"));
+        // Edge case: "test" in module name should not match
+        assert!(!is_test_path("src/attestation/verify.rs"));
+    }
+
+    #[test]
+    fn test_derive_source_paths_python() {
+        let paths = derive_source_paths("tests/test_requests.py");
+        assert!(paths.contains(&"src/requests.py".to_string()));
+        assert!(paths.contains(&"src/requests/__init__.py".to_string()));
+        assert!(paths.contains(&"src/requests/requests.py".to_string()));
+        assert!(paths.contains(&"requests.py".to_string()));
+    }
+
+    #[test]
+    fn test_derive_source_paths_rust() {
+        let paths = derive_source_paths("tests/test_router.rs");
+        assert!(paths.contains(&"src/router/mod.rs".to_string()));
+        assert!(paths.contains(&"src/router.rs".to_string()));
+    }
+
+    #[test]
+    fn test_derive_source_paths_js_suffix() {
+        let paths = derive_source_paths("__tests__/auth.test.ts");
+        // file_name = "auth.test.ts", strip .test.ts → base = "auth"
+        assert!(paths.contains(&"src/auth.ts".to_string()));
+        assert!(paths.contains(&"src/auth/index.ts".to_string()));
+    }
+
+    #[test]
+    fn test_extract_call_identifiers_python() {
+        let source = r#"
+import requests
+from requests import Response
+
+def test_chunked_encoding_error():
+    """get a ChunkedEncodingError if the server returns a bad response"""
+    server = Server(incomplete_handler)
+    with server as (host, port):
+        url = f"http://{host}:{port}/"
+        with pytest.raises(requests.exceptions.ChunkedEncodingError):
+            requests.get(url)
+        close_server.set()
+
+def test_other():
+    pass
+"#;
+        let ids = extract_call_identifiers(source, "test_chunked_encoding_error");
+        assert!(ids.contains(&"Server".to_string()));
+        assert!(ids.contains(&"get".to_string()));
+        assert!(ids.contains(&"raises".to_string()));
+        assert!(ids.contains(&"set".to_string()));
+        // Should NOT include the function itself
+        assert!(!ids.contains(&"test_chunked_encoding_error".to_string()));
+    }
+
+    #[test]
+    fn test_extract_call_identifiers_rust() {
+        let source = r#"
+fn test_ask_returns_result() {
+    let ctx = init_context();
+    let result = whisper::ask("explain main", &ctx);
+    assert!(result.targets.len() > 0);
+}
+
+fn other_fn() {}
+"#;
+        let ids = extract_call_identifiers(source, "test_ask_returns_result");
+        assert!(ids.contains(&"init_context".to_string()));
+        assert!(ids.contains(&"ask".to_string()));
+        assert!(ids.contains(&"len".to_string()));
+    }
+
+    #[test]
+    fn test_extract_call_identifiers_empty_body() {
+        let source = "def test_empty():\n    pass\n";
+        let ids = extract_call_identifiers(source, "test_empty");
+        assert!(ids.is_empty());
+    }
+
+    #[test]
+    fn test_extract_call_identifiers_missing_fn() {
+        let source = "def unrelated():\n    foo()\n";
+        let ids = extract_call_identifiers(source, "nonexistent");
+        assert!(ids.is_empty());
     }
 }

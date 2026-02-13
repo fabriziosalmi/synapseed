@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.9.3] — 2026-02-13
+
+### Source-First Heuristics — Test-to-Implementation Discovery
+
+#### New Features
+
+- **Search — Source-First Scoring**: Tantivy results now apply a 1.5x boost to non-test files and 0.5x penalty to test files. Implementation code ranks higher when competing with test files for the same keywords.
+- **Whisper — Implementation Twin Pattern (Pass 4)**: When extracted targets are test files, derives candidate source paths (e.g., `tests/test_requests.py` → `src/requests.py`, `src/requests/__init__.py`) and looks them up in CodeGraph. O(1) heuristic that works for Python, Rust, and JS/TS conventions.
+- **Whisper — Call Graph Lite (Pass 5)**: Extracts function/method call identifiers from test bodies using regex, then looks up those identifiers in CodeGraph (excluding test files). Follows the logical chain: test calls `requests.get()` → finds `Response.get` in `src/requests/`.
+- **Whisper — Source-First Ordering**: After all 5 passes, targets are sorted to put non-test files before test files, ensuring implementation code gets priority in the token budget.
+
+#### Impact
+
+- Before: `synapseed ask "chunked transfer encoding"` on psf/requests → only test files (`test_lowlevel.py`, `test_requests.py`)
+- After: → `src/requests/models.py` (iter_content, Response), `src/requests/utils.py` ranked first, with test files as secondary context
+
 ## [3.9.2] — 2026-02-13
 
 ### The Total Truth — Mutex TypeId Fix
