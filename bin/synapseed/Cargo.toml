@@ -1,9 +1,9 @@
 [package]
-name = "synapseed-cli"
-version.workspace = true
+description = "SYNAPSEED CLI — High-Performance Semantic AI Middleware"
 edition.workspace = true
 license.workspace = true
-description = "SYNAPSEED CLI — High-Performance Semantic AI Middleware"
+name = "synapseed-cli"
+version.workspace = true
 
 [[bin]]
 name = "synapseed"
@@ -14,25 +14,26 @@ default = ["vendored-openssl"]
 vendored-openssl = ["git2/vendored-openssl"]
 
 [dependencies]
-synapseed-core = { workspace = true }
-synapseed-cortex = { workspace = true }
-synapseed-husk = { workspace = true }
-synapseed-root = { workspace = true }
-synapseed-chronos = { workspace = true }
-synapseed-mcp = { workspace = true, features = ["embeddings"] }
-synapseed-visualizer = { workspace = true }
-synapseed-search = { workspace = true, features = ["embeddings"] }
-synapseed-architect = { workspace = true }
-synapseed-shadow-check = { workspace = true }
-synapseed-whisper = { workspace = true }
-synapseed-telemetry-sink = { workspace = true, features = ["grpc"] }
-synapseed-gym = { workspace = true }
-synapseed-janitor = { workspace = true }
-git2 = { workspace = true }
-tokio = { workspace = true }
-clap = { workspace = true }
-anyhow = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
+anyhow = {workspace = true}
+clap = {workspace = true}
+git2 = {workspace = true}
+ort = {workspace = true}
+serde = {workspace = true}
+serde_json = {workspace = true}
+synapseed-architect = {workspace = true}
+synapseed-chronos = {workspace = true}
+synapseed-core = {workspace = true}
+synapseed-cortex = {workspace = true}
+synapseed-gym = {workspace = true}
+synapseed-husk = {workspace = true}
+synapseed-janitor = {workspace = true}
+synapseed-mcp = {workspace = true, features = ["embeddings"]}
+synapseed-root = {workspace = true}
+synapseed-search = {workspace = true, features = ["embeddings"]}
+synapseed-shadow-check = {workspace = true}
+synapseed-telemetry-sink = {workspace = true, features = ["grpc"]}
+synapseed-visualizer = {workspace = true}
+synapseed-whisper = {workspace = true}
+tokio = {workspace = true}
+tracing = {workspace = true}
+tracing-subscriber = {workspace = true}
