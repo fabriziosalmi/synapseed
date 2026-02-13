@@ -117,7 +117,7 @@ See the [full integration guides](docs/integration/) for system prompt templates
 │  └─────────┘  └──────┘  └─────┘  └────────┘  └─────┘              │
 │                                                                      │
 └──────────────────────────────────────────────────────────────────────┘
-   13 crates · Plugin architecture · Priority-based init · HCI-tuned
+   14 crates · Plugin architecture · Priority-based init · HCI-tuned
 ```
 
 ```mermaid
@@ -156,7 +156,7 @@ graph LR
 | `synapseed-gym` | RL sandbox — safe code evaluation with compilation + test feedback |
 | `synapseed-janitor` | Autonomous maintenance — clippy + unused deps, validated proposals |
 | `synapseed-architect` | Dependency graph, coupling metrics, cycle detection, scoring (A-F) |
-| `synapseed-mcp` | MCP protocol handler — 20 tools, 8 resources, 6 prompts |
+| `synapseed-mcp` | MCP protocol handler — 21 tools, 9 resources, 6 prompts |
 
 ---
 
