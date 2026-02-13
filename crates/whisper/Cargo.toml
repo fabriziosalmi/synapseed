@@ -10,6 +10,7 @@ default = []
 embeddings = ["synapseed-search/embeddings"]
 
 [dependencies]
+synapseed-architect = { workspace = true }
 synapseed-core = { workspace = true }
 synapseed-cortex = { workspace = true }
 synapseed-husk = { workspace = true }

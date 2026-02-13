@@ -239,6 +239,20 @@ pub(super) fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> 
     let min_confidence = ctx.dna().context.min_confidence;
     if !search_query.is_empty() {
         if let Some(index) = ctx.get_extension::<SemanticIndex>() {
+            // PageRank Module Authority (v4.8.0): inject scores into search index
+            // so widely-imported modules get a mild ranking boost.
+            // Computed lazily on first query, cached in SemanticIndex for subsequent calls.
+            if !index.has_pagerank_scores() {
+                if let Some(graph) = ctx.get_extension::<CodeGraph>() {
+                    let dep_graph = synapseed_architect::DependencyGraph::build(&graph);
+                    let scores = dep_graph.pagerank_by_file();
+                    let f32_scores: std::collections::HashMap<String, f32> =
+                        scores.into_iter().map(|(k, v)| (k, v as f32)).collect();
+                    debug!(modules = f32_scores.len(), "Whisper: PageRank scores injected");
+                    index.set_pagerank_scores(f32_scores);
+                }
+            }
+
             debug!(raw = query, cleaned = %search_query, "Whisper: cleaned query for search");
 
             let results = {

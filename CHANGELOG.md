@@ -1,5 +1,44 @@
 # Changelog
 
+## [4.8.0] — 2026-02-13
+
+### Module Authority — PageRank on Symbol Graph
+
+Adds module-level PageRank computation to the search ranking pipeline.
+Symbols from widely-imported (foundational) modules receive a mild ranking
+boost, helping core infrastructure symbols surface above leaf-module code
+in BM25 results.
+
+#### Core: `pagerank.rs` in architect crate
+- Classic power iteration: `PR(v) = (1-d)/N + d × Σ(PR(u)/out(u))` with d=0.85
+- Converges when max per-node delta < 1e-6, or after 100 iterations
+- Scores normalized to [0.0, 1.0] where 1.0 = most depended-upon module
+- 6 unit tests: empty graph, single node, star topology, linear chain, cycle convergence, normalization
+
+#### Integration: `DependencyGraph::pagerank_by_file()`
+- Maps PageRank node scores to file paths for direct lookup
+- Exposed as `pub` API on `DependencyGraph` in architect crate
+
+#### Search Boost: Module Authority factor in `SemanticIndex::search()`
+- New multiplicative boost: `pagerank_boost = 1.0 + score × 0.5` (range: 1.0–1.5)
+- Applied after existing boosts (temporal, source, path, specificity, interface)
+- Scores injected via `set_pagerank_scores()` / `has_pagerank_scores()` API
+- Uses `parking_lot::RwLock<HashMap>` for thread-safe concurrent reads
+
+#### Whisper Pipeline: Lazy PageRank injection
+- Computed lazily on first `ask` query from the CodeGraph dependency structure
+- `DependencyGraph::build()` + `pagerank_by_file()` runs in ~5ms for typical projects
+- Cached in `SemanticIndex` for subsequent queries (same process lifetime)
+- New dependency: `synapseed-whisper` → `synapseed-architect`
+
+#### Boost Stack (updated)
+```
+score = BM25 × temporal × source × path × specificity × interface × pagerank
+         │        │         │        │         │            │           │
+         │     0.7-1.0   0.1-1.5  1.0-3.0  1.0-1.3     1.0-1.4    1.0-1.5
+         └─ per-field weights: name(3x) > doc(2x) > body(1.5x) > sig(1x)
+```
+
 ## [4.7.0] — 2026-02-13
 
 ### Noise Reduction — "La Dieta del Token"

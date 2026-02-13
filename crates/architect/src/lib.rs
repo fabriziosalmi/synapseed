@@ -9,6 +9,7 @@
 pub mod analyzer;
 pub mod blueprint;
 pub mod linter;
+pub mod pagerank;
 pub mod plugin;
 
 pub use analyzer::DependencyGraph;

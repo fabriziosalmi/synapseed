@@ -287,6 +287,21 @@ impl DependencyGraph {
     pub(crate) fn node(&self, idx: NodeIndex) -> &ModuleNode {
         &self.graph[idx]
     }
+
+    /// Compute PageRank scores mapped to file paths (v4.8.0).
+    ///
+    /// Returns HashMap<file_path, score> where score ∈ [0.0, 1.0].
+    /// Higher score = more modules depend on (import from) this module.
+    /// Modules with no incoming edges get the base score (lowest).
+    pub fn pagerank_by_file(&self) -> HashMap<String, f64> {
+        let raw_scores = crate::pagerank::compute(&self.graph, 0.85, 100);
+        let mut file_scores = HashMap::new();
+        for (node_idx, score) in raw_scores {
+            let node = &self.graph[node_idx];
+            file_scores.insert(node.file_path.clone(), score);
+        }
+        file_scores
+    }
 }
 
 /// Derive a crate-qualified module name from a file path.

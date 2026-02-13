@@ -38,6 +38,9 @@ pub struct SemanticIndex {
     reader: IndexReader,
     writer: Arc<std::sync::Mutex<IndexWriter>>,
     temporal_decay_lambda: f64,
+    /// Module authority scores from PageRank (v4.8.0).
+    /// Key = file_path (absolute), value = normalized [0, 1] score.
+    pagerank_scores: parking_lot::RwLock<std::collections::HashMap<String, f32>>,
 }
 
 impl SemanticIndex {
@@ -58,6 +61,7 @@ impl SemanticIndex {
             reader,
             writer: Arc::new(std::sync::Mutex::new(writer)),
             temporal_decay_lambda: 0.05,
+            pagerank_scores: parking_lot::RwLock::new(std::collections::HashMap::new()),
         })
     }
 
@@ -113,6 +117,7 @@ impl SemanticIndex {
             reader,
             writer: Arc::new(std::sync::Mutex::new(writer)),
             temporal_decay_lambda: 0.05,
+            pagerank_scores: parking_lot::RwLock::new(std::collections::HashMap::new()),
         })
     }
 
@@ -122,6 +127,19 @@ impl SemanticIndex {
     /// Default: 0.05 (half-life ≈ 14 days).
     pub fn set_temporal_decay(&mut self, lambda: f64) {
         self.temporal_decay_lambda = lambda;
+    }
+
+    /// Inject module-level PageRank scores for search ranking (v4.8.0).
+    ///
+    /// Scores are keyed by file_path and valued in [0.0, 1.0].
+    /// Applied as a multiplicative boost in `search()`: `1.0 + score × 0.5`.
+    pub fn set_pagerank_scores(&self, scores: std::collections::HashMap<String, f32>) {
+        *self.pagerank_scores.write() = scores;
+    }
+
+    /// Whether PageRank scores have been injected.
+    pub fn has_pagerank_scores(&self) -> bool {
+        !self.pagerank_scores.read().is_empty()
     }
 
     /// Index all symbols from a CodeGraph snapshot.
@@ -405,8 +423,15 @@ impl SemanticIndex {
                 _ => 3.0,
             };
 
+            // Module Authority Boost (v4.8.0 — PageRank): symbols from widely-imported
+            // modules are foundational and should rank higher. Score range: 1.0–1.5.
+            let pagerank_boost: f32 = {
+                let pr = self.pagerank_scores.read();
+                pr.get(&file_path).map(|s| 1.0 + s * 0.5).unwrap_or(1.0)
+            };
+
             results.push(SearchResult {
-                score: score * temporal_boost as f32 * source_boost * path_boost * specificity_boost * interface_boost,
+                score: score * temporal_boost as f32 * source_boost * path_boost * specificity_boost * interface_boost * pagerank_boost,
                 file: file_path,
                 symbol: get_text(self.fields.symbol_name),
                 kind: get_text(self.fields.kind),
