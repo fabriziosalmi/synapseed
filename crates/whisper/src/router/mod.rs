@@ -166,6 +166,9 @@ fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> W
     };
     debug!(tier = %tier, phase = %phase, "Whisperer: Momentum state");
 
+    // ── Semantic Ballast (v3.7.0): Atomic tier forces raw injection ──
+    let effective_raw = raw_injection || tier == ModelTier::Atomic;
+
     let intent = classify_intent(query);
     let complexity = analyze_complexity(query);
     debug!(intent = ?intent, complexity = ?complexity, "Whisperer: Classified");
@@ -180,8 +183,9 @@ fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> W
     let sec_status = security::gather_security(&intent, &targets, ctx);
 
     // ── Raw Source Injection (v3.4.0) ──────────────────────────────
-    let raw_sources = if raw_injection {
-        inject_raw_sources(&targets, ctx)
+    // Atomic tier: always inject, with expanded budget (Semantic Ballast)
+    let raw_sources = if effective_raw {
+        inject_raw_sources(&targets, ctx, tier == ModelTier::Atomic)
     } else {
         Vec::new()
     };
@@ -194,10 +198,11 @@ fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> W
         history: &hist,
         code_context: &code_ctx,
         security_status: &sec_status,
-        raw_injection,
+        raw_injection: effective_raw,
         raw_sources: &raw_sources,
         tier,
         phase,
+        project_root: ctx.project_root().display().to_string(),
     };
 
     let smart_context = build_smart_context(input);
@@ -472,8 +477,13 @@ pub struct RawSource {
 }
 
 /// Read the actual source code for each target that has file/line info.
-fn inject_raw_sources(targets: &[Target], ctx: &SynapseContext) -> Vec<RawSource> {
-    const CHAR_BUDGET: usize = 16_000; // ~4 000 tokens at 4 chars/token
+///
+/// When `atomic_mode` is true (Semantic Ballast), the budget is doubled and
+/// each snippet is expanded to at least 30 lines to give small models enough
+/// grounding context.
+fn inject_raw_sources(targets: &[Target], ctx: &SynapseContext, atomic_mode: bool) -> Vec<RawSource> {
+    let char_budget: usize = if atomic_mode { 32_000 } else { 16_000 };
+    let min_lines: usize = if atomic_mode { 30 } else { 0 };
     let root = ctx.project_root();
     let mut sources = Vec::new();
     let mut budget_used: usize = 0;
@@ -534,12 +544,17 @@ fn inject_raw_sources(targets: &[Target], ctx: &SynapseContext) -> Vec<RawSource
 
         // Clamp to file bounds (1-indexed)
         let s = start.max(1).min(lines.len());
-        let e = end.max(s).min(lines.len());
+        let mut e = end.max(s).min(lines.len());
+
+        // Semantic Ballast: ensure at least min_lines per snippet
+        if min_lines > 0 && (e - s + 1) < min_lines {
+            e = (s + min_lines - 1).min(lines.len());
+        }
 
         let snippet: String = lines[(s - 1)..e].join("\n");
 
-        // Enforce token budget — stop injecting once we exceed ~4 000 tokens
-        if budget_used + snippet.len() > CHAR_BUDGET {
+        // Enforce token budget — stop injecting once we exceed the budget
+        if budget_used + snippet.len() > char_budget {
             break;
         }
         budget_used += snippet.len();
@@ -568,6 +583,94 @@ struct SmartContextInput<'a> {
     raw_sources: &'a [RawSource],
     tier: ModelTier,
     phase: SessionPhase,
+    project_root: String,
+}
+
+// ── Atomic Context Builder (Semantic Ballast v3.7.0) ───────────────────
+
+/// Build a fully-grounded context for Atomic tier models (<3B parameters).
+///
+/// Design principles:
+/// - NO JSON, NO `**bold**`, NO `##` headers — flat Markdown only
+/// - `ENVIRONMENT:` header anchors the model to the real project
+/// - `--- BEGIN FILE: path ---` delimiters are easier for tiny models to anchor to
+/// - Language reinforcement every ~10 lines inside injected code
+/// - Raw source injection is always forced (even if user didn't request it)
+fn build_atomic_context(
+    query: &str,
+    intent_label: &str,
+    code_context: &Option<CodeContext>,
+    raw_injection: bool,
+    raw_sources: &[RawSource],
+    project_root: &str,
+) -> String {
+    let mut parts = Vec::new();
+
+    // Detect language from symbols
+    let lang = detect_predominant_language(code_context)
+        .unwrap_or_else(|| "unknown".to_string());
+
+    // Environment header: ground the model in reality
+    parts.push(format!(
+        "ENVIRONMENT: This is a {lang} project. Files are located in {project_root}."
+    ));
+    parts.push(format!("TASK: {query} ({intent_label})"));
+    parts.push(String::new());
+
+    // Human-readable symbol summary
+    if let Some(summary) = build_human_summary(code_context) {
+        parts.push(summary);
+        parts.push(String::new());
+    }
+
+    // Raw source injection with grounding delimiters
+    if raw_injection && !raw_sources.is_empty() {
+        parts.push(format!("REAL SOURCE CODE FROM THIS {lang} PROJECT:"));
+        parts.push(String::new());
+
+        for src in raw_sources {
+            if src.line_start == 0 && src.line_end == 0 {
+                parts.push(format!("--- BEGIN FILE: {} (UNAVAILABLE) ---", src.file_path));
+                parts.push(src.source.clone());
+                parts.push("--- END FILE ---".into());
+            } else {
+                parts.push(format!(
+                    "--- BEGIN FILE: {} (lines {}-{}) ---",
+                    src.file_path, src.line_start, src.line_end
+                ));
+
+                // Language reinforcement: insert a reminder every ~10 lines
+                let source_lines: Vec<&str> = src.source.lines().collect();
+                let mut reinforced = String::new();
+                for (i, line) in source_lines.iter().enumerate() {
+                    reinforced.push_str(line);
+                    reinforced.push('\n');
+                    if (i + 1) % 10 == 0 && i + 1 < source_lines.len() {
+                        reinforced.push_str(&format!(
+                            "// [SYNAPSEED: This is {lang} code from {}]\n",
+                            src.file_path
+                        ));
+                    }
+                }
+                parts.push(reinforced.trim_end().to_string());
+                parts.push("--- END FILE ---".into());
+            }
+            parts.push(String::new());
+        }
+
+        parts.push(format!(
+            "INSTRUCTIONS: Answer using ONLY the {lang} source code above. \
+             This project uses {lang}. Cite file paths and line numbers. \
+             Do NOT reference files that are not listed above. \
+             Do NOT use any other programming language."
+        ));
+    } else {
+        parts.push(format!(
+            "This is a {lang} project. Provide a concise answer about {lang} code."
+        ));
+    }
+
+    parts.join("\n")
 }
 
 // ── Smart Context Builder ──────────────────────────────────────────────
@@ -584,6 +687,7 @@ fn build_smart_context(input: SmartContextInput) -> String {
     let raw_sources = input.raw_sources;
     let tier = input.tier;
     let phase = input.phase;
+    let project_root = &input.project_root;
 
     let intent_label = match intent {
         Intent::BugFix => "bug fix",
@@ -593,12 +697,21 @@ fn build_smart_context(input: SmartContextInput) -> String {
         Intent::General => "general inquiry",
     };
 
+    // ── Atomic Tier: Semantic Ballast — grounded, flat output ──────
+    if tier == ModelTier::Atomic {
+        return build_atomic_context(
+            query,
+            intent_label,
+            code_context,
+            raw_injection,
+            raw_sources,
+            project_root,
+        );
+    }
+
     // ── Tier-Adapted Preamble (#51) ─────────────────────────────────
     let preamble = match tier {
-        ModelTier::Atomic => {
-            // Flat, minimal — no markdown formatting for tiny models
-            format!("{query} — {intent_label}")
-        }
+        ModelTier::Atomic => unreachable!(), // handled above
         ModelTier::Molecular => match complexity {
             QueryComplexity::Quick => format!(
                 "Brief answer for \"{query}\" ({intent_label}):"
@@ -634,33 +747,6 @@ fn build_smart_context(input: SmartContextInput) -> String {
     // Human-readable symbol summary — helps small models locate answers fast
     if let Some(summary) = build_human_summary(code_context) {
         parts.push(summary);
-    }
-
-    // ── Atomic Tier: minimal output, skip structured sections ──────
-    if tier == ModelTier::Atomic {
-        // Raw injection still works for Atomic (that's the whole point)
-        if raw_injection && !raw_sources.is_empty() {
-            parts.push(String::new());
-            parts.push("Source code:".into());
-            for src in raw_sources {
-                if src.line_start == 0 && src.line_end == 0 {
-                    parts.push(format!("File: {} (UNAVAILABLE)", src.file_path));
-                    parts.push(src.source.clone());
-                } else {
-                    parts.push(format!(
-                        "File: {} lines {}-{}",
-                        src.file_path, src.line_start, src.line_end
-                    ));
-                    parts.push(src.source.clone());
-                }
-            }
-            parts.push(
-                "\nAnswer using only the source code above. Cite file paths and line numbers.".into(),
-            );
-        } else {
-            parts.push("\nProvide a concise answer.".into());
-        }
-        return parts.join("\n");
     }
 
     // ── Molecular / Galactic: structured sections ──────────────────
@@ -1042,6 +1128,7 @@ mod tests {
             raw_sources: &[],
             tier: ModelTier::Galactic,
             phase: SessionPhase::Discovery,
+            project_root: "/test".into(),
         };
         let ctx = build_smart_context(input);
         // Human summary appears before the section bullets
@@ -1071,6 +1158,7 @@ mod tests {
             raw_sources: &raw_sources,
             tier: ModelTier::Galactic,
             phase: SessionPhase::Discovery,
+            project_root: "/test".into(),
         };
 
         let ctx = build_smart_context(input);
@@ -1084,7 +1172,7 @@ mod tests {
     // ── Tier-adapted output tests (#51) ─────────────────────────────
 
     #[test]
-    fn test_atomic_tier_flat_output() {
+    fn test_atomic_tier_grounded_output() {
         let input = SmartContextInput {
             query: "explain main",
             intent: &Intent::Explain,
@@ -1097,16 +1185,28 @@ mod tests {
             raw_sources: &[],
             tier: ModelTier::Atomic,
             phase: SessionPhase::Discovery,
+            project_root: "/projects/myapp".into(),
         };
         let ctx = build_smart_context(input);
         // Atomic: no markdown formatting, no ** bold
         assert!(!ctx.contains("**"));
-        assert!(ctx.contains("explain main"));
+        // Semantic Ballast: environment header
+        assert!(ctx.contains("ENVIRONMENT:"));
+        assert!(ctx.contains("/projects/myapp"));
+        assert!(ctx.contains("TASK: explain main"));
         assert!(ctx.contains("concise answer"));
     }
 
     #[test]
-    fn test_atomic_tier_raw_injection() {
+    fn test_atomic_tier_raw_injection_grounded() {
+        let code_ctx = Some(CodeContext {
+            symbols: vec![serde_json::json!({
+                "name": "hello",
+                "kind": "function",
+                "file_path": "src/lib.rs",
+                "line_start": 1
+            })],
+        });
         let raw_sources = vec![RawSource {
             file_path: "src/lib.rs".to_string(),
             line_start: 1,
@@ -1119,20 +1219,65 @@ mod tests {
             complexity: QueryComplexity::Standard,
             diagnostics: &None,
             history: &None,
-            code_context: &None,
+            code_context: &code_ctx,
             security_status: "CLEAN",
             raw_injection: true,
             raw_sources: &raw_sources,
             tier: ModelTier::Atomic,
             phase: SessionPhase::Discovery,
+            project_root: "/test".into(),
         };
         let ctx = build_smart_context(input);
-        // Atomic raw: simplified delimiters (no ##, no ---)
-        assert!(ctx.contains("Source code:"));
-        assert!(ctx.contains("File: src/lib.rs lines 1-5"));
+        // Semantic Ballast: grounded delimiters
+        assert!(ctx.contains("ENVIRONMENT: This is a Rust project"));
+        assert!(ctx.contains("--- BEGIN FILE: src/lib.rs (lines 1-5) ---"));
         assert!(ctx.contains("pub fn hello()"));
+        assert!(ctx.contains("--- END FILE ---"));
+        assert!(ctx.contains("REAL SOURCE CODE"));
         // No "## Injected Source Code" header
         assert!(!ctx.contains("## Injected Source Code"));
+        // Anti-hallucination instruction
+        assert!(ctx.contains("Do NOT use any other programming language"));
+    }
+
+    #[test]
+    fn test_atomic_language_reinforcement() {
+        // 15 lines of code → should get a reinforcement comment
+        let source = (0..15)
+            .map(|i| format!("let x{i} = {i};"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let code_ctx = Some(CodeContext {
+            symbols: vec![serde_json::json!({
+                "name": "test",
+                "kind": "function",
+                "file_path": "src/main.rs",
+                "line_start": 1
+            })],
+        });
+        let raw_sources = vec![RawSource {
+            file_path: "src/main.rs".to_string(),
+            line_start: 1,
+            line_end: 15,
+            source,
+        }];
+        let input = SmartContextInput {
+            query: "explain test",
+            intent: &Intent::Explain,
+            complexity: QueryComplexity::Standard,
+            diagnostics: &None,
+            history: &None,
+            code_context: &code_ctx,
+            security_status: "CLEAN",
+            raw_injection: true,
+            raw_sources: &raw_sources,
+            tier: ModelTier::Atomic,
+            phase: SessionPhase::Discovery,
+            project_root: "/test".into(),
+        };
+        let ctx = build_smart_context(input);
+        // Should contain language reinforcement comment
+        assert!(ctx.contains("[SYNAPSEED: This is Rust code from src/main.rs]"));
     }
 
     #[test]
@@ -1149,6 +1294,7 @@ mod tests {
             raw_sources: &[],
             tier: ModelTier::Galactic,
             phase: SessionPhase::Implementation,
+            project_root: "/test".into(),
         };
         let ctx = build_smart_context(input);
         assert!(ctx.contains("**Implementation**"));
@@ -1169,6 +1315,7 @@ mod tests {
             raw_sources: &[],
             tier: ModelTier::Molecular,
             phase: SessionPhase::Stabilization,
+            project_root: "/test".into(),
         };
         let ctx = build_smart_context(input);
         assert!(ctx.contains("Phase: Stabilization"));
