@@ -1,5 +1,28 @@
 # Changelog
 
+## [4.10.0] — 2026-02-13
+
+### Language-Aware Visibility Boost & Benchmark Suite
+
+#### Language-Aware Visibility Boost
+- **Fixed Python/Django regression**: Relaxed visibility boost for dynamic languages
+  (Python, JS, TS, Ruby, PHP) where `_private` methods often contain critical logic
+- Static languages (Rust, Go): `public=1.5x, private=0.6x` (unchanged, 2.5x delta)
+- Dynamic languages (Python, JS): `public=1.2x, private=0.9x` (relaxed, 1.33x delta)
+- Django's `BaseHandler._get_response` and similar internal methods no longer drop
+  below the Coherence Gate threshold
+
+#### Benchmark Suite (`benchmark/`)
+- **Coding benchmark**: BLIND vs SYNAPSEED comparison on code understanding tasks
+  with composite scoring (keyword, file, symbol, hallucination detection)
+- **Grounding benchmark**: MCP tool effectiveness with Precision/Recall/F1 evaluation
+- **Search benchmark**: Tantivy ranking quality (MRR, P@K, R@K) via persistent MCP
+  JSON-RPC session for accurate index-warm measurements
+- **NIAH benchmark**: Needle-in-a-Haystack context sensitivity testing
+- Multi-model support (`--all-models`) and dual-endpoint failover
+- Streamlit dashboard (`benchmark/dashboard/`) with dark theme, gauge charts,
+  per-task breakdowns, and historical trend tracking
+
 ## [4.9.2] — 2026-02-13
 
 ### Code Quality Sweep (Review-Driven Hardening)

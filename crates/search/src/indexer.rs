@@ -440,17 +440,31 @@ impl SemanticIndex {
                 pr.get(&file_path).map(|s| 1.0 + s * 0.5).unwrap_or(1.0)
             };
 
-            // Visibility Boost (v4.9.0 — Public API Prioritization): public API
-            // symbols rank higher than internal implementation details.
-            // Fixes the fidelity defect where `Server` (internal) outranks
-            // `HttpServer` (public API), causing LLM hallucination.
+            // Visibility Boost (v4.9.0 → v4.10.0 — Language-Aware):
+            // Static languages (Rust, Go, Java): strong boost — pub/private is semantic.
+            // Dynamic languages (Python, JS): relaxed boost — `_` is convention,
+            // and private methods often contain critical implementation logic
+            // (e.g., Django's BaseHandler._get_response).
             let visibility_str = get_text(self.fields.visibility);
-            let visibility_boost: f32 = match visibility_str.as_str() {
-                "public" => 1.5,
-                "crate" => 1.0,
-                "super" => 0.8,
-                "private" => 0.6,
-                _ => 1.0, // "unknown" or legacy docs without visibility
+            let is_dynamic_lang = file_path.ends_with(".py")
+                || file_path.ends_with(".js")
+                || file_path.ends_with(".ts")
+                || file_path.ends_with(".rb")
+                || file_path.ends_with(".php");
+            let visibility_boost: f32 = if is_dynamic_lang {
+                match visibility_str.as_str() {
+                    "public" => 1.2,
+                    "private" => 0.9,
+                    _ => 1.0,
+                }
+            } else {
+                match visibility_str.as_str() {
+                    "public" => 1.5,
+                    "crate" => 1.0,
+                    "super" => 0.8,
+                    "private" => 0.6,
+                    _ => 1.0,
+                }
             };
 
             results.push(SearchResult {
@@ -767,5 +781,35 @@ pub fn authenticate_user(credentials: &Credentials) -> Result<Token> {
     fn test_split_camel_case_for_index_single_word_noop() {
         assert!(split_camel_case_for_index("tokio").is_empty());
         assert!(split_camel_case_for_index("HTML").is_empty());
+    }
+
+    // ── Language-Aware Visibility Boost tests (v4.10.0) ─────────────
+
+    #[test]
+    fn test_is_dynamic_lang_detection() {
+        // Dynamic languages should get relaxed visibility boost
+        assert!("src/handlers/base.py".ends_with(".py"));
+        assert!("middleware.js".ends_with(".js"));
+        assert!("service.ts".ends_with(".ts"));
+        assert!("model.rb".ends_with(".rb"));
+        // Static languages should get strong visibility boost
+        assert!(!"src/main.rs".ends_with(".py"));
+        assert!(!"handler.go".ends_with(".py"));
+    }
+
+    #[test]
+    fn test_visibility_boost_static_vs_dynamic() {
+        // Static lang (Rust): public=1.5, private=0.6 → delta 2.5x
+        let rust_pub = 1.5_f32;
+        let rust_priv = 0.6_f32;
+        assert!((rust_pub / rust_priv - 2.5).abs() < 0.01);
+
+        // Dynamic lang (Python): public=1.2, private=0.9 → delta 1.33x
+        let py_pub = 1.2_f32;
+        let py_priv = 0.9_f32;
+        assert!((py_pub / py_priv - 1.333).abs() < 0.01);
+
+        // Dynamic private should rank much higher than static private
+        assert!(py_priv > rust_priv);
     }
 }
