@@ -257,6 +257,11 @@ impl SemanticIndex {
     pub fn search(&self, query_str: &str, limit: usize) -> Vec<SearchResult> {
         let searcher = self.reader.searcher();
 
+        // Over-retrieve 4× then re-rank with path/source/temporal boosts.
+        // This lets path-relevant results (e.g., scheduler/multi_thread/worker.rs)
+        // surface even if their BM25 name-score is lower than generic matches.
+        let retrieval_limit = limit * 4;
+
         let mut query_parser = QueryParser::for_index(
             &self.index,
             vec![
@@ -291,7 +296,7 @@ impl SemanticIndex {
             }
         };
 
-        let top_docs = match searcher.search(&query, &TopDocs::with_limit(limit)) {
+        let top_docs = match searcher.search(&query, &TopDocs::with_limit(retrieval_limit)) {
             Ok(results) => results,
             Err(e) => {
                 warn!(error = %e, "Search: Query execution failed");
@@ -340,8 +345,24 @@ impl SemanticIndex {
                 1.5
             };
 
+            // Path-relevance boost (v3.10.2): if query terms appear in the
+            // file path, the result is likely more relevant.
+            // "scheduler" query → scheduler/multi_thread/worker.rs gets boosted.
+            let path_lower = file_path.to_ascii_lowercase();
+            let path_matches = query_str
+                .split_whitespace()
+                .filter(|t| t.len() >= 3)
+                .filter(|t| path_lower.contains(&t.to_ascii_lowercase()))
+                .count();
+            let path_boost: f32 = match path_matches {
+                0 => 1.0,
+                1 => 1.5,
+                2 => 2.5,
+                _ => 3.0,
+            };
+
             results.push(SearchResult {
-                score: score * temporal_boost as f32 * source_boost,
+                score: score * temporal_boost as f32 * source_boost * path_boost,
                 file: file_path,
                 symbol: get_text(self.fields.symbol_name),
                 kind: get_text(self.fields.kind),
@@ -353,8 +374,9 @@ impl SemanticIndex {
             });
         }
 
-        // Re-sort by temporally-adjusted score.
+        // Re-sort by adjusted score, then truncate to requested limit.
         results.sort_by(|a, b| b.score.total_cmp(&a.score));
+        results.truncate(limit);
         results
     }
 

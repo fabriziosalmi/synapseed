@@ -473,12 +473,25 @@ async fn cmd_ask(path: &Path, query: &str, raw: bool, json_output: bool) -> Resu
 /// and `SearchReady` (Tantivy).  If the timeout expires before both fire,
 /// ensures the CodeGraph is populated so the Whisperer's fallback pass works.
 async fn wait_for_index(ctx: &SynapseContext, timeout: Duration) {
+    let start = std::time::Instant::now();
+
     // Fast path: graph already populated (MCP serve mode, or index was instant)
     if let Some(graph) = ctx.get_extension::<CodeGraph>() {
         if graph.file_count() > 0 {
-            // CodeGraph ready — still try to wait briefly for Tantivy
+            // CodeGraph ready — wait for Tantivy with remaining timeout budget.
+            // Large repos (Django: 55K symbols) need >500ms; use whatever time
+            // remains from the outer timeout, with a minimum of 500ms.
+            let elapsed = start.elapsed();
+            let remaining = timeout.saturating_sub(elapsed);
+            let tantivy_wait = remaining.max(Duration::from_millis(500));
+            debug!(
+                symbols = graph.symbol_count(),
+                wait_ms = tantivy_wait.as_millis() as u64,
+                "wait_for_index: CodeGraph ready, waiting for Tantivy"
+            );
+
             let mut rx = ctx.subscribe();
-            let _ = tokio::time::timeout(Duration::from_millis(500), async {
+            let _ = tokio::time::timeout(tantivy_wait, async {
                 loop {
                     match rx.recv().await {
                         Ok(SynapseEvent::SearchReady) => break,

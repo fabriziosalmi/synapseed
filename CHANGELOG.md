@@ -1,5 +1,27 @@
 # Changelog
 
+## [3.12.0] — 2026-02-13
+
+### The Adaptive Index — Tantivy Timeout Fix & Path-Based Scoring
+
+#### Critical Fix
+
+- **CLI — Tantivy Fast-Path Timeout**: `wait_for_index()` hardcoded a 500ms timeout for Tantivy when CodeGraph was already populated. Large repos (Django: 55K symbols, ~3800 files) need 2-3s to index. Now uses the remaining budget from the outer 5s timeout instead. **This was the root cause of Tantivy returning 0 results for all large repos in CLI mode.**
+
+#### New Features
+
+- **Search — Path-Based Scoring**: Post-hoc boost for Tantivy results where query terms appear in the file path. "scheduler" query → `scheduler/multi_thread/worker.rs` gets 1.5-3.0x boost. Solves concept-level queries where symbol names don't match query terms.
+- **Search — Over-Retrieval + Re-Ranking**: Fetch 4× the requested limit from Tantivy BM25, apply temporal/source-first/path boosts, re-sort, then truncate. Allows path-relevant results to surface past pure BM25 name-score ordering.
+
+#### Benchmark Impact (qwen3-1.7b, Vanguard Protocol)
+
+- **tokio_runtime_internals**: recall 0.00 → **0.40** (no-think), CQS 0 → **2.12**, 211x cognitive multiplier
+- **actix_service_trait**: recall 0.60 maintained, symbol_recall 100%, CQS 3.10
+- **requests_chunked**: recall 0.50 maintained, 198x cognitive multiplier
+- **django_middleware_chain**: think recall 0.10 → **0.10** (Tantivy now active, finds `load_middleware`)
+- **go_http_handler**: recall 0.40 (think), 64.7x compression, 98.5% cheaper
+- **flask_blueprint_routing**: recall 0.20 → **0.40** (think), symbol_recall 80%
+
 ## [3.10.1] — 2026-02-13
 
 ### Code Quality Sweep — Review-Driven Hardening
