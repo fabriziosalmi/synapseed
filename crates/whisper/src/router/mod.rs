@@ -12,7 +12,11 @@ mod diagnostics;
 mod history;
 mod security;
 
+use std::collections::HashSet;
+use std::sync::LazyLock;
+
 use parking_lot::Mutex;
+use regex::Regex;
 use serde::Serialize;
 use tracing::{debug, info};
 
@@ -191,7 +195,7 @@ fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> W
     if tier == ModelTier::Atomic {
         // Drop vendor/static targets entirely — they waste precious Atomic slots
         let before = targets.len();
-        targets.retain(|t| !t.file_path.as_deref().map_or(false, is_vendor_path));
+        targets.retain(|t| !t.file_path.as_deref().is_some_and(is_vendor_path));
         if targets.len() < before {
             debug!(before, after = targets.len(), "Whisper: dropped vendor/static targets");
         }
@@ -361,38 +365,41 @@ fn classify_intent(query: &str) -> Intent {
 // ── Target Extraction ──────────────────────────────────────────────────
 
 /// Words to ignore when searching for symbols and when cleaning queries.
-const STOP_WORDS: &[&str] = &[
-    // English
-    "the", "is", "a", "an", "in", "on", "at", "to", "for", "of", "and", "or", "why", "how", "what",
-    "fix", "broken", "error", "explain", "security", "audit", "this", "that", "my", "code", "file",
-    "it", "does", "do", "work", "works", "from", "with", "about", "are", "was", "were", "be",
-    "been", "being", "have", "has", "had", "not", "but", "by", "can", "could", "would", "should",
-    "all", "each", "every", "both", "few", "more", "most", "some", "such", "than", "too", "very",
-    "just", "also", "into", "through", "between", "after", "before", "during", "where", "when",
-    "which", "who", "whom", "whose", "there", "here", "then", "out", "up", "down",
-    // Italian — articles, prepositions, pronouns
-    "perché", "come", "cosa", "dove", "il", "la", "un", "una", "lo", "gli", "le", "dei", "del",
-    "della", "delle", "degli", "nel", "nella", "nelle", "nei", "negli", "con", "per", "tra", "fra",
-    "che", "chi", "cui", "quale", "quali", "questo", "questa", "questi", "queste", "quello",
-    "quella", "quelli", "quelle", "suo", "sua", "suoi", "sue", "mio", "mia", "nostro", "nostra",
-    "sono", "sei", "siamo", "siete", "hanno", "avere", "essere", "fare", "funziona", "spiega",
-    "descrivi", "mostra", "dimmi",
-    // Italian — verbs, nouns, adjectives commonly mixed with technical terms
-    "viene", "viene", "gestita", "gestito", "gestire", "gestione", "chiamano", "chiamata",
-    "chiamate", "chiama", "riga", "righe", "linea", "linee", "file", "cartella", "progetto",
-    "funzione", "funzioni", "metodo", "metodi", "classe", "classi", "variabile", "variabili",
-    "tipo", "tipi", "valore", "valori", "parametro", "parametri", "argomento", "argomenti",
-    "risultato", "risultati", "errore", "errori", "problema", "problemi",
-    "quando", "ogni", "altro", "altra", "altri", "altre", "primo", "secondo", "terzo",
-    "nuovo", "nuova", "nuovi", "nuove", "stesso", "stessa", "stessi", "stesse",
-    "dentro", "fuori", "sopra", "sotto", "prima", "dopo", "durante", "sempre", "mai",
-    "anche", "ancora", "già", "solo", "molto", "poco", "troppo", "tutto", "tutti",
-    "parte", "parti", "modo", "modi", "punto", "punti", "caso", "casi",
-    // Italian — technical verbs that don't add search value
-    "decodifica", "codifica", "elabora", "elaborazione", "gestisce", "implementa",
-    "implementazione", "utilizza", "utilizzata", "usa", "usata", "usato",
-    "esegue", "eseguita", "eseguito", "restituisce", "ritorna", "passa", "riceve",
-];
+/// Using HashSet for O(1) lookup instead of O(n) array scan.
+static STOP_WORDS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
+    [
+        // English
+        "the", "is", "a", "an", "in", "on", "at", "to", "for", "of", "and", "or", "why", "how", "what",
+        "fix", "broken", "error", "explain", "security", "audit", "this", "that", "my", "code", "file",
+        "it", "does", "do", "work", "works", "from", "with", "about", "are", "was", "were", "be",
+        "been", "being", "have", "has", "had", "not", "but", "by", "can", "could", "would", "should",
+        "all", "each", "every", "both", "few", "more", "most", "some", "such", "than", "too", "very",
+        "just", "also", "into", "through", "between", "after", "before", "during", "where", "when",
+        "which", "who", "whom", "whose", "there", "here", "then", "out", "up", "down",
+        // Italian — articles, prepositions, pronouns
+        "perché", "come", "cosa", "dove", "il", "la", "un", "una", "lo", "gli", "le", "dei", "del",
+        "della", "delle", "degli", "nel", "nella", "nelle", "nei", "negli", "con", "per", "tra", "fra",
+        "che", "chi", "cui", "quale", "quali", "questo", "questa", "questi", "queste", "quello",
+        "quella", "quelli", "quelle", "suo", "sua", "suoi", "sue", "mio", "mia", "nostro", "nostra",
+        "sono", "sei", "siamo", "siete", "hanno", "avere", "essere", "fare", "funziona", "spiega",
+        "descrivi", "mostra", "dimmi",
+        // Italian — verbs, nouns, adjectives commonly mixed with technical terms
+        "viene", "gestita", "gestito", "gestire", "gestione", "chiamano", "chiamata",
+        "chiamate", "chiama", "riga", "righe", "linea", "linee", "cartella", "progetto",
+        "funzione", "funzioni", "metodo", "metodi", "classe", "classi", "variabile", "variabili",
+        "tipo", "tipi", "valore", "valori", "parametro", "parametri", "argomento", "argomenti",
+        "risultato", "risultati", "errore", "errori", "problema", "problemi",
+        "quando", "ogni", "altro", "altra", "altri", "altre", "primo", "secondo", "terzo",
+        "nuovo", "nuova", "nuovi", "nuove", "stesso", "stessa", "stessi", "stesse",
+        "dentro", "fuori", "sopra", "sotto", "prima", "dopo", "durante", "sempre", "mai",
+        "anche", "ancora", "già", "solo", "molto", "poco", "troppo", "tutto", "tutti",
+        "parte", "parti", "modo", "modi", "punto", "punti", "caso", "casi",
+        // Italian — technical verbs that don't add search value
+        "decodifica", "codifica", "elabora", "elaborazione", "gestisce", "implementa",
+        "implementazione", "utilizza", "utilizzata", "usa", "usata", "usato",
+        "esegue", "eseguita", "eseguito", "restituisce", "ritorna", "passa", "riceve",
+    ].into_iter().collect()
+});
 
 /// Strip stop words and return cleaned technical terms for Tantivy search.
 /// "Come funziona il chunked transfer encoding in requests?" → "chunked transfer encoding requests"
@@ -551,7 +558,7 @@ fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> {
 
     let has_test_targets = targets
         .iter()
-        .any(|t| t.file_path.as_deref().map_or(false, is_test_path));
+        .any(|t| t.file_path.as_deref().is_some_and(is_test_path));
 
     if has_test_targets {
         let graph = ctx.get_extension::<CodeGraph>();
@@ -559,7 +566,7 @@ fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> {
         // Pass 4: Implementation Twin — derive source paths from test paths
         let test_targets: Vec<Target> = targets
             .iter()
-            .filter(|t| t.file_path.as_deref().map_or(false, is_test_path))
+            .filter(|t| t.file_path.as_deref().is_some_and(is_test_path))
             .cloned()
             .collect();
 
@@ -720,6 +727,11 @@ fn derive_source_paths(test_path: &str) -> Vec<String> {
         .unwrap_or(base)
         .trim_end_matches(&format!(".{ext}"));
 
+    // Guard: empty base (e.g., file named "test_.py") → no useful candidates
+    if base.is_empty() || base == "test" {
+        return Vec::new();
+    }
+
     let mut candidates = Vec::new();
     // Python conventions
     candidates.push(format!("src/{base}.{ext}"));
@@ -774,19 +786,19 @@ fn extract_call_identifiers(source: &str, fn_name: &str) -> Vec<String> {
     }
 
     // Extract `module.method(` patterns → take the method name
-    if let Ok(call_re) = regex::Regex::new(r"(\w+)\.(\w+)\s*\(") {
-        for cap in call_re.captures_iter(&body_text) {
-            identifiers.push(cap[2].to_string());
-        }
+    static CALL_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(\w+)\.(\w+)\s*\(").expect("valid regex"));
+    for cap in CALL_RE.captures_iter(&body_text) {
+        identifiers.push(cap[2].to_string());
     }
 
     // Extract bare `function(` patterns (≥3 chars, not a stop word)
-    if let Ok(bare_re) = regex::Regex::new(r"(?:^|[^.\w])(\w{3,})\s*\(") {
-        for cap in bare_re.captures_iter(&body_text) {
-            let name = &cap[1];
-            if !STOP_WORDS.contains(&name.to_lowercase().as_str()) && name != fn_name {
-                identifiers.push(name.to_string());
-            }
+    static BARE_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?:^|[^.\w])(\w{3,})\s*\(").expect("valid regex"));
+    for cap in BARE_RE.captures_iter(&body_text) {
+        let name = &cap[1];
+        if !STOP_WORDS.contains(&name.to_lowercase().as_str()) && name != fn_name {
+            identifiers.push(name.to_string());
         }
     }
 
@@ -1294,11 +1306,9 @@ fn build_smart_context(input: SmartContextInput) -> String {
     if raw_injection && !raw_sources.is_empty() {
         // Instruction sandwiching: repeat grounding rules after code
         let file_list: Vec<&str> = raw_sources.iter().map(|s| s.file_path.as_str()).collect();
-        parts.push(format!(
-            "\nAnswer based ONLY on the injected source code above. \
+        parts.push("\nAnswer based ONLY on the injected source code above. \
              Cite exact file paths and line numbers. \
-             ONLY use the file paths listed above. DO NOT invent file names."
-        ));
+             ONLY use the file paths listed above. DO NOT invent file names.".to_string());
         // Zero-Hallucination Recency Bias Guard: LAST line of context
         parts.push(format!(
             "\nIF YOU CITE A FILE NOT LISTED BELOW, YOU FAIL.\n\

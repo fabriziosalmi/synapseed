@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 // ── Model Tier ─────────────────────────────────────────────────────────
 
 /// Cognitive tier reflecting the downstream model's capacity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ModelTier {
     /// Sub-3B parameter models (ollama tiny, phi-2, tinyllama).
@@ -26,6 +26,7 @@ pub enum ModelTier {
     Atomic,
     /// 7B–32B models (mistral, codellama, deepseek-coder).
     /// Output: balanced hybrid — human summary + structured sections.
+    #[default]
     Molecular,
     /// Cloud/SOTA models (Claude, GPT-4, Gemini Pro).
     /// Output: dense JSON context, full symbol injection, all sections.
@@ -84,11 +85,6 @@ impl ModelTier {
     }
 }
 
-impl Default for ModelTier {
-    fn default() -> Self {
-        ModelTier::Molecular
-    }
-}
 
 impl std::fmt::Display for ModelTier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -103,21 +99,16 @@ impl std::fmt::Display for ModelTier {
 // ── Session Phase ──────────────────────────────────────────────────────
 
 /// Current session phase, determined by tool invocation patterns.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SessionPhase {
     /// Exploration: hoist, search, lookup, ask dominate.
+    #[default]
     Discovery,
     /// Active coding: diagnostics, check_command, quickfix dominate.
     Implementation,
     /// Hardening: scan_security, diagnose, architect, git-staged dominate.
     Stabilization,
-}
-
-impl Default for SessionPhase {
-    fn default() -> Self {
-        SessionPhase::Discovery
-    }
 }
 
 impl std::fmt::Display for SessionPhase {

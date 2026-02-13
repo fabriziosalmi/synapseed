@@ -1,5 +1,27 @@
 # Changelog
 
+## [3.10.1] — 2026-02-13
+
+### Code Quality Sweep — Review-Driven Hardening
+
+#### Bug Fixes
+
+- **Search — Accurate Index Count**: `add_document()` errors now logged and count only incremented on success (was silently discarded, inflating reported count)
+- **Search — Deterministic Sort**: Replaced `partial_cmp().unwrap_or(Equal)` with `total_cmp()` for NaN-safe score sorting
+- **Whisper — Empty Base Guard**: `derive_source_paths()` now returns empty on edge case inputs like `test_.py` instead of generating invalid paths
+
+#### Performance
+
+- **Whisper — LazyLock Regex**: `extract_call_identifiers()` regex compiled once via `LazyLock` instead of per-call (was ~2ms per call, now ~0)
+- **Whisper — O(1) Stop Words**: STOP_WORDS converted from `&[&str]` array (O(n) scan) to `LazyLock<HashSet>` (O(1) lookup). ~80 entries, called in hot loops
+
+#### Clippy Cleanup
+
+- `ModelTier`, `SessionPhase`: `impl Default` → `#[derive(Default)]` with `#[default]` attribute
+- `map_or(false, ...)` → `is_some_and(...)` (3 occurrences in whisper)
+- `map_or(true, ...)` → `is_none_or(...)` (1 occurrence in mcp/tools)
+- `format!("...")` without args → `.to_string()` (1 occurrence in whisper)
+
 ## [3.10.0] — 2026-02-13
 
 ### The Stale Reader — Critical Tantivy Fix & Search Intelligence

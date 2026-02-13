@@ -538,7 +538,7 @@ pub fn handle_tool_call(
     let mut best: Option<(&str, usize)> = None;
     for &tool in TOOL_NAMES {
         let dist = levenshtein(name, tool);
-        if best.map_or(true, |(_, d)| dist < d) {
+        if best.is_none_or(|(_, d)| dist < d) {
             best = Some((tool, dist));
         }
     }

@@ -156,7 +156,7 @@ impl SemanticIndex {
                 let kind_str = format!("{:?}", sym.kind);
                 let sig = sym.signature.clone().unwrap_or_default();
 
-                let _ = writer.add_document(doc!(
+                match writer.add_document(doc!(
                     self.fields.file_path => file.path.clone(),
                     self.fields.symbol_name => sym.name.clone(),
                     self.fields.kind => kind_str,
@@ -166,9 +166,10 @@ impl SemanticIndex {
                     self.fields.line_start => sym.line_start as u64,
                     self.fields.line_end => sym.line_end as u64,
                     self.fields.last_modified_epoch => mtime,
-                ));
-
-                count += 1;
+                )) {
+                    Ok(_) => count += 1,
+                    Err(e) => warn!(error = %e, symbol = %sym.name, "Search: Failed to add document"),
+                }
             }
         }
 
@@ -216,7 +217,7 @@ impl SemanticIndex {
             let kind_str = format!("{:?}", sym.kind);
             let sig = sym.signature.clone().unwrap_or_default();
 
-            let _ = writer.add_document(doc!(
+            match writer.add_document(doc!(
                 self.fields.file_path => file.path.clone(),
                 self.fields.symbol_name => sym.name.clone(),
                 self.fields.kind => kind_str,
@@ -226,9 +227,10 @@ impl SemanticIndex {
                 self.fields.line_start => sym.line_start as u64,
                 self.fields.line_end => sym.line_end as u64,
                 self.fields.last_modified_epoch => mtime,
-            ));
-
-            count += 1;
+            )) {
+                Ok(_) => count += 1,
+                Err(e) => warn!(error = %e, symbol = %sym.name, "Search: Failed to add document"),
+            }
         }
 
         if let Err(e) = writer.commit() {
@@ -352,7 +354,7 @@ impl SemanticIndex {
         }
 
         // Re-sort by temporally-adjusted score.
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| b.score.total_cmp(&a.score));
         results
     }
 
