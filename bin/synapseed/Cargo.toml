@@ -33,7 +33,7 @@ synapseed-root = {workspace = true}
 synapseed-search = {workspace = true, features = ["embeddings"]}
 synapseed-shadow-check = {workspace = true}
 synapseed-telemetry-sink = {workspace = true, features = ["grpc"]}
-synapseed-whisper = {workspace = true}
+synapseed-whisper = {workspace = true, features = ["embeddings"]}
 tokio = {workspace = true}
 tracing = {workspace = true}
 tracing-subscriber = {workspace = true}

@@ -2,7 +2,7 @@
 //!
 //! 5-pass extraction:
 //! 1. Explicit file references (contain extension)
-//! 2. Semantic search via Tantivy BM25 (with stop-word cleaning + synonym expansion)
+//! 2. Hybrid RRF search: BM25 + vector fusion (v4.5.0), falls back to BM25-only
 //! 3. Cortex fallback for unmatched queries
 //! 4. Implementation Twin — derive source paths from test paths
 //! 5. Call Graph Lite — extract identifiers from test bodies
@@ -230,14 +230,37 @@ pub(super) fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> 
         }
     }
 
-    // Pass 2: Semantic search for relevant symbols (with confidence thresholding)
-    // Clean query: strip EN/IT stop words so Tantivy BM25 focuses on technical terms.
+    // Pass 2: Hybrid RRF search (v4.5.0) — fuses BM25 + vector when available.
+    // Falls back to BM25-only when embeddings are not compiled or not initialized.
+    // Clean query: strip EN/IT stop words so BM25 focuses on technical terms.
     let search_query = clean_query_for_search(query);
     let min_confidence = ctx.dna().context.min_confidence;
     if !search_query.is_empty() {
         if let Some(index) = ctx.get_extension::<SemanticIndex>() {
             debug!(raw = query, cleaned = %search_query, "Whisper: cleaned query for search");
-            let results = index.search(&search_query, 5);
+
+            let results = {
+                #[cfg(feature = "embeddings")]
+                {
+                    use synapseed_search::embeddings::EmbeddingEngine;
+                    use synapseed_search::vector_index::VectorIndex;
+
+                    let vi = ctx.get_extension::<VectorIndex>();
+                    let ee = ctx.get_extension::<EmbeddingEngine>();
+                    if let (Some(ref vi), Some(ref ee)) = (vi, ee) {
+                        debug!("Whisper: using Hybrid RRF (BM25 + vector)");
+                        synapseed_search::hybrid::hybrid_search(&index, vi, ee, &search_query, 5)
+                    } else {
+                        debug!("Whisper: vector index not available, using BM25 only");
+                        index.search(&search_query, 5)
+                    }
+                }
+                #[cfg(not(feature = "embeddings"))]
+                {
+                    index.search(&search_query, 5)
+                }
+            };
+
             for r in results {
                 if r.score < min_confidence {
                     debug!(

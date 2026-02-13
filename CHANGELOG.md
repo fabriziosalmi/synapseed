@@ -1,5 +1,34 @@
 # Changelog
 
+## [4.5.0] — 2026-02-13
+
+### Hybrid Retrieval — Reciprocal Rank Fusion (RRF)
+
+Fuses BM25 (Tantivy) and vector embedding (fastembed) search results using Reciprocal Rank Fusion, a rank-based aggregation method from information retrieval research (Cormack, Clarke & Buettcher, 2009).
+
+#### Core: RRF Fusion Engine (`crates/search/src/hybrid.rs`)
+- New `hybrid_search()` function combines BM25 keyword matching with cosine vector similarity
+- RRF formula: `score(d) = Σ 1/(k + rank(d))` with k=60 (standard constant)
+- Documents found by **both** retrievers score higher than single-source matches
+- 3x over-fetch from each source to maximize cross-retriever overlap
+- Scores normalized to [0, 1] for compatibility with existing `min_confidence` thresholding
+- Graceful fallback to BM25-only when embeddings unavailable or query embedding fails
+
+#### Whisper: Pass 2 Upgrade
+- Pass 2 now uses Hybrid RRF when the `embeddings` feature is enabled
+- Automatically detects `VectorIndex` + `EmbeddingEngine` availability at runtime
+- Falls back to BM25-only when vector components not initialized
+- New `embeddings` feature flag for `synapseed-whisper` crate
+
+#### Why It Matters
+- BM25 captures keyword relevance ("FromRequest" matches symbol names)
+- Vectors capture semantic similarity ("auth logic" matches `authenticate_user`)
+- RRF intersection = highest-quality retrieval signal
+- Addresses the BM25 seed bottleneck identified in v4.3.0 benchmarks (Django, Axum)
+
+#### Stats
+- 321 tests, 0 failures (+5 new RRF formula tests)
+
 ## [4.4.0] — 2026-02-13
 
 ### Inheritance Boost & Interface Ranking

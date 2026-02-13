@@ -13,4 +13,7 @@ pub mod schema;
 pub mod embeddings;
 
 #[cfg(feature = "embeddings")]
+pub mod hybrid;
+
+#[cfg(feature = "embeddings")]
 pub mod vector_index;

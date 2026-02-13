@@ -5,6 +5,10 @@ edition.workspace = true
 license.workspace = true
 description = "The Whisperer — Intent Router that orchestrates all SYNAPSEED subsystems from a single query"
 
+[features]
+default = []
+embeddings = ["synapseed-search/embeddings"]
+
 [dependencies]
 synapseed-core = { workspace = true }
 synapseed-cortex = { workspace = true }
