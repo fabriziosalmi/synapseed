@@ -52,7 +52,7 @@ class LLMClient:
     api_key: str = "ollama"
     base_url_2: str | None = None
     api_key_2: str | None = None
-    model: str = "qwen3-1.7b"
+    model: str = "qwen/qwen3-1.7b"
     temperature: float = 0.0
     timeout: int = 120
     max_retries: int = 2
@@ -76,7 +76,7 @@ class LLMClient:
             api_key=os.getenv("LLM_API_KEY", "ollama"),
             base_url_2=os.getenv("LLM_BASE_URL_2"),
             api_key_2=os.getenv("LLM_API_KEY_2"),
-            model=os.getenv("LLM_MODEL", "qwen3-1.7b"),
+            model=os.getenv("LLM_MODEL", "qwen/qwen3-1.7b"),
             temperature=float(os.getenv("LLM_TEMPERATURE", "0.0")),
             timeout=int(os.getenv("LLM_TIMEOUT", "120")),
         )
