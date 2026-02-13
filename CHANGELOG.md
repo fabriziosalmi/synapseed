@@ -1,5 +1,26 @@
 # Changelog
 
+## [4.3.0] — 2026-02-13
+
+### Trait Expansion & Python Config Resolver
+
+Two new retrieval mechanisms targeting the gaps identified in the MCP benchmark analysis.
+
+#### Rust: Trait Expansion
+- `trait_item` now indexed as `SymbolKind::Interface` (was ignored)
+- `impl_item` name extracted from `type` field (was silently skipped due to missing `name` field)
+- `impl Trait for Type` enriches signature with `[trait: TraitName]` for BM25 discoverability
+- Searching "FromRequest" now finds `impl FromRequest for MyExtractor`
+
+#### Python: Config String Resolver (Pass 6)
+- New extraction pass resolves dotted string references in Python config files
+- `"django.middleware.security.SecurityMiddleware"` → looks up `SecurityMiddleware` in graph
+- Only extracts PascalCase class names (≥3 chars) with ≥3 dotted components
+- Addresses Django middleware chain gap where dynamic config broke static graph resolution
+
+#### Stats
+- 313 tests, 0 failures (+7 new tests)
+
 ## [4.2.0] — 2026-02-13
 
 ### Coherence Gate — "The Cigarette Break"

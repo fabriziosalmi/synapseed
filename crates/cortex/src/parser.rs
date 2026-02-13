@@ -134,7 +134,9 @@ impl AstParser {
         let symbol_kind = match lang {
             Language::Rust => match kind {
                 "function_item" => Some(SymbolKind::Function),
-                "impl_item" | "struct_item" => Some(SymbolKind::Struct),
+                "struct_item" => Some(SymbolKind::Struct),
+                "trait_item" => Some(SymbolKind::Interface),
+                "impl_item" => Some(SymbolKind::Struct), // name extracted via "type" field below
                 "enum_item" => Some(SymbolKind::Enum),
                 "mod_item" => Some(SymbolKind::Module),
                 "const_item" | "static_item" => Some(SymbolKind::Constant),
@@ -158,8 +160,32 @@ impl AstParser {
         };
 
         if let Some(sk) = symbol_kind {
-            let name = Self::extract_name(node, source, lang).unwrap_or_else(|| "<anon>".into());
-            let signature = Self::extract_signature(node, source);
+            // Trait Expansion (v4.2.0): impl_item uses "type" field for the name,
+            // and "trait" field for the trait reference (appended to signature for BM25).
+            let (name, signature) = if kind == "impl_item" {
+                let type_name = node
+                    .child_by_field_name("type")
+                    .and_then(|n| n.utf8_text(source.as_bytes()).ok())
+                    .map(String::from)
+                    .unwrap_or_else(|| "<anon>".into());
+                let trait_name = node
+                    .child_by_field_name("trait")
+                    .and_then(|n| n.utf8_text(source.as_bytes()).ok())
+                    .map(String::from);
+                let sig = Self::extract_signature(node, source);
+                // Enrich signature with "impl TRAIT for TYPE" for BM25 discoverability
+                let enriched_sig = if let Some(ref tr) = trait_name {
+                    Some(format!("{} [trait: {}]", sig.as_deref().unwrap_or(""), tr))
+                } else {
+                    sig
+                };
+                (type_name, enriched_sig)
+            } else {
+                let name =
+                    Self::extract_name(node, source, lang).unwrap_or_else(|| "<anon>".into());
+                let signature = Self::extract_signature(node, source);
+                (name, signature)
+            };
 
             symbols.push(Symbol {
                 id: SymbolId::new(),

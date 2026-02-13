@@ -362,6 +362,100 @@ fn test_get_symbol_by_id() {
     assert_eq!(by_id.unwrap().name, "target_fn");
 }
 
+// ══════════════════════════════════════════════════════════════
+// 7. Trait Expansion (v4.2.0)
+// ══════════════════════════════════════════════════════════════
+
+#[test]
+fn test_trait_item_indexed_as_interface() {
+    let dir = TempDir::new().unwrap();
+    write_file(
+        dir.path(),
+        "traits.rs",
+        r#"
+pub trait Logger {
+    fn log(&self, msg: &str);
+}
+
+pub struct FileLogger;
+
+impl Logger for FileLogger {
+    fn log(&self, msg: &str) {
+        println!("{}", msg);
+    }
+}
+"#,
+    );
+
+    let graph = CodeGraph::new();
+    let mut parser = AstParser::new().unwrap();
+    let source = fs::read_to_string(dir.path().join("traits.rs")).unwrap();
+    graph
+        .index_file(&mut parser, &dir.path().join("traits.rs"), &source)
+        .unwrap();
+
+    // trait_item → SymbolKind::Interface, indexed by name "Logger"
+    let logger_trait = graph.lookup("Logger");
+    assert!(!logger_trait.is_empty(), "Should find trait 'Logger'");
+
+    // impl Logger for FileLogger → indexed by type name "FileLogger"
+    let file_logger = graph.lookup("FileLogger");
+    assert!(
+        !file_logger.is_empty(),
+        "Should find 'FileLogger' from both struct and impl"
+    );
+
+    // The impl symbol should have the trait reference in its signature
+    let impl_sym = file_logger
+        .iter()
+        .find(|s| s.signature.as_deref().unwrap_or("").contains("trait:"))
+        .expect("One FileLogger symbol should have trait reference in signature");
+    assert!(
+        impl_sym.signature.as_deref().unwrap().contains("Logger"),
+        "Signature should contain trait name 'Logger'"
+    );
+}
+
+#[test]
+fn test_inherent_impl_no_trait_ref() {
+    let dir = TempDir::new().unwrap();
+    write_file(
+        dir.path(),
+        "inherent.rs",
+        r#"
+pub struct Counter {
+    value: u32,
+}
+
+impl Counter {
+    pub fn new() -> Self {
+        Counter { value: 0 }
+    }
+}
+"#,
+    );
+
+    let graph = CodeGraph::new();
+    let mut parser = AstParser::new().unwrap();
+    let source = fs::read_to_string(dir.path().join("inherent.rs")).unwrap();
+    graph
+        .index_file(&mut parser, &dir.path().join("inherent.rs"), &source)
+        .unwrap();
+
+    let counter = graph.lookup("Counter");
+    assert!(!counter.is_empty(), "Should find 'Counter'");
+
+    // Inherent impl should NOT have "[trait: ...]" in signature
+    for sym in &counter {
+        if let Some(ref sig) = sym.signature {
+            assert!(
+                !sig.contains("trait:"),
+                "Inherent impl should not have trait reference: {sig}"
+            );
+        }
+    }
+}
+
 #[test]
 fn test_default_trait() {
     let graph = CodeGraph::default();

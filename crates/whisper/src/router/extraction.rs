@@ -371,6 +371,53 @@ pub(super) fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> 
         }
     }
 
+    // ── Pass 6: Python Config String Resolver (v4.2.0) ──────────────────
+    // Resolves dotted string references in Python configuration files
+    // (e.g., Django's MIDDLEWARE = ["django.middleware.security.SecurityMiddleware"]).
+    // Extracts the last dotted component (class name) and looks it up in the graph.
+    {
+        let has_python_targets = targets
+            .iter()
+            .any(|t| t.file_path.as_deref().is_some_and(|fp| fp.ends_with(".py")));
+
+        if has_python_targets {
+            if let Some(graph) = ctx.get_extension::<CodeGraph>() {
+                let python_files: Vec<String> = targets
+                    .iter()
+                    .filter_map(|t| t.file_path.as_ref())
+                    .filter(|fp| fp.ends_with(".py"))
+                    .cloned()
+                    .collect();
+
+                for file_path in &python_files {
+                    let abs_path = ctx.project_root().join(file_path);
+                    if let Ok(content) = std::fs::read_to_string(&abs_path) {
+                        for class_name in extract_dotted_references(&content) {
+                            for sym in graph.lookup(&class_name).into_iter().take(2) {
+                                if matches!(sym.kind, SymbolKind::Import | SymbolKind::Variable) {
+                                    continue;
+                                }
+                                if targets.iter().any(|t| t.name == sym.name) {
+                                    continue; // already present
+                                }
+                                debug!(
+                                    config_ref = %class_name, symbol = %sym.name,
+                                    "Whisper: Python Config Resolver found symbol"
+                                );
+                                targets.push(Target {
+                                    kind: TargetKind::Symbol,
+                                    name: sym.name.clone(),
+                                    file_path: Some(sym.file_path.clone()),
+                                    line_start: Some(sym.line_start),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // Source-first ordering: source > test > vendor/static (v3.9.4)
     targets.sort_by_key(|t| {
         let fp = t.file_path.as_deref().unwrap_or("");
@@ -481,6 +528,34 @@ pub(super) fn derive_source_paths(test_path: &str) -> Vec<String> {
     // JS/TS conventions
     candidates.push(format!("src/{base}/index.{ext}"));
     candidates
+}
+
+/// Extract class names from dotted string references in Python config files.
+///
+/// Looks for quoted dotted paths like `"django.middleware.security.SecurityMiddleware"`
+/// and extracts the last component (`SecurityMiddleware`), which is typically a class name.
+///
+/// Only returns names that look like class names (start with uppercase, ≥3 chars).
+fn extract_dotted_references(source: &str) -> Vec<String> {
+    static DOTTED_RE: LazyLock<Regex> = LazyLock::new(|| {
+        // Match quoted dotted paths: "a.b.c.ClassName" or 'a.b.c.ClassName'
+        Regex::new(r#"["']([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*){2,})["']"#).expect("valid regex")
+    });
+
+    let mut names = Vec::new();
+    for cap in DOTTED_RE.captures_iter(source) {
+        let dotted = &cap[1];
+        if let Some(last) = dotted.rsplit('.').next() {
+            // Only include if it looks like a class name (PascalCase, ≥3 chars)
+            if last.len() >= 3
+                && last.starts_with(|c: char| c.is_uppercase())
+                && !names.contains(&last.to_string())
+            {
+                names.push(last.to_string());
+            }
+        }
+    }
+    names
 }
 
 /// Extract function/method call identifiers from the body of a named function.
@@ -773,5 +848,58 @@ fn other_fn() {}
         let source = "def unrelated():\n    foo()\n";
         let ids = extract_call_identifiers(source, "nonexistent");
         assert!(ids.is_empty());
+    }
+
+    // ── Python Config String Resolver tests (v4.2.0) ────────────────
+
+    #[test]
+    fn test_extract_dotted_references_django_middleware() {
+        let source = r#"
+MIDDLEWARE = [
+    "django.middleware.security.SecurityMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+]
+"#;
+        let refs = extract_dotted_references(source);
+        assert_eq!(refs, vec![
+            "SecurityMiddleware",
+            "CommonMiddleware",
+            "CsrfViewMiddleware",
+        ]);
+    }
+
+    #[test]
+    fn test_extract_dotted_references_single_quotes() {
+        let source = "INSTALLED_APPS = ['django.contrib.auth.AuthConfig']";
+        let refs = extract_dotted_references(source);
+        assert_eq!(refs, vec!["AuthConfig"]);
+    }
+
+    #[test]
+    fn test_extract_dotted_references_ignores_non_class() {
+        // lowercase last component → not a class name → excluded
+        let source = r#""os.path.join""#;
+        let refs = extract_dotted_references(source);
+        assert!(refs.is_empty());
+    }
+
+    #[test]
+    fn test_extract_dotted_references_dedup() {
+        let source = r#"
+a = "pkg.module.Handler"
+b = "pkg.module.Handler"
+"#;
+        let refs = extract_dotted_references(source);
+        assert_eq!(refs.len(), 1);
+        assert_eq!(refs[0], "Handler");
+    }
+
+    #[test]
+    fn test_extract_dotted_references_too_few_dots() {
+        // Need at least 3 components (2 dots) to be a dotted path
+        let source = r#""os.path""#;
+        let refs = extract_dotted_references(source);
+        assert!(refs.is_empty());
     }
 }
