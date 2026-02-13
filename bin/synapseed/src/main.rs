@@ -130,7 +130,6 @@ enum Commands {
     #[command(visible_alias = "ask_synapseed", visible_alias = "whisper")]
     Ask {
         /// Natural-language question
-        #[arg(short, long)]
         query: String,
         /// Inject raw source code of discovered symbols into the prompt
         #[arg(long)]
@@ -141,7 +140,6 @@ enum Commands {
     #[command(visible_alias = "semantic_search")]
     Search {
         /// Search query
-        #[arg(short, long)]
         query: String,
         /// Maximum number of results
         #[arg(short, long, default_value = "5")]
