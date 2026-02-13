@@ -12,7 +12,7 @@
 
 Most AI coding agents treat your codebase as flat text — `grep` for search, `cat` for reading, zero security. This leads to hallucinations, broken imports, and leaked secrets.
 
-**SYNAPSEED** parses code into an **AST**, indexes it semantically, scans for secrets in real-time, tracks git history with semantic tags, compiles in the background, analyzes architecture health, and visualizes everything live — all in a **single Rust binary** with **zero network calls**.
+**SYNAPSEED** parses code into an **AST**, indexes it semantically, scans for secrets in real-time, tracks git history with semantic tags, compiles in the background, and analyzes architecture health — all in a **single Rust binary** with **zero network calls**.
 
 | Capability | Standard LLM Context | SYNAPSEED |
 | :--- | :--- | :--- |
@@ -22,7 +22,6 @@ Most AI coding agents treat your codebase as flat text — `grep` for search, `c
 | Context | Zero (stateless) | Git time-travel + session continuity |
 | Safety | Suggests `rm -rf /` | Command sentinel + Janitor dry-run default |
 | Architecture | None | Dependency graph, coupling metrics, cycle detection |
-| Visibility | None | Live graph + X-Ray Mode (Shift+hover) |
 | Observability | None | OTLP telemetry receiver with heatmap |
 | Startup | Blocks until indexed | Background indexing, port-hopping |
 | Latency | High (network calls) | Zero-copy direct Rust (<10 ms) |
@@ -112,13 +111,13 @@ See the [full integration guides](docs/integration/) for system prompt templates
 │  │                SynapseContext (Event Bus + Sessions)            │ │
 │  └────┬──────────┬─────────┬────────────┬──────────┬──────────┬───┘ │
 │       │          │         │            │          │          │      │
-│  ┌────┴────┐  ┌──┴───┐  ┌─┴──────┐  ┌──┴──┐  ┌───┴────┐  ┌─┴───┐ │
-│  │ Shadow  │  │Whis- │  │Visuali-│  │Tele-│  │Janitor │  │Arch-│ │
-│  │(Compile)│  │ per  │  │  zer   │  │metry│  │(Maint.)│  │itect│ │
-│  └─────────┘  └──────┘  └────────┘  └─────┘  └────────┘  └─────┘ │
+│  ┌────┴────┐  ┌──┴───┐  ┌──┴──┐  ┌───┴────┐  ┌─┴───┐              │
+│  │ Shadow  │  │Whis- │  │Tele-│  │Janitor │  │Arch-│              │
+│  │(Compile)│  │ per  │  │metry│  │(Maint.)│  │itect│              │
+│  └─────────┘  └──────┘  └─────┘  └────────┘  └─────┘              │
 │                                                                      │
 └──────────────────────────────────────────────────────────────────────┘
-   14 crates · Plugin architecture · Priority-based init · HCI-tuned
+   13 crates · Plugin architecture · Priority-based init · HCI-tuned
 ```
 
 ```mermaid
@@ -152,13 +151,12 @@ graph LR
 | `synapseed-chronos` | Git history with semantic commit tags and intent analysis |
 | `synapseed-search` | Tantivy FTS + local vector embeddings (fastembed, cosine similarity) |
 | `synapseed-shadow-check` | Background `cargo check` with severity filtering and adaptive debounce |
-| `synapseed-visualizer` | Live Cytoscape.js dashboard with X-Ray Mode and port-hopping |
 | `synapseed-whisper` | Intent router with query complexity analysis (Mentor Mode) |
 | `synapseed-telemetry-sink` | OTLP gRPC receiver on port 4317, SpanStore, heatmap |
 | `synapseed-gym` | RL sandbox — safe code evaluation with compilation + test feedback |
 | `synapseed-janitor` | Autonomous maintenance — clippy + unused deps, validated proposals |
 | `synapseed-architect` | Dependency graph, coupling metrics, cycle detection, scoring (A-F) |
-| `synapseed-mcp` | MCP protocol handler — 21 tools, 9 resources, 6 prompts |
+| `synapseed-mcp` | MCP protocol handler — 20 tools, 8 resources, 6 prompts |
 
 ---
 
@@ -187,7 +185,7 @@ graph LR
 | `oracle` | SPECIALIZED | `oracle_fix_docs` | Auto-repair drifted documentation (version, counts) |
 | `similar` | SPECIALIZED | `semantic_similarity` | Vector embedding similarity search |
 
-## MCP Resources (9)
+## MCP Resources (8)
 
 | URI | Description |
 | :--- | :--- |
@@ -195,7 +193,6 @@ graph LR
 | `synapseed://dna` | Project DNA configuration |
 | `synapseed://security/policy` | Active security policy rules |
 | `synapseed://diagnostics/active` | Current compiler diagnostics |
-| `synapseed://visualizer/url` | Visualizer dashboard URL |
 | `synapseed://telemetry/hotspots` | Top-10 performance hotspots from OTLP spans |
 | `synapseed://janitor/proposals` | Janitor fix proposals |
 | `synapseed://architect/health` | Architecture health score and violations |
@@ -272,7 +269,7 @@ SYNAPSEED can observe its own performance by sending tracing spans to its own OT
 SYNAPSEED_SELF_TELEMETRY=1 synapseed serve --project .
 ```
 
-This enables a feedback loop: SYNAPSEED operations emit spans via `BatchSpanProcessor` to `localhost:4317`, where the TelemetrySink ingests them into SpanStore. The Visualizer then colors nodes by latency — red for hot, yellow for warm, green for cool.
+This enables a feedback loop: SYNAPSEED operations emit spans via `BatchSpanProcessor` to `localhost:4317`, where the TelemetrySink ingests them into SpanStore. Query the `synapseed://telemetry/hotspots` resource to identify performance bottlenecks.
 
 ---
 
@@ -299,17 +296,14 @@ plugins:
   - root
   - chronos
   - search
-  - visualizer
   - shadow
   - whisper
   - telemetry
 
 dlp_level: standard          # off | low | standard | strict | paranoid
-visualizer_port: 3000        # override with SYNAPSEED_VISUALIZER_PORT env var
 
 hci:
   background_indexing: true   # Non-blocking startup (Cortex indexes in background)
-  port_retry: true            # Visualizer auto-retries next port if taken
   adaptive_linting: true      # Shadow-check debounce escalates during rapid edits
   mentor_mode: true           # Response depth adapts to query complexity
   session_persistence: true   # Resume context across MCP restarts
@@ -335,7 +329,6 @@ search:
 | `RUST_LOG` | `info` | Log level filter |
 | `SYNAPSEED_LOG_FORMAT` | `compact` | Log format (`compact` or `json`) |
 | `SYNAPSEED_SELF_TELEMETRY` | `0` | Enable self-instrumentation (`1` to enable) |
-| `SYNAPSEED_VISUALIZER_PORT` | `3000` | Override visualizer dashboard port |
 
 ---
 
