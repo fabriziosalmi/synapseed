@@ -1,5 +1,38 @@
 # Changelog
 
+## [4.7.0] — 2026-02-13
+
+### Noise Reduction — "La Dieta del Token"
+
+Line-based noise pruner that collapses logging/debug statements and truncates
+long lines before injecting source code into the LLM context. Increases
+context efficiency by 10-30% without losing structural information.
+
+#### Core: `prune_noise()` in context_builder.rs
+- Detects and collapses logging statements across 3 language families:
+  - **Rust**: `debug!()`, `info!()`, `warn!()`, `error!()`, `trace!()`, `println!()`, `eprintln!()`, `dbg!()`; also `tracing::*!()` and `log::*!()`
+  - **Python**: `logger.*()`, `logging.*()`, `print()`
+  - **JavaScript/TypeScript**: `console.log()`, `console.error()`, `console.warn()`, `console.debug()`
+- Multi-line log tracking via paren depth counting (handles `debug!(\n field = val,\n "msg"\n);`)
+- Consecutive log lines collapsed into a single `// ...` (or `# ...` for Python) marker
+- Lines > 200 chars truncated (long string constants, generated code)
+- Language-aware comment style based on file extension
+- Applied after `minify_source()`, before token budget enforcement
+
+#### Pipeline Position
+```
+inject_raw_sources():
+  1. Read file from disk
+  2. Select line range (CodeGraph or heuristic)
+  3. minify_source() — whitespace cleanup
+  4. prune_noise()   — logging/boilerplate removal ← NEW
+  5. Token budget enforcement
+  6. Return RawSource
+```
+
+#### Stats
+- 331 tests, 0 failures (+10 new pruner tests)
+
 ## [4.6.0] — 2026-02-13
 
 ### Reverse Test Lookup — "Il Ponte della Verità"
