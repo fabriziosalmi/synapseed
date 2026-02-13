@@ -7,7 +7,9 @@ use clap::{Parser, Subcommand};
 use serde_json::json;
 use tracing::{debug, info, warn};
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+
+use parking_lot::Mutex;
 
 use synapseed_core::context::SynapseContext;
 use synapseed_core::event::SynapseEvent;

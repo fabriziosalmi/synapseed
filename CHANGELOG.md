@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.9.2] — 2026-02-13
+
+### The Total Truth — Mutex TypeId Fix
+
+#### Critical Fix
+
+- **CLI — Mutex Type Mismatch**: CLI used `std::sync::Mutex<MomentumEngine>` while the Whisperer reads `parking_lot::Mutex<MomentumEngine>`. These are different `TypeId`s, so `get_extension()` never found the engine → tier always fell back to `Molecular` in CLI mode. Fixed by switching CLI to `parking_lot::Mutex`. **This was the root cause of the "85 token" problem**: Atomic formatting (@@@ delimiters, greedy pruning, language reinforcement) was never activated in CLI mode despite `SYNAPSEED_MODEL_TIER=atomic` being set.
+
+#### Impact
+
+- Before: CLI `ask --raw` with Atomic tier → Molecular context (5 targets, `--- FILE ---` delimiters, no language reinforcement) → ~85 tokens of narrative bridge only
+- After: CLI `ask --raw` with Atomic tier → Atomic context (2 targets, `@@@ START_OF_TRUTH @@@` delimiters, language reinforcement every 10 lines, recency bias guard) → ~3000 tokens of real source code
+
 ## [3.9.1] — 2026-02-13
 
 ### Rescue Sprint — NoneType Fix & CLI Cognitive Tiering
