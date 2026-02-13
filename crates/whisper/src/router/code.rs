@@ -15,13 +15,19 @@ pub(super) fn gather_code_context(
         return None;
     }
 
-    let root = ctx.project_root();
-    let graph = CodeGraph::new();
-    graph.index_directory(&root).ok()?;
+    // Retrieve the code graph from the context (Cortex plugin must be active)
+    let graph = ctx.get_extension::<CodeGraph>()?;
 
     let mut symbols = Vec::new();
     for target in targets {
-        for sym in graph.lookup(&target.name).into_iter().take(3) {
+        // Find symbols matching target name. Filters by file path if target has it.
+        let candidates = graph.lookup(&target.name);
+        for sym in candidates {
+            if let Some(target_file) = &target.file_path {
+                if !sym.file_path.ends_with(target_file) {
+                    continue;
+                }
+            }
             symbols.push(serde_json::to_value(&sym).unwrap_or_default());
         }
     }

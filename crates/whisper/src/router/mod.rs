@@ -172,17 +172,19 @@ fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> W
         Vec::new()
     };
 
-    let smart_context = build_smart_context(
+    let input = SmartContextInput {
         query,
-        &intent,
+        intent: &intent,
         complexity,
-        &diag,
-        &hist,
-        &code_ctx,
-        &sec_status,
+        diagnostics: &diag,
+        history: &hist,
+        code_context: &code_ctx,
+        security_status: &sec_status,
         raw_injection,
-        &raw_sources,
-    );
+        raw_sources: &raw_sources,
+    };
+
+    let smart_context = build_smart_context(input);
 
     // ── SID: Semantic Information Density ───────────────────────────
     // Formula: symbols_found / (prompt_tokens / 1000)
@@ -422,9 +424,8 @@ fn inject_raw_sources(targets: &[Target], ctx: &SynapseContext) -> Vec<RawSource
     let mut sources = Vec::new();
     let mut budget_used: usize = 0;
 
-    // Also look up Cortex symbols for precise line_end
-    let graph = CodeGraph::new();
-    let _ = graph.index_directory(&root);
+    // Retrieve the code graph from the context for precise line range lookup
+    let graph = ctx.get_extension::<CodeGraph>();
 
     for target in targets {
         let rel_path = match &target.file_path {
@@ -435,7 +436,10 @@ fn inject_raw_sources(targets: &[Target], ctx: &SynapseContext) -> Vec<RawSource
         let abs_path = root.join(&rel_path);
         let content = match std::fs::read_to_string(&abs_path) {
             Ok(c) => c,
-            Err(_) => continue,
+            Err(_) => {
+                debug!(path = %abs_path.display(), "Whisper: Could not read file for raw injection");
+                continue;
+            }
         };
 
         let lines: Vec<&str> = content.lines().collect();
@@ -443,16 +447,27 @@ fn inject_raw_sources(targets: &[Target], ctx: &SynapseContext) -> Vec<RawSource
             continue;
         }
 
-        // Try to get precise line range from Cortex symbol table
-        let (start, end) = if let Some(sym) = graph.lookup(&target.name).first() {
-            (sym.line_start, sym.line_end)
+        // Try to get precise line range from Cortex (Symbol ID or Name lookup)
+        let (start, end) = if let Some(g) = &graph {
+            let candidates = g.lookup(&target.name);
+            let sym = candidates.iter().find(|s| s.file_path.ends_with(&rel_path));
+            
+            if let Some(s) = sym {
+                (s.line_start, s.line_end)
+            } else if let Some(ls) = target.line_start {
+                let s = ls.saturating_sub(1);
+                let e = (ls + 30).min(lines.len());
+                (s + 1, e)
+            } else {
+                (1, lines.len().min(60))
+            }
         } else if let Some(ls) = target.line_start {
-            // Fallback: ±30 lines around the target
+            // Fallback if no graph: ±30 lines around the target
             let s = ls.saturating_sub(1);
             let e = (ls + 30).min(lines.len());
             (s + 1, e) // 1-indexed
         } else {
-            // No line info at all — take first 60 lines
+            // No line info and no graph — take first 60 lines
             (1, lines.len().min(60))
         };
 
@@ -479,19 +494,32 @@ fn inject_raw_sources(targets: &[Target], ctx: &SynapseContext) -> Vec<RawSource
     sources
 }
 
+/// Input context for the smart context builder.
+struct SmartContextInput<'a> {
+    query: &'a str,
+    intent: &'a Intent,
+    complexity: QueryComplexity,
+    diagnostics: &'a Option<DiagnosticsContext>,
+    history: &'a Option<HistoryContext>,
+    code_context: &'a Option<CodeContext>,
+    security_status: &'a str,
+    raw_injection: bool,
+    raw_sources: &'a [RawSource],
+}
+
 // ── Smart Context Builder ──────────────────────────────────────────────
 
-fn build_smart_context(
-    query: &str,
-    intent: &Intent,
-    complexity: QueryComplexity,
-    diagnostics: &Option<DiagnosticsContext>,
-    history: &Option<HistoryContext>,
-    code_context: &Option<CodeContext>,
-    security_status: &str,
-    raw_injection: bool,
-    raw_sources: &[RawSource],
-) -> String {
+fn build_smart_context(input: SmartContextInput) -> String {
+    let query = input.query;
+    let intent = input.intent;
+    let complexity = input.complexity;
+    let diagnostics = input.diagnostics;
+    let history = input.history;
+    let code_context = input.code_context;
+    let security_status = input.security_status;
+    let raw_injection = input.raw_injection;
+    let raw_sources = input.raw_sources;
+
     let intent_label = match intent {
         Intent::BugFix => "bug fix",
         Intent::Security => "security audit",
@@ -837,20 +865,49 @@ mod tests {
                 "line_start": 32
             })],
         });
-        let ctx = build_smart_context(
-            "explain execute",
-            &Intent::Explain,
-            QueryComplexity::Standard,
-            &None,
-            &None,
-            &code_ctx,
-            "CLEAN",
-            false,
-            &[],
-        );
+        let input = SmartContextInput {
+            query: "explain execute",
+            intent: &Intent::Explain,
+            complexity: QueryComplexity::Standard,
+            diagnostics: &None,
+            history: &None,
+            code_context: &code_ctx,
+            security_status: "CLEAN",
+            raw_injection: false,
+            raw_sources: &[],
+        };
+        let ctx = build_smart_context(input);
         // Human summary appears before the section bullets
         let summary_pos = ctx.find("Found function `execute`").unwrap();
         let code_section_pos = ctx.find("**Code**").unwrap();
         assert!(summary_pos < code_section_pos);
+    }
+
+    #[test]
+    fn test_smart_context_with_raw_injection() {
+        let raw_sources = vec![RawSource {
+            file_path: "src/main.rs".to_string(),
+            line_start: 1,
+            line_end: 2,
+            source: "fn main() {\n    println!(\"Hello\");\n}".to_string(),
+        }];
+
+        let input = SmartContextInput {
+            query: "show main",
+            intent: &Intent::Explain,
+            complexity: QueryComplexity::Standard,
+            diagnostics: &None,
+            history: &None,
+            code_context: &None,
+            security_status: "CLEAN",
+            raw_injection: true,
+            raw_sources: &raw_sources,
+        };
+
+        let ctx = build_smart_context(input);
+        assert!(ctx.contains("## Injected Source Code"));
+        assert!(ctx.contains("[SOURCE_START file=\"src/main.rs\" lines=1-2]"));
+        assert!(ctx.contains("fn main()"));
+        assert!(ctx.contains("Answer based ONLY on the injected source code"));
     }
 }

@@ -44,9 +44,10 @@ proptest! {
         let redacted = guard.redact(&input);
         // String type guarantees UTF-8, but let's verify the content is reasonable.
         // The redacted output should not contain raw bytes or garbage.
-        prop_assert!(redacted.is_ascii() || redacted.chars().all(|c| !c.is_control() || c == '\n' || c == '\r' || c == '\t')
-            || true, // The String type already guarantees UTF-8 validity
-            "Redacted output contains unexpected characters");
+        prop_assert!(
+            redacted.chars().all(|c| !c.is_control() || c == '\n' || c == '\r' || c == '\t'),
+            "Redacted output contains unexpected characters"
+        );
     }
 
     /// If the guard finds no violations in the input, check() must return Ok.

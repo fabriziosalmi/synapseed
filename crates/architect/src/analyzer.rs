@@ -345,6 +345,32 @@ pub(crate) fn parse_import_target(signature: &str, language: &str) -> Option<Str
                 }
                 Some(module.to_string())
             }
+            // "use synapseed_core::policy::..." -> "core::policy"
+            else if let Some(rest) = sig.strip_prefix("use synapseed_") {
+                let parts: Vec<&str> = rest.split("::").collect();
+                if parts.is_empty() {
+                    return None;
+                }
+                let mut target = String::new();
+                for (i, part) in parts.iter().enumerate() {
+                    let cleaned = part.trim_end_matches(';').trim_end_matches('{').trim();
+                    if cleaned.is_empty() {
+                        break;
+                    }
+                    if i > 0 {
+                        target.push_str("::");
+                    }
+                    target.push_str(cleaned);
+                    // Stop if we hit a leaf or grouping
+                    if part.contains('{') || part.contains(';') {
+                        break;
+                    }
+                }
+                if target.is_empty() {
+                    return None;
+                }
+                Some(target)
+            }
             // "use super::module_name" -> "module_name"
             else if let Some(rest) = sig.strip_prefix("use super::") {
                 let module = rest.split("::").next()?;

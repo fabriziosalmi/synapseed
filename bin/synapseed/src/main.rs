@@ -18,7 +18,6 @@ use synapseed_cortex::graph::CodeGraph;
 use synapseed_cortex::plugin::CortexPlugin;
 use synapseed_husk::plugin::HuskPlugin;
 use synapseed_root::plugin::RootPlugin;
-use synapseed_root::sentinel::Sentinel;
 use synapseed_search::plugin::SearchPlugin;
 use synapseed_shadow_check::plugin::ShadowCheckPlugin;
 use synapseed_telemetry_sink::plugin::TelemetrySinkPlugin;
@@ -30,6 +29,8 @@ use synapseed_whisper::plugin::WhisperPlugin;
 
 use synapseed_mcp::protocol::ContentBlock;
 use synapseed_mcp::tools::handle_tool_call;
+
+mod handlers;
 
 #[derive(Parser)]
 #[command(
@@ -291,8 +292,8 @@ async fn main() -> Result<()> {
             };
             cmd_mcp(&project_root, "scan", json!({"content": text, "mode": mode})).await?
         }
-        Commands::Check { command } => cmd_check(&command)?,
-        Commands::Diagnose => cmd_diagnose(&project_root)?,
+        Commands::Check { command } => handlers::run_check(&command)?,
+        Commands::Diagnose => handlers::run_diagnose(&project_root).await?,
         Commands::History { limit } => cmd_history(&project_root, limit)?,
         Commands::Blame { file, start, end } => cmd_blame(&project_root, &file, start, end)?,
         Commands::Status => cmd_status(&project_root).await?,
@@ -509,59 +510,6 @@ fn cmd_lookup(name: &str, path: &Path) -> Result<()> {
         }
     }
 
-    Ok(())
-}
-
-fn cmd_check(command: &str) -> Result<()> {
-    let sentinel = Sentinel::with_defaults()?;
-
-    match sentinel.evaluate(command) {
-        Ok(action) => println!("ALLOWED ({action:?}): {command}"),
-        Err(e) => println!("DENIED: {e}"),
-    }
-
-    Ok(())
-}
-
-fn cmd_diagnose(path: &Path) -> Result<()> {
-    println!("=== SYNAPSEED SYSTEM DIAGNOSTIC ===\n");
-
-    // State detection
-    let state = ProjectState::detect(path);
-    println!("{}\n", state.diagnostic());
-
-    // DNA configuration
-    let dna = ProjectDna::load(path);
-    println!("--- DNA Configuration ---");
-    println!("Workspace Strategy: {}", dna.workspace_strategy);
-    println!("DLP Level: {:?}", dna.dlp_level);
-    println!("Plugins: {}", dna.plugins.join(", "));
-    println!(
-        "Preferred Libs: {}",
-        dna.preferred_libs
-            .iter()
-            .map(|(k, v)| format!("{k}={v}"))
-            .collect::<Vec<_>>()
-            .join(", ")
-    );
-
-    // Git state
-    println!("\n--- Git Status ---");
-    match synapseed_chronos::historian::Historian::open(path) {
-        Ok(historian) => {
-            let summary = historian.summary(3)?;
-            println!(
-                "Branch: {}",
-                summary.branch.as_deref().unwrap_or("detached")
-            );
-            println!("HEAD: {}", summary.head_commit);
-            println!("Commits: {}", summary.total_commits);
-            println!("Dirty: {}", summary.is_dirty);
-        }
-        Err(e) => println!("Not a git repository: {e}"),
-    }
-
-    println!("\n=== DIAGNOSTIC COMPLETE ===");
     Ok(())
 }
 

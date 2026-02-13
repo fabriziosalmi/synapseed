@@ -173,8 +173,8 @@ fn type_to_strategy_opt(ty: &str) -> Option<String> {
 /// Extract the inner type from `Wrapper<Inner>`.
 fn strip_generic<'a>(ty: &'a str, wrapper: &str) -> Option<&'a str> {
     let ty = ty.trim();
-    if ty.starts_with(wrapper) {
-        let rest = ty[wrapper.len()..].trim();
+    if let Some(rest) = ty.strip_prefix(wrapper) {
+        let rest = rest.trim();
         if rest.starts_with('<') && rest.ends_with('>') {
             return Some(&rest[1..rest.len() - 1]);
         }

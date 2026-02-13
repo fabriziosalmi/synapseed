@@ -138,7 +138,7 @@ fn reindex_same_file_no_duplicates() {
     let file = make_file("src/lib.rs", "process_data", "fn process_data(input: &[u8]) -> Vec<u8>");
 
     // Index the file twice using reindex_file (delete + re-add)
-    index.index_all(&[file.clone()], project_root);
+    index.index_all(std::slice::from_ref(&file), project_root);
     std::thread::sleep(std::time::Duration::from_millis(700));
 
     let count = index.reindex_file(&file, project_root);

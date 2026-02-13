@@ -22,7 +22,7 @@ resolver = "2"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/fabriziosalmi/synapseed"
-version = "3.5.0"
+version = "3.6.0"
 
 [workspace.dependencies]
 # Async Runtime
@@ -109,6 +109,7 @@ petgraph = "0.6"
 
 # Vector Embeddings (local ONNX inference)
 fastembed = "5"
+ort = {version = "2.0.0-rc.11", features = ["copy-dlls"]}
 
 # Fast non-cryptographic hashing
 fxhash = "0.2"

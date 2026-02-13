@@ -338,12 +338,11 @@ fn test_get_known_prompt() {
     let messages = messages.unwrap();
     assert!(!messages.is_empty(), "Prompt should produce at least one message");
     assert_eq!(messages[0].role, "user");
-    if let ContentBlock::Text { ref text } = messages[0].content {
-        assert!(
-            text.contains("hoist"),
-            "describe_architecture should reference the hoist tool"
-        );
-    }
+    let ContentBlock::Text { ref text } = messages[0].content;
+    assert!(
+        text.contains("hoist"),
+        "describe_architecture should reference the hoist tool"
+    );
 }
 
 #[test]
@@ -358,12 +357,11 @@ fn test_prompt_with_arguments() {
         prompts::get_prompt("explain_evolution", &json!({"file": "src/main.rs"}));
     assert!(messages.is_some());
     let messages = messages.unwrap();
-    if let ContentBlock::Text { ref text } = messages[0].content {
-        assert!(
-            text.contains("src/main.rs"),
-            "Prompt should interpolate the file argument"
-        );
-    }
+    let ContentBlock::Text { ref text } = messages[0].content;
+    assert!(
+        text.contains("src/main.rs"),
+        "Prompt should interpolate the file argument"
+    );
 }
 
 // ══════════════════════════════════════════════════════════════

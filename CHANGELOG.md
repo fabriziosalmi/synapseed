@@ -1,5 +1,25 @@
 # Changelog
 
+## [3.6.0] — 2026-02-13
+
+### "Direct Vision" Release — Symbol Injection + Metric Precision
+
+Introduces Direct Symbol Injection (`raw: true`) for AI context, fixes internal
+crate mapping in architectural metrics, and hardens CI builds for Intel Macs.
+
+#### Features
+
+- **Whisperer — Direct Symbol Injection**: New `raw` flag in `ask` tool/CLI to inject physical source code of identified symbols directly into the AI prompt.
+- **MCP — Enhanced Ask Tool**: Added support for `raw` parameter in the MCP interface.
+- **CLI — New Flag**: Added `--raw` option to the `ask` command.
+
+#### Fixes & Improvements
+
+- **Architect — Metric Precision**: Updated import parser to recognize internal `synapseed-` crates, fixing "low density" false positives.
+- **CI — ORT Build Fix**: Configured `ORT_STRATEGY: download` and `copy-dlls` feature to fix build failures on Intel Mac runners.
+- **Husk — Logic Bug**: Fixed a character validation logic bug in proptests.
+- **Janitor — Refinement**: Applied machine-applicable clippy fixes across the workspace.
+
 ## [3.5.0] — 2026-02-13
 
 ### "Iron Curtain" Release — Security Hardening + Cognitive Telemetry
