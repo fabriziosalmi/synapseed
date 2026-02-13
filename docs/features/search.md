@@ -100,7 +100,15 @@ When `search.embeddings: true` is set in `dna.yaml`, each indexed symbol also ge
 Name(3×) | Signature(2×) | Docstring(1×) | Body Keywords(0.5×)
 ```
 
-Body keywords are unique identifiers extracted from function bodies (>3 chars, excluding language keywords and primitive types). This produces dense vectors that capture symbol semantics beyond just the name.
+Body keywords are unique identifiers extracted from function bodies (>3 chars, excluding language keywords and primitive types). For large functions (>20 lines), keywords are sampled from **three regions** (start, middle, end) to ensure representative coverage across the entire function body. This produces dense vectors that capture symbol semantics beyond just the name.
+
+## Body Snippet Extraction
+
+Indexed body snippets use a **sandwich strategy** for large functions:
+- Functions ≤40 lines: captured in full
+- Functions >40 lines: first 20 lines + `// ...` + last 20 lines
+
+This ensures both the function signature/setup AND the closing definitions/return values are visible in the search index, improving recall for queries that match late-function content.
 
 ## MCP Integration
 

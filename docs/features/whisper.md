@@ -141,6 +141,14 @@ When compiler diagnostics exist, the `smart_context` includes up to **10 actual 
 
 Search result scores propagate through `Target.score`, enabling rank-aware deduplication (Sort First, Cut Later with `HashSet`) and context ordering. Targets from non-search sources (AST, diagnostics) carry `score: None` and sort by source priority.
 
+### Score-Ordered Raw Source Injection
+
+When injecting raw source code (Direct Symbol Injection), targets are sorted by composite search score **descending** before processing. This ensures the most relevant symbols always get budget priority. The injection pipeline uses three strategies:
+
+1. **Score sorting** — targets with highest BM25+PageRank+Visibility scores are injected first
+2. **Smart truncation** — oversized snippets are truncated (first 75% + last 25%) rather than skipped entirely
+3. **Budget continuation** — when one target is too large, remaining targets still get a chance (no early exit)
+
 For **Galactic** tier, the `smart_context` includes:
 - Phase indicator (e.g., `[Phase: Stabilization]`)
 - SID metric (e.g., `SID: 2.4 symbols/ktok`)

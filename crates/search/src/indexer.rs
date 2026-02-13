@@ -708,10 +708,26 @@ fn extract_body_snippet(source: &str, line_start: usize, line_end: usize) -> Str
         return String::new();
     }
     let start = line_start.saturating_sub(1);
-    let end = (start + 30)
-        .min(line_end.saturating_sub(1) + 1)
-        .min(lines.len());
-    lines[start..end].join("\n")
+    let total_body = line_end.saturating_sub(line_start) + 1;
+    let end_idx = line_end.saturating_sub(1).min(lines.len().saturating_sub(1));
+
+    if total_body <= 40 {
+        // Small function: capture all of it (up to 40 lines)
+        let end = (start + 40).min(end_idx + 1).min(lines.len());
+        lines[start..end].join("\n")
+    } else {
+        // Large function: sandwich strategy — first 20 lines + last 20 lines.
+        // This captures the function signature/setup AND final definitions/returns.
+        let first_end = (start + 20).min(lines.len());
+        let last_start = end_idx.saturating_sub(19).max(first_end);
+        let last_end = (end_idx + 1).min(lines.len());
+        let mut snippet = lines[start..first_end].join("\n");
+        if last_start > first_end {
+            snippet.push_str("\n// ...\n");
+            snippet.push_str(&lines[last_start..last_end].join("\n"));
+        }
+        snippet
+    }
 }
 
 fn is_test_path(path: &str) -> bool {

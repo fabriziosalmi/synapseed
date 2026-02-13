@@ -1,5 +1,53 @@
 # Changelog
 
+## [4.14.0] — 2026-02-14
+
+### Il Contesto Giusto — Score-Ordered Context Delivery
+
+Fixed core context delivery bug: SYNAPSEED was injecting low-relevance symbols first,
+exhausting the token budget before the most relevant targets could be included.
+Benchmark delta on Qwen3 1.7B: **-0.033 → +0.100** (+0.133 swing).
+
+#### Score-Ordered Raw Source Injection
+- **inject_raw_sources()** now sorts targets by search `score` DESC before processing.
+  The most relevant symbols (highest composite BM25+PageRank+Visibility score) get
+  budget priority. Targets without scores (from non-search passes) go last.
+- **break → continue + truncation**: Previously, when a single oversized target exceeded
+  the 16K char budget, the `break` statement stopped ALL remaining injection. Now uses
+  `continue` with smart truncation — first 75% + last 25% with `[truncated]` separator.
+- **Budget guard**: Only skips entirely when `remaining < 200` chars.
+
+#### Smart Body Snippet Extraction
+- **Sandwich strategy** in `extract_body_snippet()`: Functions ≤40 lines are captured fully.
+  Functions >40 lines get first 20 lines + `// ...` + last 20 lines. This ensures both the
+  function header/setup AND closing definitions/returns are visible in the index.
+- Previously captured only the first 30 lines — missed return types and late definitions.
+
+#### Multi-Region Body Keyword Extraction
+- **extract_body_keywords()** now samples from start, middle, AND end regions of large functions.
+  For functions ≤2×max_lines, all lines are scanned (unchanged). For larger functions,
+  `max_lines` are sampled from each of three regions for representative keyword coverage.
+- Previously sampled only the first 10 lines — large functions like `list_tools()` (700+ lines)
+  had zero keywords from definitions past line 10.
+
+#### Enriched list_tools() Documentation
+- Doc comment on `list_tools()` now explicitly names all 21 tools in declaration order,
+  enabling search to index tool names directly from the docstring without requiring
+  body traversal.
+
+#### Benchmark Results (Qwen3 1.7B, `--quick`)
+| Metric | Before (v4.13.0) | After (v4.14.0) |
+| :--- | :--- | :--- |
+| BLIND mean | 0.800 | 0.800 |
+| SYNAPSEED mean | 0.767 | **0.900** |
+| Delta | -0.033 | **+0.100** |
+| `easy_tool_count` keyword | 0.00 | **1.00** |
+| `easy_tool_count` composite | 0.30 | **0.70** |
+
+#### Counts
+- 21 tools, 10 resources, 6 prompts
+- 373 tests pass, 0 failures
+
 ## [4.13.0] — 2026-02-13
 
 ### Cognitive Dominance — LLM Tool Routing Optimization

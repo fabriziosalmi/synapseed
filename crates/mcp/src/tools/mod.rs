@@ -61,7 +61,15 @@ fn rw(destructive: bool) -> Option<ToolAnnotations> {
 
 // ── Schema registry ─────────────────────────────────────────────────
 
-/// Return all available tool definitions.
+/// Return all 21 MCP tool definitions.
+///
+/// Tools: ask (primary entry point for natural-language queries), search, lookup,
+/// scan, check, hoist, blame, analyze, diagnostics, quickfix, diagnose, consult,
+/// intent, verify_path, similar, train, janitor, janitor-fix, architect, oracle,
+/// reset-telemetry.
+///
+/// `ask` orchestrates all subsystems in a single call. Other tools provide
+/// targeted access to individual capabilities.
 pub fn list_tools() -> Vec<ToolDefinition> {
     vec![
         // ════════════════════════════════════════════════════════

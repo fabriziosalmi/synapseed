@@ -255,10 +255,19 @@ pub(super) fn inject_raw_sources(targets: &[Target], ctx: &SynapseContext, atomi
     let mut sources = Vec::new();
     let mut budget_used: usize = 0;
 
+    // Sort targets by score DESC so the most relevant symbols get budget priority.
+    // Targets without scores (from non-search passes) go last.
+    let mut sorted_targets: Vec<&Target> = targets.iter().collect();
+    sorted_targets.sort_by(|a, b| {
+        let sa = a.score.unwrap_or(0.0);
+        let sb = b.score.unwrap_or(0.0);
+        sb.total_cmp(&sa)
+    });
+
     // Retrieve the code graph from the context for precise line range lookup
     let graph = ctx.get_extension::<CodeGraph>();
 
-    for target in targets {
+    for target in &sorted_targets {
         let rel_path = match &target.file_path {
             Some(p) => p.clone(),
             None => continue,
@@ -326,10 +335,34 @@ pub(super) fn inject_raw_sources(targets: &[Target], ctx: &SynapseContext, atomi
         let file_ext = rel_path.rsplit('.').next().unwrap_or("");
         let snippet = prune_noise(&snippet, file_ext);
 
-        // Enforce token budget — stop injecting once we exceed the budget
-        if budget_used + snippet.len() > char_budget {
-            break;
-        }
+        // Budget management: truncate oversized snippets instead of skipping.
+        // For very large functions, a truncated view is better than nothing.
+        let snippet = if budget_used + snippet.len() > char_budget {
+            let remaining = char_budget.saturating_sub(budget_used);
+            if remaining < 200 {
+                // Budget nearly exhausted — skip remaining targets
+                continue;
+            }
+            // Smart truncation: keep first half + last quarter of the budget slice
+            // so the model sees both the function header and its tail.
+            let first_portion = remaining * 3 / 4;
+            let last_portion = remaining - first_portion - 30; // 30 chars for separator
+            if last_portion > 50 && snippet.len() > remaining {
+                let first_end = snippet.floor_char_boundary(first_portion);
+                let last_start = snippet.floor_char_boundary(snippet.len() - last_portion);
+                let mut truncated = snippet[..first_end].to_string();
+                truncated.push_str("\n// ... [truncated] ...\n");
+                truncated.push_str(&snippet[last_start..]);
+                debug!(file = %rel_path, original = snippet.len(), truncated = truncated.len(), "Whisper: truncated oversized snippet");
+                truncated
+            } else {
+                // Just take what fits
+                let end = snippet.floor_char_boundary(remaining);
+                snippet[..end].to_string()
+            }
+        } else {
+            snippet
+        };
         budget_used += snippet.len();
 
         sources.push(RawSource {

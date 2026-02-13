@@ -235,7 +235,10 @@ fn build_embedding_text(sym: &synapseed_core::symbol::Symbol, source: Option<&st
     text
 }
 
-/// Extract unique identifiers from the first N lines of a symbol's body.
+/// Extract unique identifiers from a symbol's body using multi-region sampling.
+/// For small functions (≤ max_lines), scans all lines.
+/// For large functions, samples from start, middle, and end regions to capture
+/// representative keywords across the entire function body.
 /// Returns a space-separated string of keywords (lowercase, ≥3 chars, deduplicated).
 fn extract_body_keywords(source: &str, line_start: usize, line_end: usize, max_lines: usize) -> String {
     let lines: Vec<&str> = source.lines().collect();
@@ -243,26 +246,47 @@ fn extract_body_keywords(source: &str, line_start: usize, line_end: usize, max_l
         return String::new();
     }
     let start = line_start.saturating_sub(1);
-    let end = (start + max_lines).min(line_end.saturating_sub(1) + 1).min(lines.len());
+    let body_end = line_end.saturating_sub(1).min(lines.len().saturating_sub(1));
+    let total_body = body_end.saturating_sub(start) + 1;
+
+    // Collect line ranges to sample
+    let ranges: Vec<(usize, usize)> = if total_body <= max_lines * 2 {
+        // Small function: scan everything
+        vec![(start, (start + total_body).min(lines.len()))]
+    } else {
+        // Large function: sample start (max_lines), middle (max_lines), end (max_lines)
+        let region = max_lines;
+        let mid_start = start + total_body / 2 - region / 2;
+        let end_start = body_end.saturating_sub(region) + 1;
+        vec![
+            (start, (start + region).min(lines.len())),
+            (mid_start, (mid_start + region).min(lines.len())),
+            (end_start.max(start), (end_start + region).min(lines.len())),
+        ]
+    };
 
     let mut seen = std::collections::HashSet::new();
     let mut keywords = Vec::new();
 
-    for line in &lines[start..end] {
-        // Extract alphanumeric+underscore words ≥3 chars
-        for word in line.split(|c: char| !c.is_alphanumeric() && c != '_') {
-            if word.len() >= 3 {
-                let lower = word.to_lowercase();
-                // Skip common Rust/Python/JS keywords
-                if !matches!(lower.as_str(),
-                    "let" | "mut" | "pub" | "use" | "mod" | "fn" | "impl" | "self" | "super"
-                    | "return" | "match" | "some" | "none" | "true" | "false" | "else"
-                    | "def" | "class" | "import" | "from" | "pass" | "with" | "async" | "await"
-                    | "const" | "var" | "function" | "new" | "this" | "null" | "undefined"
-                    | "for" | "while" | "loop" | "break" | "continue" | "struct" | "enum"
-                    | "type" | "trait" | "where" | "dyn" | "ref" | "str" | "string"
-                ) && seen.insert(lower.clone()) {
-                    keywords.push(lower);
+    for (range_start, range_end) in ranges {
+        let s = range_start.min(lines.len());
+        let e = range_end.min(lines.len());
+        for line in &lines[s..e] {
+            // Extract alphanumeric+underscore words ≥3 chars
+            for word in line.split(|c: char| !c.is_alphanumeric() && c != '_') {
+                if word.len() >= 3 {
+                    let lower = word.to_lowercase();
+                    // Skip common Rust/Python/JS keywords
+                    if !matches!(lower.as_str(),
+                        "let" | "mut" | "pub" | "use" | "mod" | "fn" | "impl" | "self" | "super"
+                        | "return" | "match" | "some" | "none" | "true" | "false" | "else"
+                        | "def" | "class" | "import" | "from" | "pass" | "with" | "async" | "await"
+                        | "const" | "var" | "function" | "new" | "this" | "null" | "undefined"
+                        | "for" | "while" | "loop" | "break" | "continue" | "struct" | "enum"
+                        | "type" | "trait" | "where" | "dyn" | "ref" | "str" | "string"
+                    ) && seen.insert(lower.clone()) {
+                        keywords.push(lower);
+                    }
                 }
             }
         }
