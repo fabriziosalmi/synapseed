@@ -364,10 +364,18 @@ fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> {
         }
     }
 
-    // Pass 2: Semantic search for relevant symbols
+    // Pass 2: Semantic search for relevant symbols (with confidence thresholding)
+    let min_confidence = ctx.dna().context.min_confidence;
     if let Some(index) = ctx.get_extension::<SemanticIndex>() {
         let results = index.search(query, 3);
         for r in results {
+            if r.score < min_confidence {
+                debug!(
+                    symbol = %r.symbol, score = r.score, threshold = min_confidence,
+                    "Whisper: dropping low-confidence search result"
+                );
+                continue;
+            }
             targets.push(Target {
                 kind: TargetKind::Symbol,
                 name: r.symbol.clone(),
@@ -409,6 +417,20 @@ fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> {
     // Configurable pruning (v3.6.2): respect DNA context.max_symbols
     let max_symbols = ctx.dna().context.max_symbols;
     targets.truncate(max_symbols);
+
+    // Relativize all file paths to project root.
+    // CodeGraph and SemanticIndex store absolute paths; downstream consumers
+    // (raw_sources, smart_context, code_context) need relative paths to avoid
+    // leaking local filesystem structure and confusing small LLMs.
+    let root = ctx.project_root();
+    for target in &mut targets {
+        if let Some(ref mut fp) = target.file_path {
+            if let Ok(rel) = std::path::Path::new(fp).strip_prefix(&root) {
+                *fp = rel.display().to_string();
+            }
+        }
+    }
+
     targets
 }
 
@@ -498,6 +520,31 @@ pub struct RawSource {
 
 /// Read the actual source code for each target that has file/line info.
 ///
+/// Minify source code to reduce token waste without losing semantics.
+///
+/// - Strips trailing whitespace from each line
+/// - Collapses runs of 3+ blank lines into a single blank line
+fn minify_source(source: &str) -> String {
+    let mut result = Vec::new();
+    let mut blank_run = 0;
+
+    for line in source.lines() {
+        let trimmed = line.trim_end();
+        if trimmed.is_empty() {
+            blank_run += 1;
+            if blank_run <= 1 {
+                result.push("");
+            }
+            // Runs of 2+ blanks → collapsed to 1
+        } else {
+            blank_run = 0;
+            result.push(trimmed);
+        }
+    }
+
+    result.join("\n")
+}
+
 /// When `atomic_mode` is true (Semantic Ballast), the budget is doubled and
 /// each snippet is expanded to at least 30 lines to give small models enough
 /// grounding context.
@@ -572,6 +619,7 @@ fn inject_raw_sources(targets: &[Target], ctx: &SynapseContext, atomic_mode: boo
         }
 
         let snippet: String = lines[(s - 1)..e].join("\n");
+        let snippet = minify_source(&snippet);
 
         // Enforce token budget — stop injecting once we exceed the budget
         if budget_used + snippet.len() > char_budget {
@@ -678,11 +726,18 @@ fn build_atomic_context(
             parts.push(String::new());
         }
 
+        // Instruction sandwiching: repeat grounding rules after code injection
+        let file_list: Vec<&str> = raw_sources.iter().map(|s| s.file_path.as_str()).collect();
         parts.push(format!(
             "INSTRUCTIONS: Answer using ONLY the {lang} source code above. \
              This project uses {lang}. Cite file paths and line numbers. \
              Do NOT reference files that are not listed above. \
              Do NOT use any other programming language."
+        ));
+        parts.push(format!(
+            "REMINDER: The ONLY files you may cite are: {}. \
+             Any other file path is WRONG.",
+            file_list.join(", ")
         ));
     } else {
         parts.push(format!(
@@ -873,18 +928,27 @@ fn build_smart_context(input: SmartContextInput) -> String {
         }
     }
 
-    let closing = if raw_injection {
-        "\nAnswer based ONLY on the injected source code above. \
-         Cite exact file paths and line numbers. \
-         ONLY use the file paths listed above. DO NOT invent file names."
+    if raw_injection && !raw_sources.is_empty() {
+        // Instruction sandwiching: repeat grounding rules after code
+        let file_list: Vec<&str> = raw_sources.iter().map(|s| s.file_path.as_str()).collect();
+        parts.push(format!(
+            "\nAnswer based ONLY on the injected source code above. \
+             Cite exact file paths and line numbers. \
+             ONLY use the file paths listed above. DO NOT invent file names."
+        ));
+        parts.push(format!(
+            "\nREMINDER: The ONLY files you may cite are: {}. \
+             Any other file path is WRONG.",
+            file_list.join(", ")
+        ));
     } else {
-        match complexity {
+        let closing = match complexity {
             QueryComplexity::Quick => "\nProvide a concise answer.",
             QueryComplexity::Standard => "\nUse the full JSON context below to provide an informed, precise answer.",
             QueryComplexity::Deep => "\nUse ALL gathered context to provide a thorough, cross-referenced analysis with specific file paths and line numbers.",
-        }
-    };
-    parts.push(closing.into());
+        };
+        parts.push(closing.into());
+    }
     parts.join("\n")
 }
 

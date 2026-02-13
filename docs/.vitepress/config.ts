@@ -25,7 +25,7 @@ export default withMermaid(defineConfig({
       { text: 'Features', link: '/features/cortex' },
       { text: 'Reference', link: '/reference/cli' },
       {
-        text: 'v2.2.1',
+        text: 'v3.8.2',
         items: [
           { text: 'Changelog', link: 'https://github.com/fabriziosalmi/synapseed/releases' },
           { text: 'Contributing', link: 'https://github.com/fabriziosalmi/synapseed' },
@@ -124,7 +124,7 @@ export default withMermaid(defineConfig({
     },
 
     footer: {
-      message: 'Released under the MIT License.',
+      message: 'Released under the Apache License 2.0.',
       copyright: 'Copyright 2024-present Fabrizio Salmi',
     },
 

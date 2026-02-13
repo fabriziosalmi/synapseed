@@ -18,6 +18,7 @@ pub(super) fn gather_code_context(
     // Retrieve the code graph from the context (Cortex plugin must be active)
     let graph = ctx.get_extension::<CodeGraph>()?;
 
+    let root = ctx.project_root();
     let mut symbols = Vec::new();
     for target in targets {
         // Find symbols matching target name. Filters by file path if target has it.
@@ -27,6 +28,12 @@ pub(super) fn gather_code_context(
                 if !sym.file_path.ends_with(target_file) {
                     continue;
                 }
+            }
+            // Relativize file_path before serialization to avoid leaking
+            // absolute local paths into the LLM context.
+            let mut sym = sym;
+            if let Ok(rel) = std::path::Path::new(&sym.file_path).strip_prefix(&root) {
+                sym.file_path = rel.display().to_string();
             }
             symbols.push(serde_json::to_value(&sym).unwrap_or_default());
         }

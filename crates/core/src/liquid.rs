@@ -191,14 +191,25 @@ pub struct ContextConfig {
     /// Lower values reduce noise for ultra-small models (<3B).
     #[serde(default = "default_max_symbols")]
     pub max_symbols: usize,
+
+    /// Minimum confidence score (0.0–1.0) for semantic search results.
+    /// Results below this threshold are discarded to reduce noise.
+    /// Default: 0.15.
+    #[serde(default = "default_min_confidence")]
+    pub min_confidence: f32,
 }
 
 impl Default for ContextConfig {
     fn default() -> Self {
         Self {
             max_symbols: default_max_symbols(),
+            min_confidence: default_min_confidence(),
         }
     }
+}
+
+fn default_min_confidence() -> f32 {
+    0.15
 }
 
 fn default_max_symbols() -> usize {
@@ -431,6 +442,9 @@ impl ProjectDna {
         // Context: override if non-default
         if other.context.max_symbols != default_max_symbols() {
             self.context.max_symbols = other.context.max_symbols;
+        }
+        if (other.context.min_confidence - default_min_confidence()).abs() > f32::EPSILON {
+            self.context.min_confidence = other.context.min_confidence;
         }
     }
 }
