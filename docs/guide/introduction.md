@@ -47,3 +47,4 @@ Developer ←→ LLM (Claude/Copilot) ←→ MCP Protocol ←→ SYNAPSEED
 - **Plugin architecture** — Each subsystem is an independent crate with a clean interface.
 - **Event-driven** — Plugins communicate via an async broadcast channel, enabling reactive pipelines.
 - **Zero-copy where possible** — Direct memory access, no serialization overhead between crates.
+
