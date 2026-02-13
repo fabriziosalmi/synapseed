@@ -223,18 +223,25 @@ def main():
     parser.add_argument("--difficulty", choices=["easy", "medium", "hard"])
     parser.add_argument("--type", dest="qtype", help="Question type filter")
     parser.add_argument("--model", help="Override LLM model name")
+    parser.add_argument("--all-models", action="store_true", help="Run across all models in LLM_MODELS")
     args = parser.parse_args()
-
-    client = LLMClient.from_env()
-    if args.model:
-        client.model = args.model
 
     questions = get_questions(difficulty=args.difficulty, question_type=args.qtype)
     if args.quick:
         questions = questions[:5]
 
     reporter = Reporter("Grounding")
-    run_benchmark(questions, client, reporter)
+
+    if args.all_models:
+        clients = LLMClient.all_from_env()
+        reporter.console.print(f"  Multi-model run: {[c.model for c in clients]}\n")
+        for client in clients:
+            run_benchmark(questions, client, reporter)
+    else:
+        client = LLMClient.from_env()
+        if args.model:
+            client.model = args.model
+        run_benchmark(questions, client, reporter)
 
 
 if __name__ == "__main__":

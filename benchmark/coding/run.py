@@ -237,11 +237,8 @@ def main():
     parser.add_argument("--target", help="Filter by target repo (e.g., synapseed, actix-web)")
     parser.add_argument("--all", action="store_true", help="Run all tasks including external targets")
     parser.add_argument("--model", help="Override LLM model name")
+    parser.add_argument("--all-models", action="store_true", help="Run across all models in LLM_MODELS")
     args = parser.parse_args()
-
-    client = LLMClient.from_env()
-    if args.model:
-        client.model = args.model
 
     if args.all:
         tasks = get_tasks()
@@ -254,7 +251,17 @@ def main():
         tasks = tasks[:3]
 
     reporter = Reporter("Coding")
-    run_benchmark(tasks, client, reporter)
+
+    if args.all_models:
+        clients = LLMClient.all_from_env()
+        reporter.console.print(f"  Multi-model run: {[c.model for c in clients]}\n")
+        for client in clients:
+            run_benchmark(tasks, client, reporter)
+    else:
+        client = LLMClient.from_env()
+        if args.model:
+            client.model = args.model
+        run_benchmark(tasks, client, reporter)
 
 
 if __name__ == "__main__":

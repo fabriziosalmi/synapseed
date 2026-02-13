@@ -218,17 +218,24 @@ def main():
     parser = argparse.ArgumentParser(description="SYNAPSEED NIAH Benchmark")
     parser.add_argument("--quick", action="store_true", help="Reduced matrix (3x2 = 6 tests)")
     parser.add_argument("--model", help="Override LLM model name")
+    parser.add_argument("--all-models", action="store_true", help="Run across all models in LLM_MODELS")
     args = parser.parse_args()
-
-    client = LLMClient.from_env()
-    if args.model:
-        client.model = args.model
 
     depths = QUICK_DEPTHS if args.quick else DEPTHS
     lengths = QUICK_LENGTHS if args.quick else CONTEXT_LENGTHS
 
     reporter = Reporter("NIAH")
-    run_benchmark(client, depths, lengths, reporter)
+
+    if args.all_models:
+        clients = LLMClient.all_from_env()
+        reporter.console.print(f"  Multi-model run: {[c.model for c in clients]}\n")
+        for client in clients:
+            run_benchmark(client, depths, lengths, reporter)
+    else:
+        client = LLMClient.from_env()
+        if args.model:
+            client.model = args.model
+        run_benchmark(client, depths, lengths, reporter)
 
 
 if __name__ == "__main__":
