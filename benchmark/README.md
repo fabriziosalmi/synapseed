@@ -6,14 +6,19 @@ Structured benchmarks for measuring and iterating on SYNAPSEED's effectiveness.
 
 ```bash
 cd benchmark
-cp .env.example .env        # Configure your local LLM
-pip install -r requirements.txt
+cp .env.example .env              # Configure your local LLM
+python3 -m venv venv              # Create venv (once)
+source venv/bin/activate          # Activate
+pip install -r requirements.txt   # Install deps
 
-# From project root:
-python -m benchmark.coding.run --quick
-python -m benchmark.grounding.run --quick
-python -m benchmark.search.run
-python -m benchmark.niah.run --quick
+# Run benchmarks:
+python run.py coding --quick
+python run.py grounding --quick
+python run.py search
+python run.py niah --quick
+
+# All 3 models in one run:
+python run.py coding --quick --all-models
 ```
 
 ## Benchmark Types
@@ -60,7 +65,7 @@ benchmark/
 
 ## Workflow
 
-1. **Run** a benchmark: `python -m benchmark.coding.run`
+1. **Run** a benchmark: `python run.py coding --quick`
 2. **Review** results in `benchmark/results/` (Rich console + JSON)
 3. **Iterate** on SYNAPSEED code (e.g., improve search ranking)
 4. **Re-run** the same benchmark
