@@ -1,0 +1,8 @@
+# SYNAPSEED Benchmark Suite dependencies
+openai>=1.0
+python-dotenv>=1.0
+rich>=13.0
+
+# Dashboard (optional — only needed for `streamlit run dashboard/app.py`)
+streamlit>=1.30
+plotly>=5.18

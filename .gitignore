@@ -50,3 +50,9 @@ Cargo.lock
 test-results/.last-run.json
 
 .claude/
+
+# Benchmark
+benchmark/venv/
+benchmark/targets/*/
+benchmark/results/*.json
+__pycache__/
