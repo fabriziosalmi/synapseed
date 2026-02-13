@@ -1,5 +1,29 @@
 # Changelog
 
+## [4.9.2] — 2026-02-13
+
+### Code Quality Sweep (Review-Driven Hardening)
+
+Post-audit hardening pass based on fresh-eyes review of the entire codebase.
+
+#### Error Handling
+- Converted 7 silent `let _ =` patterns to proper `warn!()` logging across:
+  - `search/indexer.rs`: segment commit, index writer commit, index writer delete
+  - `core/oracle.rs`: README write failure now reported in changes vector
+  - `gym/sandbox.rs`: mutated source write + original restore
+  - `shadow-check/plugin.rs`: diagnostic trigger send failure
+  - `bin/main.rs`: Tantivy timeout now traces SearchReady status
+
+#### Test Coverage (+32 tests)
+- `core/symbol.rs`: 8 tests — SymbolId uniqueness, Visibility/SymbolKind serde, Symbol with/without visibility, FileStructure roundtrip
+- `core/event.rs`: 5 tests — FileChangeKind/Severity serde, tagged event format, FileChanged/SecurityAlert roundtrips
+- `core/state.rs`: 7 tests — detect VirginRepo/HealthyWorkspace/PartialSetup/Npm/Unknown, diagnostic output, BuildSystem serde
+- `core/session.rs`: 8 tests — is_recent, time_ago variants, save/load roundtrip, nonexistent/malformed load
+- `core/policy.rs`: 4 tests — default fail_closed, SecurityPolicy serde, PolicyAction variants, missing-field defaults
+
+#### Oracle Auto-Fix
+- README.md metadata corrected: 13→14 crates, 20→21 tools, 8→9 resources
+
 ## [4.9.0] — 2026-02-13
 
 ### Visibility Boost — Public API Prioritization
