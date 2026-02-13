@@ -9,7 +9,12 @@ pub(super) fn gather_diagnostics(
     targets: &[Target],
     ctx: &SynapseContext,
 ) -> Option<DiagnosticsContext> {
-    if !matches!(intent, Intent::BugFix | Intent::Refactor | Intent::General) {
+    // v4.1.0: Explain and Security also benefit from compiler diagnostics.
+    // "explain why this fails" or "audit this code" need error context.
+    if !matches!(
+        intent,
+        Intent::BugFix | Intent::Explain | Intent::Refactor | Intent::General | Intent::Security
+    ) {
         return None;
     }
 

@@ -1,5 +1,23 @@
 # Changelog
 
+## [4.1.0] — 2026-02-13
+
+### CamelCase-Aware BM25 & Intent Coverage Fix
+
+#### Search: CamelCase-Aware Indexing & Retrieval
+- **Query splitting**: "MomentumEngine" → "MomentumEngine Momentum Engine momentum engine" for BM25
+- **Index expansion**: CamelCase components appended to doc_comment during indexing
+- **Symbol Specificity Boost**: longer symbol names (>=12 chars) get 1.3x boost
+- **Test penalty tightened**: 0.5 → 0.3 to counter test name keyword density bias
+
+#### Whisper: Intent Coverage Fix
+- Security intent now gathers **code context** (was excluded → SID=0)
+- Diagnostics now available for **Explain** and **Security** intents
+
+#### Housekeeping
+- Removed `synapseed-visualizer` crate (axum, rust-embed, notify deps eliminated)
+- 13 crates (was 14), workspace deps reduced by 3
+
 ## [4.0.0] — 2026-02-13
 
 ### The Deep Index — Body-Level Search & Whisper Refactoring

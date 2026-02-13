@@ -143,10 +143,21 @@ impl SemanticIndex {
             let mtime = self.file_mtime(file, project_root);
 
             for sym in &file.symbols {
-                let doc_comment = source
+                let mut doc_comment = source
                     .as_ref()
                     .map(|s| extract_doc_comment(s, sym.line_start))
                     .unwrap_or_default();
+
+                // CamelCase Index Expansion (v4.1.0): append split components
+                // to doc_comment so BM25 can match partial name queries.
+                // "MomentumEngine" → " Momentum Engine" appended to doc_comment.
+                let camel_expansion = split_camel_case_for_index(&sym.name);
+                if !camel_expansion.is_empty() {
+                    if !doc_comment.is_empty() {
+                        doc_comment.push(' ');
+                    }
+                    doc_comment.push_str(&camel_expansion);
+                }
 
                 let body_snippet = source
                     .as_ref()
@@ -204,10 +215,19 @@ impl SemanticIndex {
         let mut count = 0;
 
         for sym in &file.symbols {
-            let doc_comment = source
+            let mut doc_comment = source
                 .as_ref()
                 .map(|s| extract_doc_comment(s, sym.line_start))
                 .unwrap_or_default();
+
+            // CamelCase Index Expansion (v4.1.0)
+            let camel_expansion = split_camel_case_for_index(&sym.name);
+            if !camel_expansion.is_empty() {
+                if !doc_comment.is_empty() {
+                    doc_comment.push(' ');
+                }
+                doc_comment.push_str(&camel_expansion);
+            }
 
             let body_snippet = source
                 .as_ref()
@@ -335,19 +355,32 @@ impl SemanticIndex {
             };
             let temporal_boost = 0.7 + 0.3 * (-self.temporal_decay_lambda * age_days).exp();
 
-            // Source-First (v3.9.3): boost source, penalize test/vendor/static files
+            // Source-First (v3.9.3, tuned v4.1.0): boost source, penalize test/vendor.
+            // Test penalty tightened from 0.5 to 0.3 — test function names are
+            // inherently keyword-dense and unfairly dominate BM25 rankings.
             let file_path = get_text(self.fields.file_path);
             let source_boost: f32 = if is_vendor_path(&file_path) {
-                0.1 // Vendored/static files are almost never relevant
+                0.1
             } else if is_test_path(&file_path) {
-                0.5
+                0.3
             } else {
                 1.5
             };
 
+            // Symbol Specificity Boost (v4.1.0): longer/unique names are more
+            // likely to be what the user wants. "MomentumEngine" (15 chars) is
+            // more specific than "build" (5 chars).
+            let symbol_name = get_text(self.fields.symbol_name);
+            let specificity_boost: f32 = if symbol_name.len() >= 12 {
+                1.3
+            } else if symbol_name.len() >= 8 {
+                1.1
+            } else {
+                1.0
+            };
+
             // Path-relevance boost (v3.10.2): if query terms appear in the
             // file path, the result is likely more relevant.
-            // "scheduler" query → scheduler/multi_thread/worker.rs gets boosted.
             let path_lower = file_path.to_ascii_lowercase();
             let path_matches = query_str
                 .split_whitespace()
@@ -362,7 +395,7 @@ impl SemanticIndex {
             };
 
             results.push(SearchResult {
-                score: score * temporal_boost as f32 * source_boost * path_boost,
+                score: score * temporal_boost as f32 * source_boost * path_boost * specificity_boost,
                 file: file_path,
                 symbol: get_text(self.fields.symbol_name),
                 kind: get_text(self.fields.kind),
@@ -510,6 +543,64 @@ fn is_vendor_path(path: &str) -> bool {
         || p.contains("/deps/")
 }
 
+/// Split a CamelCase symbol name into components for index expansion.
+///
+/// Returns a space-separated string of both original-case and lowercase
+/// components to maximize BM25 coverage.
+///
+/// "MomentumEngine" → "Momentum Engine momentum engine"
+/// "CodeGraph" → "Code Graph code graph"
+/// "build_context" → "" (snake_case → no split)
+fn split_camel_case_for_index(name: &str) -> String {
+    // Only split if the string contains mixed case
+    if name.contains('_')
+        || name.chars().all(|c| c.is_uppercase() || !c.is_alphabetic())
+        || name.chars().all(|c| c.is_lowercase() || !c.is_alphabetic())
+    {
+        return String::new();
+    }
+
+    let chars: Vec<char> = name.chars().collect();
+    let mut parts = Vec::new();
+    let mut start = 0;
+
+    for i in 1..chars.len() {
+        let split_here = (chars[i].is_uppercase() && chars[i - 1].is_lowercase())
+            || (i + 1 < chars.len()
+                && chars[i].is_uppercase()
+                && chars[i + 1].is_lowercase()
+                && chars[i - 1].is_uppercase());
+
+        if split_here {
+            let part: String = chars[start..i].iter().collect();
+            if part.len() >= 2 {
+                parts.push(part);
+            }
+            start = i;
+        }
+    }
+
+    let part: String = chars[start..].iter().collect();
+    if part.len() >= 2 {
+        parts.push(part);
+    }
+
+    if parts.len() <= 1 {
+        return String::new();
+    }
+
+    // Emit both original-case and lowercase for unambiguous BM25 matching
+    let mut tokens = Vec::new();
+    for p in &parts {
+        tokens.push(p.clone());
+        let lower = p.to_lowercase();
+        if lower != *p {
+            tokens.push(lower);
+        }
+    }
+    tokens.join(" ")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -570,5 +661,39 @@ pub fn authenticate_user(credentials: &Credentials) -> Result<Token> {
         assert!(!is_test_path("src/main.rs"));
         assert!(!is_test_path("lib/auth.ts"));
         assert!(!is_test_path("src/attestation/verify.rs"));
+    }
+
+    // ── CamelCase Index Expansion tests (v4.1.0) ────────────────────
+
+    #[test]
+    fn test_split_camel_case_for_index() {
+        let result = split_camel_case_for_index("MomentumEngine");
+        assert!(result.contains("Momentum"));
+        assert!(result.contains("Engine"));
+        assert!(result.contains("momentum"));
+        assert!(result.contains("engine"));
+    }
+
+    #[test]
+    fn test_split_camel_case_for_index_three_parts() {
+        let result = split_camel_case_for_index("SmartContextInput");
+        assert!(result.contains("Smart"));
+        assert!(result.contains("Context"));
+        assert!(result.contains("Input"));
+        assert!(result.contains("smart"));
+        assert!(result.contains("context"));
+        assert!(result.contains("input"));
+    }
+
+    #[test]
+    fn test_split_camel_case_for_index_snake_case_noop() {
+        assert!(split_camel_case_for_index("build_context").is_empty());
+        assert!(split_camel_case_for_index("extract_targets").is_empty());
+    }
+
+    #[test]
+    fn test_split_camel_case_for_index_single_word_noop() {
+        assert!(split_camel_case_for_index("tokio").is_empty());
+        assert!(split_camel_case_for_index("HTML").is_empty());
     }
 }

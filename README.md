@@ -118,7 +118,7 @@ See the [full integration guides](docs/integration/) for system prompt templates
 │  └─────────┘  └──────┘  └────────┘  └─────┘  └────────┘  └─────┘ │
 │                                                                      │
 └──────────────────────────────────────────────────────────────────────┘
-   15 crates · Plugin architecture · Priority-based init · HCI-tuned
+   14 crates · Plugin architecture · Priority-based init · HCI-tuned
 ```
 
 ```mermaid

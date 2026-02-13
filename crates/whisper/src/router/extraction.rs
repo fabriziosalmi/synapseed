@@ -63,6 +63,11 @@ pub(super) static STOP_WORDS: LazyLock<HashSet<&'static str>> = LazyLock::new(||
 
 /// Strip stop words and return cleaned technical terms for Tantivy search.
 /// "Come funziona il chunked transfer encoding in requests?" → "chunked transfer encoding requests"
+///
+/// CamelCase Splitting (v4.1.0): "MomentumEngine" → "MomentumEngine Momentum Engine momentum engine".
+/// This maximizes BM25 signal for compound identifiers that `en_stem` treats as
+/// a single opaque token ("momentumengin"). Both original-case and lowercase
+/// components are emitted for unambiguous matching.
 pub(super) fn clean_query_for_search(query: &str) -> String {
     let terms: Vec<&str> = query
         .split(|c: char| c.is_whitespace() || c == '?' || c == '!' || c == ',')
@@ -70,11 +75,28 @@ pub(super) fn clean_query_for_search(query: &str) -> String {
         .filter(|w| w.len() >= 2 && !STOP_WORDS.contains(&w.to_lowercase().as_str()))
         .collect();
 
+    // CamelCase splitting (v4.1.0): extract components from compound identifiers.
+    // "MomentumEngine" → ["MomentumEngine", "Momentum", "Engine", "momentum", "engine"]
+    // "build_smart_context" → ["build_smart_context"] (snake_case stays intact)
+    let mut expanded = Vec::new();
+    for term in &terms {
+        expanded.push(term.to_string());
+        for part in split_camel_case(term) {
+            if part.len() >= 3 && !expanded.iter().any(|e| e.eq_ignore_ascii_case(&part)) {
+                let lower = part.to_lowercase();
+                expanded.push(part.clone());
+                if lower != part {
+                    expanded.push(lower);
+                }
+            }
+        }
+    }
+
     // Synonym expansion (v3.9.4): add morphological variants to improve BM25 recall.
     // "chunked" → also match "chunk", "encoding" → "encode decode", etc.
-    let mut expanded = terms.iter().map(|t| t.to_string()).collect::<Vec<_>>();
-    for term in &terms {
-        let lower = term.to_lowercase();
+    let base_count = expanded.len();
+    for i in 0..base_count {
+        let lower = expanded[i].to_lowercase();
         for synonym in expand_synonyms(&lower) {
             if !expanded.iter().any(|e| e.to_lowercase() == synonym) {
                 expanded.push(synonym);
@@ -83,6 +105,58 @@ pub(super) fn clean_query_for_search(query: &str) -> String {
     }
 
     expanded.join(" ")
+}
+
+/// Split a CamelCase identifier into its constituent words.
+///
+/// "MomentumEngine" → ["Momentum", "Engine"]
+/// "CodeGraph" → ["Code", "Graph"]
+/// "BM25" → ["BM25"] (acronym+number stays together)
+/// "build_smart_context" → [] (snake_case → no splits)
+/// "URLParser" → ["URL", "Parser"]
+fn split_camel_case(s: &str) -> Vec<String> {
+    // Only split if the string contains mixed case (not all-upper, not all-lower, not snake_case)
+    if s.contains('_') || s.chars().all(|c| c.is_uppercase() || !c.is_alphabetic())
+        || s.chars().all(|c| c.is_lowercase() || !c.is_alphabetic())
+    {
+        return Vec::new();
+    }
+
+    let chars: Vec<char> = s.chars().collect();
+    let mut parts = Vec::new();
+    let mut start = 0;
+
+    for i in 1..chars.len() {
+        // Split at: lowercase/digit → Uppercase ("mE" in "MomentumEngine", "5S" in "BM25Score")
+        // Split at: Uppercase → Uppercase+lowercase ("LP" → "L" | "Pa" in "URLParser")
+        let prev_lower_or_digit = chars[i - 1].is_lowercase() || chars[i - 1].is_ascii_digit();
+        let split_here = (chars[i].is_uppercase() && prev_lower_or_digit)
+            || (i + 1 < chars.len()
+                && chars[i].is_uppercase()
+                && chars[i + 1].is_lowercase()
+                && chars[i - 1].is_uppercase());
+
+        if split_here {
+            let part: String = chars[start..i].iter().collect();
+            if part.len() >= 2 {
+                parts.push(part);
+            }
+            start = i;
+        }
+    }
+
+    // Last segment
+    let part: String = chars[start..].iter().collect();
+    if part.len() >= 2 {
+        parts.push(part);
+    }
+
+    // Only return if we actually split into multiple parts
+    if parts.len() > 1 {
+        parts
+    } else {
+        Vec::new()
+    }
 }
 
 /// Expand a technical term with morphological variants and domain synonyms.
@@ -548,6 +622,45 @@ mod tests {
     fn test_clean_query_empty_result() {
         let cleaned = clean_query_for_search("come il la un");
         assert!(cleaned.is_empty());
+    }
+
+    // ── CamelCase splitting tests (v4.1.0) ──────────────────────────
+
+    #[test]
+    fn test_split_camel_case_basic() {
+        assert_eq!(split_camel_case("MomentumEngine"), vec!["Momentum", "Engine"]);
+        assert_eq!(split_camel_case("CodeGraph"), vec!["Code", "Graph"]);
+        assert_eq!(split_camel_case("SmartContextInput"), vec!["Smart", "Context", "Input"]);
+    }
+
+    #[test]
+    fn test_split_camel_case_acronym() {
+        assert_eq!(split_camel_case("URLParser"), vec!["URL", "Parser"]);
+        assert_eq!(split_camel_case("BM25Score"), vec!["BM25", "Score"]);
+    }
+
+    #[test]
+    fn test_split_camel_case_no_split() {
+        // snake_case → no split
+        assert!(split_camel_case("build_smart_context").is_empty());
+        // all lowercase → no split
+        assert!(split_camel_case("tokio").is_empty());
+        // all uppercase → no split
+        assert!(split_camel_case("HTML").is_empty());
+        // too short parts
+        assert!(split_camel_case("aB").is_empty());
+    }
+
+    #[test]
+    fn test_clean_query_camelcase_expansion() {
+        let cleaned = clean_query_for_search("explain the MomentumEngine tier system");
+        assert!(cleaned.contains("MomentumEngine"));
+        assert!(cleaned.contains("Momentum"));
+        assert!(cleaned.contains("Engine"));
+        assert!(cleaned.contains("momentum"));
+        assert!(cleaned.contains("engine"));
+        assert!(cleaned.contains("tier"));
+        assert!(cleaned.contains("system"));
     }
 
     // ── Source-First Heuristics tests (v3.9.3) ───────────────────────

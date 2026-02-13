@@ -27,7 +27,6 @@ use synapseed_root::plugin::RootPlugin;
 use synapseed_search::plugin::SearchPlugin;
 use synapseed_shadow_check::plugin::ShadowCheckPlugin;
 use synapseed_telemetry_sink::plugin::TelemetrySinkPlugin;
-use synapseed_visualizer::plugin::VisualizerPlugin;
 use synapseed_gym::plugin::GymPlugin;
 use synapseed_janitor::plugin::JanitorPlugin;
 use synapseed_architect::plugin::ArchitectPlugin;
@@ -404,7 +403,6 @@ async fn init_full_context(path: &Path) -> Result<SynapseContext> {
         Box::new(ShadowCheckPlugin::new()),
         Box::new(SearchPlugin::new()),
         Box::new(TelemetrySinkPlugin::new()),
-        Box::new(VisualizerPlugin::from_config(&dna)),
         Box::new(ArchitectPlugin::new()),
         Box::new(WhisperPlugin::new()),
         Box::new(GymPlugin::new()),
@@ -775,7 +773,6 @@ async fn cmd_serve(path: &Path) -> Result<()> {
         Box::new(ShadowCheckPlugin::new()),
         Box::new(SearchPlugin::new()),
         Box::new(TelemetrySinkPlugin::new()),
-        Box::new(VisualizerPlugin::from_config(&dna)),
         Box::new(ArchitectPlugin::new()),
         Box::new(WhisperPlugin::new()),
         Box::new(GymPlugin::new()),

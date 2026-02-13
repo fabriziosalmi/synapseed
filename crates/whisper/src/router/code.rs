@@ -8,9 +8,11 @@ pub(super) fn gather_code_context(
     targets: &[Target],
     ctx: &SynapseContext,
 ) -> Option<CodeContext> {
+    // v4.1.0: Security intent now gathers code context — "how does the
+    // security scanner work?" needs symbols to produce SID > 0.
     if !matches!(
         intent,
-        Intent::BugFix | Intent::Explain | Intent::Refactor | Intent::General
+        Intent::BugFix | Intent::Explain | Intent::Refactor | Intent::General | Intent::Security
     ) {
         return None;
     }
