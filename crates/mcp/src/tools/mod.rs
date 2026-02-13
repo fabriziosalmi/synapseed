@@ -17,6 +17,7 @@ mod symbol;
 mod synapseed;
 mod telemetry;
 mod train;
+mod verify;
 
 use std::path::Path;
 
@@ -339,6 +340,20 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
+            name: "verify_path".into(),
+            description: "LOW-LEVEL — Check if a file exists in the project. Returns existence, size, and language. Use before citing a file path to avoid hallucination.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "File path relative to project root"
+                    }
+                },
+                "required": ["path"]
+            }),
+        },
+        ToolDefinition {
             name: "similar".into(),
             description: "SPECIALIZED — Find code similar to a natural-language query using vector embeddings (cosine similarity). Requires `search.embeddings: true` in DNA config. Use for meaning-based code search beyond keyword matching.".into(),
             input_schema: json!({
@@ -372,7 +387,7 @@ const TOOL_NAMES: &[&str] = &[
     "hoist", "lookup", "scan", "check", "blame", "diagnose", "consult",
     "search", "diagnostics", "analyze", "quickfix", "ask", "intent",
     "train", "reset-telemetry", "janitor", "janitor-fix", "architect",
-    "oracle", "similar",
+    "oracle", "similar", "verify_path",
 ];
 
 /// Resolve a tool name: canonical names pass through, legacy names are mapped.
@@ -399,6 +414,7 @@ fn resolve_tool_name(name: &str) -> Option<&'static str> {
         "architect" => Some("architect"),
         "oracle" => Some("oracle"),
         "similar" => Some("similar"),
+        "verify_path" => Some("verify_path"),
         // ── Legacy aliases (backward-compat) ────────────────────
         "get_code_skeleton" => Some("hoist"),
         "lookup_symbol" => Some("lookup"),
@@ -478,6 +494,7 @@ fn dispatch_tool_inner(
         "architect" => architect::tool_architect_analyze(args, ctx),
         "oracle" => oracle::tool_oracle_fix_docs(ctx),
         "similar" => search::tool_semantic_similarity(args, ctx),
+        "verify_path" => verify::tool_verify_path(args, ctx),
         _ => error_result(format!("Internal dispatch error: unknown canonical tool '{canonical}'")),
     }
 }

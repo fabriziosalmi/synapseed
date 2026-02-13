@@ -203,12 +203,12 @@ fn test_tool_call_diagnose() {
 // ══════════════════════════════════════════════════════════════
 
 #[test]
-fn test_list_tools_returns_all_20_tools() {
+fn test_list_tools_returns_all_21_tools() {
     let tools = tools::list_tools();
     assert_eq!(
         tools.len(),
-        20,
-        "Expected 20 tools, got {}",
+        21,
+        "Expected 21 tools, got {}",
         tools.len()
     );
 }

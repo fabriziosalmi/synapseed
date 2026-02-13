@@ -110,7 +110,7 @@ fn test_mcp_full_lifecycle() {
     let tools_list = &responses[1];
     assert_eq!(tools_list["id"], 2);
     let tools = tools_list["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 20, "Expected 20 tools, got {}", tools.len());
+    assert_eq!(tools.len(), 21, "Expected 21 tools, got {}", tools.len());
 
     // Verify all tool names are present (short canonical names since v3.1)
     let tool_names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
@@ -134,6 +134,7 @@ fn test_mcp_full_lifecycle() {
     assert!(tool_names.contains(&"architect"));
     assert!(tool_names.contains(&"oracle"));
     assert!(tool_names.contains(&"similar"));
+    assert!(tool_names.contains(&"verify_path"));
 
     // ── 3. check_command "ls" → ALLOWED ──
     let check_ls = &responses[2];

@@ -4,11 +4,15 @@
 //! (CPU-bound tool calls are offloaded via `spawn_blocking`), and writes
 //! responses to stdout. All tracing/logging MUST go to stderr.
 
+use std::sync::Arc;
+
+use parking_lot::Mutex;
 use serde_json::json;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use synapseed_core::context::SynapseContext;
+use synapseed_core::momentum::{ModelTier, MomentumEngine};
 use synapseed_core::session::SessionState;
 use synapseed_core::state::ProjectState;
 
@@ -125,6 +129,7 @@ async fn handle_request(
                 .unwrap_or("")
                 .to_string();
             let arguments = req.params.get("arguments").cloned().unwrap_or(json!({}));
+            let name_for_momentum = name.clone();
 
             match tokio::task::spawn_blocking(move || {
                 tools::handle_tool_call(&name, &arguments, &ctx_cloned)
@@ -134,6 +139,10 @@ async fn handle_request(
                 Ok(result) => {
                     // HCI Req 9: Track tool invocations for session continuity
                     ctx.update_metrics(|m| m.tools_invoked += 1);
+                    // Momentum Engine: record tool for phase detection (#52)
+                    if let Some(engine) = ctx.get_extension::<Mutex<MomentumEngine>>() {
+                        engine.lock().record_tool(&name_for_momentum);
+                    }
                     JsonRpcResponse::success(id, serde_json::to_value(result).unwrap_or_default())
                 }
                 Err(e) => {
@@ -224,6 +233,30 @@ fn handle_notification(notif: &JsonRpcNotification, _ctx: &SynapseContext, initi
 
 fn handle_initialize(req: &JsonRpcRequest, ctx: &SynapseContext) -> JsonRpcResponse {
     info!("MCP: Initializing server");
+
+    // ── Client Fingerprinting (v3.6.2 #53) ──────────────────────
+    let dna = ctx.dna();
+    let tier = if let Some(profile) = &dna.hci.model_profile {
+        // DNA override always wins
+        let t = ModelTier::from_config(profile).unwrap_or_default();
+        info!(tier = %t, source = "dna", "Model tier from DNA override");
+        t
+    } else if let Some(client_info) = req.params.get("clientInfo") {
+        let client_name = client_info
+            .get("name")
+            .and_then(|n| n.as_str())
+            .unwrap_or("unknown");
+        let t = ModelTier::from_client_name(client_name);
+        info!(tier = %t, client = client_name, "Model tier from client fingerprint");
+        t
+    } else {
+        debug!("No clientInfo in initialize, defaulting to Molecular");
+        ModelTier::default()
+    };
+
+    // Register MomentumEngine in the extension registry
+    let engine = MomentumEngine::new(tier);
+    ctx.set_extension(Arc::new(Mutex::new(engine)));
 
     // Dynamic Context Injection based on project state
     let instructions = build_instructions(ctx);
@@ -324,6 +357,12 @@ fn build_instructions(ctx: &SynapseContext) -> String {
         dna.dlp_level,
         dna.plugins.join(", "),
     ));
+
+    // Momentum Engine: inject model tier if available
+    if let Some(engine) = ctx.get_extension::<Mutex<MomentumEngine>>() {
+        let e = engine.lock();
+        instructions.push_str(&format!("- Model Tier: {}\n", e.tier()));
+    }
 
     // HCI Req 9 (Time Anchor): inject session continuity if recent session exists
     let root = ctx.project_root();

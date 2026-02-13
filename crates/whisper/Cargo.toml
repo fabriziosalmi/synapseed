@@ -16,3 +16,4 @@ synapseed-shadow-check = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
+parking_lot = { workspace = true }

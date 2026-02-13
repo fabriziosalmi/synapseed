@@ -1,10 +1,11 @@
 #![forbid(unsafe_code)]
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use serde_json::json;
-use tracing::info;
+use tracing::{info, warn};
 
 use synapseed_core::context::SynapseContext;
 use synapseed_core::event::SynapseEvent;
@@ -257,6 +258,13 @@ enum Commands {
         min_similarity: f64,
     },
 
+    /// Check if a file exists in the project (truth verification)
+    #[command(visible_alias = "verify_path")]
+    Verify {
+        /// File path relative to project root
+        path: String,
+    },
+
     /// Catch-all: unrecognized input is treated as an `ask` query
     #[command(external_subcommand)]
     External(Vec<String>),
@@ -365,6 +373,9 @@ async fn main() -> Result<()> {
         Commands::Similar { query, top_k, min_similarity } => {
             cmd_mcp(&project_root, "similar", json!({"query": query, "top_k": top_k, "min_similarity": min_similarity}), cli.json).await?
         }
+        Commands::Verify { path } => {
+            cmd_mcp(&project_root, "verify_path", json!({"path": path}), cli.json).await?
+        }
         Commands::External(args) => {
             let query = args.join(" ");
             cmd_ask(&project_root, &query, false, cli.json).await?
@@ -411,11 +422,14 @@ async fn init_full_context(path: &Path) -> Result<SynapseContext> {
 ///
 /// In CLI mode the Cortex plugin indexes in a background thread, so the graph
 /// may still be empty when the Whisperer processes the query.  This function
-/// detects that situation and performs a **synchronous** hoist (equivalent to
-/// `synapseed hoist . && synapseed ask "..."`) in a single process.
+/// waits for `IndexingComplete` (up to 2 s) and falls back to a synchronous
+/// hoist if the timeout expires.
 async fn cmd_ask(path: &Path, query: &str, raw: bool, json_output: bool) -> Result<()> {
     let ctx = init_full_context(path).await?;
-/* ... existing code ... */
+
+    // ── Wait for background indexing (Issue #44) ────────────────
+    wait_for_index(&ctx, Duration::from_secs(2)).await;
+
     let result = handle_tool_call("ask", &json!({"query": query, "raw": raw}), &ctx);
 
     if json_output {
@@ -433,6 +447,46 @@ async fn cmd_ask(path: &Path, query: &str, raw: bool, json_output: bool) -> Resu
     }
 
     Ok(())
+}
+
+/// Wait for background indexing to complete, with a timeout fallback.
+///
+/// Subscribes to the event bus and waits for `IndexingComplete`.  If the
+/// timeout expires the code graph is still empty, performs a **synchronous**
+/// hoist so `ask` never returns with 0 symbols when files exist.
+async fn wait_for_index(ctx: &SynapseContext, timeout: Duration) {
+    // Fast path: graph already populated (MCP serve mode, or index was instant)
+    if let Some(graph) = ctx.get_extension::<CodeGraph>() {
+        if graph.file_count() > 0 {
+            return;
+        }
+    }
+
+    // Subscribe and wait for IndexingComplete
+    let mut rx = ctx.subscribe();
+    let result = tokio::time::timeout(timeout, async {
+        loop {
+            match rx.recv().await {
+                Ok(SynapseEvent::IndexingComplete) => break,
+                Err(_) => break, // channel closed
+                _ => continue,
+            }
+        }
+    })
+    .await;
+
+    if result.is_err() {
+        // Timeout — perform synchronous hoist as fallback
+        warn!("Index timeout ({timeout:?}), performing synchronous hoist");
+        if let Some(graph) = ctx.get_extension::<CodeGraph>() {
+            if graph.file_count() == 0 {
+                let root = ctx.project_root();
+                if let Err(e) = graph.index_directory(&root) {
+                    warn!(error = %e, "Synchronous hoist failed");
+                }
+            }
+        }
+    }
 }
 
 /// Generic MCP tool bridge: init context, call tool, print result.

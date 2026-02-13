@@ -66,6 +66,10 @@ pub struct ProjectDna {
     /// Code security pattern scanning configuration.
     #[serde(default)]
     pub security_patterns: SecurityPatternsConfig,
+
+    /// Context configuration for the Whisperer (symbol pruning, token budget).
+    #[serde(default)]
+    pub context: ContextConfig,
 }
 
 /// Search index configuration.
@@ -137,6 +141,10 @@ pub struct HciConfig {
     /// Max files to index (memory ceiling). None = unlimited (default: 10000).
     #[serde(default)]
     pub memory_ceiling_files: Option<usize>,
+    /// Model cognitive profile override: "atomic", "molecular", or "galactic".
+    /// When set, overrides auto-detected tier from MCP client fingerprinting.
+    #[serde(default)]
+    pub model_profile: Option<String>,
 }
 
 impl Default for HciConfig {
@@ -148,6 +156,7 @@ impl Default for HciConfig {
             mentor_mode: true,
             session_persistence: true,
             memory_ceiling_files: None,
+            model_profile: None,
         }
     }
 }
@@ -172,6 +181,28 @@ impl Default for SecurityPatternsConfig {
             categories: Vec::new(), // empty = all active
         }
     }
+}
+
+/// Context configuration for the Whisperer.
+/// Controls how many symbols and how much source code is included in responses.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextConfig {
+    /// Maximum symbols to include in context (default: 5).
+    /// Lower values reduce noise for ultra-small models (<3B).
+    #[serde(default = "default_max_symbols")]
+    pub max_symbols: usize,
+}
+
+impl Default for ContextConfig {
+    fn default() -> Self {
+        Self {
+            max_symbols: default_max_symbols(),
+        }
+    }
+}
+
+fn default_max_symbols() -> usize {
+    5
 }
 
 fn default_true() -> bool {
@@ -258,6 +289,7 @@ impl Default for ProjectDna {
             architect: ArchitectConfig::default(),
             hci: HciConfig::default(),
             security_patterns: SecurityPatternsConfig::default(),
+            context: ContextConfig::default(),
         }
     }
 }
@@ -386,12 +418,19 @@ impl ProjectDna {
         if other.hci.memory_ceiling_files.is_some() {
             self.hci.memory_ceiling_files = other.hci.memory_ceiling_files;
         }
+        if other.hci.model_profile.is_some() {
+            self.hci.model_profile = other.hci.model_profile;
+        }
         // Security patterns: override if explicitly disabled or categories provided
         if !other.security_patterns.enabled {
             self.security_patterns.enabled = false;
         }
         if !other.security_patterns.categories.is_empty() {
             self.security_patterns.categories = other.security_patterns.categories;
+        }
+        // Context: override if non-default
+        if other.context.max_symbols != default_max_symbols() {
+            self.context.max_symbols = other.context.max_symbols;
         }
     }
 }

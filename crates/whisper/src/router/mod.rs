@@ -12,10 +12,12 @@ mod diagnostics;
 mod history;
 mod security;
 
+use parking_lot::Mutex;
 use serde::Serialize;
 use tracing::{debug, info};
 
 use synapseed_core::context::SynapseContext;
+use synapseed_core::momentum::{ModelTier, MomentumEngine, SessionPhase};
 use synapseed_cortex::graph::CodeGraph;
 use synapseed_search::indexer::SemanticIndex;
 
@@ -152,6 +154,18 @@ pub fn ask_raw(query: &str, ctx: &SynapseContext, raw_injection: bool) -> Whispe
 fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> WhisperResult {
     info!(query = query, raw = raw_injection, "Whisperer: Processing query");
 
+    // ── Momentum: read tier + phase, check git staged (#52, #53, #54) ──
+    let (tier, phase) = if let Some(engine) = ctx.get_extension::<Mutex<MomentumEngine>>() {
+        let mut e = engine.lock();
+        // Git-Context Alignment (#54): check for staged files
+        let has_staged = detect_git_staged(ctx);
+        e.set_git_staged(has_staged);
+        (e.tier(), e.phase())
+    } else {
+        (ModelTier::default(), SessionPhase::default())
+    };
+    debug!(tier = %tier, phase = %phase, "Whisperer: Momentum state");
+
     let intent = classify_intent(query);
     let complexity = analyze_complexity(query);
     debug!(intent = ?intent, complexity = ?complexity, "Whisperer: Classified");
@@ -182,6 +196,8 @@ fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> W
         security_status: &sec_status,
         raw_injection,
         raw_sources: &raw_sources,
+        tier,
+        phase,
     };
 
     let smart_context = build_smart_context(input);
@@ -365,7 +381,9 @@ fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> {
 
     // Dedup by (name, file_path)
     targets.dedup_by(|a, b| a.name == b.name && a.file_path == b.file_path);
-    targets.truncate(5);
+    // Configurable pruning (v3.6.2): respect DNA context.max_symbols
+    let max_symbols = ctx.dna().context.max_symbols;
+    targets.truncate(max_symbols);
     targets
 }
 
@@ -375,7 +393,7 @@ fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> {
 /// raw JSON.  Output example:
 ///
 /// ```text
-/// Found fn `ask` in crates/whisper/src/router/mod.rs at line 136
+/// Found fn `ask(query: &str, ctx: &SynapseContext) -> WhisperResult` in crates/whisper/src/router/mod.rs at line 136
 /// Found struct `WhisperResult` in crates/whisper/src/router/mod.rs at line 81
 /// ```
 fn build_human_summary(code_context: &Option<CodeContext>) -> Option<String> {
@@ -395,7 +413,13 @@ fn build_human_summary(code_context: &Option<CodeContext>) -> Option<String> {
                 .get("kind")
                 .and_then(|k| k.as_str())
                 .unwrap_or("symbol");
-            Some(format!("Found {kind} `{name}` in {file} at line {line}"))
+            // Include signature if available (v3.6.2: Narrative Bridge)
+            let display_name = if let Some(sig) = sym.get("signature").and_then(|s| s.as_str()) {
+                sig.to_string()
+            } else {
+                format!("`{name}`")
+            };
+            Some(format!("Found {kind} {display_name} in {file} at line {line}"))
         })
         .collect();
 
@@ -404,6 +428,36 @@ fn build_human_summary(code_context: &Option<CodeContext>) -> Option<String> {
     }
 
     Some(lines.join("\n"))
+}
+
+/// Detect the predominant language across discovered symbols.
+fn detect_predominant_language(code_context: &Option<CodeContext>) -> Option<String> {
+    let code = code_context.as_ref()?;
+    let mut counts: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    for sym in &code.symbols {
+        if let Some(file) = sym.get("file_path").and_then(|f| f.as_str()) {
+            let ext = file.rsplit('.').next().unwrap_or("");
+            let lang = match ext {
+                "rs" => "Rust",
+                "py" | "pyi" => "Python",
+                "js" | "mjs" | "cjs" => "JavaScript",
+                "ts" | "tsx" | "mts" => "TypeScript",
+                "go" => "Go",
+                "java" => "Java",
+                "c" | "h" => "C",
+                "cpp" | "cc" | "cxx" | "hpp" => "C++",
+                "rb" => "Ruby",
+                "swift" => "Swift",
+                "kt" | "kts" => "Kotlin",
+                _ => ext,
+            };
+            *counts.entry(lang).or_default() += 1;
+        }
+    }
+    counts
+        .into_iter()
+        .max_by_key(|(_, count)| *count)
+        .map(|(lang, _)| lang.to_string())
 }
 
 // ── Raw Source Injection ────────────────────────────────────────────────
@@ -436,8 +490,15 @@ fn inject_raw_sources(targets: &[Target], ctx: &SynapseContext) -> Vec<RawSource
         let abs_path = root.join(&rel_path);
         let content = match std::fs::read_to_string(&abs_path) {
             Ok(c) => c,
-            Err(_) => {
-                debug!(path = %abs_path.display(), "Whisper: Could not read file for raw injection");
+            Err(e) => {
+                debug!(path = %abs_path.display(), error = %e, "Whisper: Could not read file for raw injection");
+                // Inject an explicit error so the LLM knows data is missing
+                sources.push(RawSource {
+                    file_path: rel_path,
+                    line_start: 0,
+                    line_end: 0,
+                    source: format!("[ERROR: Could not read file — {e}]"),
+                });
                 continue;
             }
         };
@@ -505,6 +566,8 @@ struct SmartContextInput<'a> {
     security_status: &'a str,
     raw_injection: bool,
     raw_sources: &'a [RawSource],
+    tier: ModelTier,
+    phase: SessionPhase,
 }
 
 // ── Smart Context Builder ──────────────────────────────────────────────
@@ -519,6 +582,8 @@ fn build_smart_context(input: SmartContextInput) -> String {
     let security_status = input.security_status;
     let raw_injection = input.raw_injection;
     let raw_sources = input.raw_sources;
+    let tier = input.tier;
+    let phase = input.phase;
 
     let intent_label = match intent {
         Intent::BugFix => "bug fix",
@@ -528,27 +593,77 @@ fn build_smart_context(input: SmartContextInput) -> String {
         Intent::General => "general inquiry",
     };
 
-    // HCI Req 5 (Mentor Mode): adapt preamble to query complexity
-    let preamble = match complexity {
-        QueryComplexity::Quick => format!(
-            "Brief answer for \"{query}\" ({intent_label}):"
-        ),
-        QueryComplexity::Standard => format!(
-            "Based on your query \"{query}\", SYNAPSEED detected a **{intent_label}** intent and gathered:"
-        ),
-        QueryComplexity::Deep => format!(
-            "Detailed analysis for \"{query}\" — detected intent: **{intent_label}**.\n\
-             SYNAPSEED gathered comprehensive context across all subsystems:"
-        ),
+    // ── Tier-Adapted Preamble (#51) ─────────────────────────────────
+    let preamble = match tier {
+        ModelTier::Atomic => {
+            // Flat, minimal — no markdown formatting for tiny models
+            format!("{query} — {intent_label}")
+        }
+        ModelTier::Molecular => match complexity {
+            QueryComplexity::Quick => format!(
+                "Brief answer for \"{query}\" ({intent_label}):"
+            ),
+            QueryComplexity::Standard => format!(
+                "Query: \"{query}\" | Intent: {intent_label} | Phase: {phase}"
+            ),
+            QueryComplexity::Deep => format!(
+                "Detailed analysis for \"{query}\" — intent: {intent_label}, phase: {phase}."
+            ),
+        },
+        ModelTier::Galactic => match complexity {
+            QueryComplexity::Quick => format!(
+                "Brief answer for \"{query}\" ({intent_label}):"
+            ),
+            QueryComplexity::Standard => format!(
+                "Based on your query \"{query}\", SYNAPSEED detected a **{intent_label}** intent (phase: **{phase}**) and gathered:"
+            ),
+            QueryComplexity::Deep => format!(
+                "Detailed analysis for \"{query}\" — detected intent: **{intent_label}**, session phase: **{phase}**.\n\
+                 SYNAPSEED gathered comprehensive context across all subsystems:"
+            ),
+        },
     };
 
     let mut parts = vec![preamble];
+
+    // Language Pinning (v3.6.2): tell the model which language it's working with
+    if let Some(lang) = detect_predominant_language(code_context) {
+        parts.push(format!("WORKING_LANGUAGE: {lang}"));
+    }
 
     // Human-readable symbol summary — helps small models locate answers fast
     if let Some(summary) = build_human_summary(code_context) {
         parts.push(summary);
     }
 
+    // ── Atomic Tier: minimal output, skip structured sections ──────
+    if tier == ModelTier::Atomic {
+        // Raw injection still works for Atomic (that's the whole point)
+        if raw_injection && !raw_sources.is_empty() {
+            parts.push(String::new());
+            parts.push("Source code:".into());
+            for src in raw_sources {
+                if src.line_start == 0 && src.line_end == 0 {
+                    parts.push(format!("File: {} (UNAVAILABLE)", src.file_path));
+                    parts.push(src.source.clone());
+                } else {
+                    parts.push(format!(
+                        "File: {} lines {}-{}",
+                        src.file_path, src.line_start, src.line_end
+                    ));
+                    parts.push(src.source.clone());
+                }
+            }
+            parts.push(
+                "\nAnswer using only the source code above. Cite file paths and line numbers.".into(),
+            );
+        } else {
+            parts.push("\nProvide a concise answer.".into());
+        }
+        return parts.join("\n");
+    }
+
+    // ── Molecular / Galactic: structured sections ──────────────────
     let mut section_count = 0usize;
     let max_sections = match complexity {
         QueryComplexity::Quick => 3,
@@ -572,10 +687,24 @@ fn build_smart_context(input: SmartContextInput) -> String {
 
     if section_count < max_sections {
         if let Some(hist) = history {
-            parts.push(format!(
+            // Chronos Sentiment Bridge (v3.6.2): include latest commit message
+            let latest_msg = hist
+                .recent_commits
+                .first()
+                .and_then(|c| c.get("message"))
+                .and_then(|m| m.as_str())
+                .map(|m| {
+                    let truncated: String = m.chars().take(80).collect();
+                    if m.len() > 80 { format!("{truncated}...") } else { truncated }
+                });
+            let mut hist_line = format!(
                 "- **History** ({}): {} commit(s), hotspot {:.1}, risk: {}",
                 hist.file, hist.total_commits, hist.hotspot_score, hist.risk
-            ));
+            );
+            if let Some(msg) = latest_msg {
+                hist_line.push_str(&format!("\n  Latest: \"{msg}\""));
+            }
+            parts.push(hist_line);
             if hist.rigidity > 0.5 {
                 let effort = if hist.convergence_rate > 0.0 {
                     format!("{:.1}x", 1.0 / hist.convergence_rate)
@@ -609,25 +738,35 @@ fn build_smart_context(input: SmartContextInput) -> String {
         }
     }
 
-    // ── Raw Source Injection block ──────────────────────────────────
+    // ── Raw Source Injection block (v3.6.2: Path Anchoring) ──────
     if raw_injection && !raw_sources.is_empty() {
         parts.push(String::new());
         parts.push("## Injected Source Code".into());
         parts.push("You are provided with the EXACT source code for your query. \
                      Use the provided file paths and line numbers in your answer.".into());
         for src in raw_sources {
-            parts.push(format!(
-                "\n[SOURCE_START file=\"{}\" lines={}-{}]",
-                src.file_path, src.line_start, src.line_end
-            ));
-            parts.push(src.source.clone());
-            parts.push("[SOURCE_END]".into());
+            if src.line_start == 0 && src.line_end == 0 {
+                // I/O error placeholder (v3.6.2: Transparent I/O Errors)
+                parts.push(format!(
+                    "\n--- FILE: {} (UNAVAILABLE) ---",
+                    src.file_path
+                ));
+                parts.push(src.source.clone());
+            } else {
+                parts.push(format!(
+                    "\n--- FILE: {} (lines {}-{}) ---",
+                    src.file_path, src.line_start, src.line_end
+                ));
+                parts.push(src.source.clone());
+            }
+            parts.push("--- END ---".into());
         }
     }
 
     let closing = if raw_injection {
         "\nAnswer based ONLY on the injected source code above. \
-         Cite exact file paths and line numbers."
+         Cite exact file paths and line numbers. \
+         ONLY use the file paths listed above. DO NOT invent file names."
     } else {
         match complexity {
             QueryComplexity::Quick => "\nProvide a concise answer.",
@@ -637,6 +776,32 @@ fn build_smart_context(input: SmartContextInput) -> String {
     };
     parts.push(closing.into());
     parts.join("\n")
+}
+
+// ── Git Staged Detection (#54) ──────────────────────────────────────────
+
+/// Detect whether git has staged files in the working directory.
+/// Sub-ms: spawns `git diff --cached --name-only` synchronously.
+fn detect_git_staged(ctx: &SynapseContext) -> bool {
+    let root = ctx.project_root();
+    match std::process::Command::new("git")
+        .args(["diff", "--cached", "--name-only"])
+        .current_dir(&root)
+        .output()
+    {
+        Ok(output) => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let has_staged = !stdout.trim().is_empty();
+            if has_staged {
+                debug!(files = stdout.trim(), "Git: staged files detected → forcing Stabilization");
+            }
+            has_staged
+        }
+        Err(e) => {
+            debug!(error = %e, "Git: could not check staged files");
+            false
+        }
+    }
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────
@@ -875,6 +1040,8 @@ mod tests {
             security_status: "CLEAN",
             raw_injection: false,
             raw_sources: &[],
+            tier: ModelTier::Galactic,
+            phase: SessionPhase::Discovery,
         };
         let ctx = build_smart_context(input);
         // Human summary appears before the section bullets
@@ -902,12 +1069,108 @@ mod tests {
             security_status: "CLEAN",
             raw_injection: true,
             raw_sources: &raw_sources,
+            tier: ModelTier::Galactic,
+            phase: SessionPhase::Discovery,
         };
 
         let ctx = build_smart_context(input);
         assert!(ctx.contains("## Injected Source Code"));
-        assert!(ctx.contains("[SOURCE_START file=\"src/main.rs\" lines=1-2]"));
+        assert!(ctx.contains("--- FILE: src/main.rs (lines 1-2) ---"));
         assert!(ctx.contains("fn main()"));
         assert!(ctx.contains("Answer based ONLY on the injected source code"));
+        assert!(ctx.contains("DO NOT invent file names"));
+    }
+
+    // ── Tier-adapted output tests (#51) ─────────────────────────────
+
+    #[test]
+    fn test_atomic_tier_flat_output() {
+        let input = SmartContextInput {
+            query: "explain main",
+            intent: &Intent::Explain,
+            complexity: QueryComplexity::Standard,
+            diagnostics: &None,
+            history: &None,
+            code_context: &None,
+            security_status: "CLEAN",
+            raw_injection: false,
+            raw_sources: &[],
+            tier: ModelTier::Atomic,
+            phase: SessionPhase::Discovery,
+        };
+        let ctx = build_smart_context(input);
+        // Atomic: no markdown formatting, no ** bold
+        assert!(!ctx.contains("**"));
+        assert!(ctx.contains("explain main"));
+        assert!(ctx.contains("concise answer"));
+    }
+
+    #[test]
+    fn test_atomic_tier_raw_injection() {
+        let raw_sources = vec![RawSource {
+            file_path: "src/lib.rs".to_string(),
+            line_start: 1,
+            line_end: 5,
+            source: "pub fn hello() {}".to_string(),
+        }];
+        let input = SmartContextInput {
+            query: "explain hello",
+            intent: &Intent::Explain,
+            complexity: QueryComplexity::Standard,
+            diagnostics: &None,
+            history: &None,
+            code_context: &None,
+            security_status: "CLEAN",
+            raw_injection: true,
+            raw_sources: &raw_sources,
+            tier: ModelTier::Atomic,
+            phase: SessionPhase::Discovery,
+        };
+        let ctx = build_smart_context(input);
+        // Atomic raw: simplified delimiters (no ##, no ---)
+        assert!(ctx.contains("Source code:"));
+        assert!(ctx.contains("File: src/lib.rs lines 1-5"));
+        assert!(ctx.contains("pub fn hello()"));
+        // No "## Injected Source Code" header
+        assert!(!ctx.contains("## Injected Source Code"));
+    }
+
+    #[test]
+    fn test_galactic_tier_includes_phase() {
+        let input = SmartContextInput {
+            query: "explain the router architecture in detail with cross references",
+            intent: &Intent::Explain,
+            complexity: QueryComplexity::Standard,
+            diagnostics: &None,
+            history: &None,
+            code_context: &None,
+            security_status: "CLEAN",
+            raw_injection: false,
+            raw_sources: &[],
+            tier: ModelTier::Galactic,
+            phase: SessionPhase::Implementation,
+        };
+        let ctx = build_smart_context(input);
+        assert!(ctx.contains("**Implementation**"));
+        assert!(ctx.contains("**code explanation**"));
+    }
+
+    #[test]
+    fn test_molecular_tier_includes_phase() {
+        let input = SmartContextInput {
+            query: "explain the router module",
+            intent: &Intent::Explain,
+            complexity: QueryComplexity::Standard,
+            diagnostics: &None,
+            history: &None,
+            code_context: &None,
+            security_status: "CLEAN",
+            raw_injection: false,
+            raw_sources: &[],
+            tier: ModelTier::Molecular,
+            phase: SessionPhase::Stabilization,
+        };
+        let ctx = build_smart_context(input);
+        assert!(ctx.contains("Phase: Stabilization"));
     }
 }
