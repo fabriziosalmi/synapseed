@@ -1,6 +1,6 @@
 # MCP Tools
 
-SYNAPSEED exposes 20 tools via the Model Context Protocol. Tools are callable actions that the LLM can invoke.
+SYNAPSEED exposes 22 tools via the Model Context Protocol. Tools are callable actions that the LLM can invoke.
 
 ## `hoist`
 
@@ -160,7 +160,7 @@ The Intent Router. Ask a natural-language question and get an orchestrated respo
 | `query` | string | Yes | Natural-language question |
 | `raw` | boolean | No | When true, inject the exact source code of discovered symbols into the prompt (Direct Symbol Injection). Default: false |
 
-**Returns:** Enriched context with diagnostics, history, code context, and security status. When `raw: true`, includes verbatim source code between `[SOURCE_START]` / `[SOURCE_END]` tags.
+**Returns:** Enriched context with diagnostics, history, code context, security status, and SID (Semantic Information Density) metric. When `raw: true`, includes verbatim source code between `--- FILE: path (lines X-Y) ---` / `--- END ---` delimiters. Output format adapts to the detected model tier (Atomic/Molecular/Galactic).
 
 ---
 
@@ -253,3 +253,26 @@ Find code similar to a natural-language query using vector embeddings (cosine si
 | `min_similarity` | number | No | Minimum cosine similarity threshold (default: 0.3) |
 
 **Returns:** Ranked results with file, symbol, similarity score, and code snippet.
+
+---
+
+## `oracle`
+
+Auto-repair drifted documentation. Updates version numbers, crate counts, and MCP tool/resource counts in README.md to match the actual codebase.
+
+**Parameters:** None.
+
+**Returns:** List of changes made (or "no drift detected").
+
+---
+
+## `verify_path`
+
+Verify whether a file path exists within the project. Prevents LLM hallucination of file names by providing ground truth.
+
+**Parameters:**
+| Name | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `path` | string | Yes | File path to verify (relative to project root) |
+
+**Returns:** `{ exists, size_bytes, language, is_file }`. Path traversal attempts are blocked.

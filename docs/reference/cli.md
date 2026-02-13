@@ -229,6 +229,22 @@ synapseed janitor
 
 ---
 
+### `verify <PATH>`
+
+Verify whether a file path exists in the project. Prevents LLM hallucination.
+
+```bash
+synapseed verify src/main.rs
+# { "exists": true, "size_bytes": 1234, "language": "Rust", "is_file": true }
+
+synapseed verify nonexistent.rs
+# { "exists": false }
+```
+
+Path traversal attempts (e.g., `../../../etc/passwd`) are blocked.
+
+---
+
 ### `train <SOURCE>`
 
 Evaluate Rust code in the Gym sandbox.

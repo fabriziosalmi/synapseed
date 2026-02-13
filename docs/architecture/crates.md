@@ -80,9 +80,9 @@ Automated maintenance: runs clippy scans and unused dependency detection. Genera
 ## Orchestration Layer
 
 ### Whisper
-Intent Router that classifies natural-language queries and orchestrates multiple subsystems in a single call. Reduces LLM roundtrips by providing enriched context objects including convergence rate and rigidity metrics.
+Intent Router that classifies natural-language queries and orchestrates multiple subsystems in a single call. Reduces LLM roundtrips by providing enriched context objects including convergence rate, rigidity metrics, and SID (Semantic Information Density). Adapts output format based on model tier (Atomic/Molecular/Galactic) and session phase (Discovery/Implementation/Stabilization).
 
 ## Bridge Layer
 
 ### MCP
-JSON-RPC 2.0 server over stdin/stdout. Exposes 20 tools, 9 resources, and 6 prompt templates. Handles initialization handshake, method routing, and error responses.
+JSON-RPC 2.0 server over stdin/stdout. Exposes 22 tools, 9 resources, and 6 prompt templates. Handles initialization handshake with client fingerprinting (auto-detects model tier), momentum tracking, method routing, and error responses.

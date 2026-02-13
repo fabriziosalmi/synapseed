@@ -44,6 +44,7 @@ pub enum SynapseEvent {
     GitStateChanged { head, branch },
     DiagnosticUpdated { errors, warnings },
     TelemetryUpdate { spans_received, hotspot_file, hotspot_duration_ms },
+    IndexingComplete,
     SystemShutdown,
 }
 ```
@@ -71,6 +72,16 @@ External app sends OTLP trace
   → Visualizer refreshes heatmap colors
 ```
 
+### Indexing Pipeline
+
+```
+MCP server starts
+  → CortexPlugin begins background indexing
+  → AST parsing completes for all project files
+  → Broadcasts IndexingComplete event
+  → Search index becomes available
+```
+
 ### Shadow Compiler Pipeline
 
 ```
@@ -80,3 +91,12 @@ File modified on disk
   → Parses diagnostics into DiagnosticStore
   → Broadcasts DiagnosticUpdated event
 ```
+
+## Extension Registry
+
+The `SynapseContext` includes a type-erased extension registry (`HashMap<TypeId, Arc<dyn Any>>`) for cross-crate data sharing without compile-time coupling.
+
+Used by:
+- **MomentumEngine** — Registered during MCP `initialize`, accessed by Whisper for tier/phase detection
+- **DiagnosticStore** — Shared compiler diagnostics
+- **SpanStore** — Telemetry span ring buffer

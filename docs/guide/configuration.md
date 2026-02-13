@@ -45,16 +45,51 @@ dlp_custom_rules:
     pattern: 'INTERNAL-\d{6}'
     action: redact
 
+# DLP false-positive whitelist (regex patterns)
+dlp_whitelist:
+  - CancellationToken
+  - test_secret_\w+
+
 # Search index settings
 search:
   persistence: true
+  embeddings: true
   temporal_decay_lambda: 0.01
+
+# Context configuration (Whisper symbol pruning)
+context:
+  max_symbols: 5
+
+# HCI (Human-Computer Interaction) settings
+hci:
+  background_indexing: true
+  port_retry: true
+  adaptive_linting: true
+  mentor_mode: true
+  session_persistence: true
+  memory_ceiling_files: 10000
+  model_profile: null  # "atomic", "molecular", or "galactic"
+
+# Code security pattern scanning
+security_patterns:
+  enabled: true
+  categories: []  # empty = all active
 
 # Architect settings
 architect:
   density_high_threshold: 0.5
   density_low_threshold: 0.02
   density_low_min_modules: 10
+  god_object_max_symbols: 50
+  god_object_max_lines: 1000
+  god_object_min_fan_in: 5
+  layers:
+    - name: core
+      rank: 0
+      modules: ["core"]
+    - name: domain
+      rank: 1
+      modules: ["cortex", "husk", "root", "chronos"]
 
 # Visualizer dashboard port
 visualizer_port: 3000
@@ -111,6 +146,12 @@ A list of custom DLP rules merged with built-in defaults.
 | `pattern` | string | Regex or literal pattern to match |
 | `action` | string | `redact`, `deny`, `audit`, or `allow` |
 
+### `dlp_whitelist`
+
+A list of regex patterns to suppress false-positive DLP findings. If a finding's matched text contains any whitelist pattern, it is ignored.
+
+Example: `"CancellationToken"` suppresses `generic_secret` hits on Rust concurrency types.
+
 ### `search`
 
 Settings for the semantic search index.
@@ -118,7 +159,39 @@ Settings for the semantic search index.
 | Field | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `persistence` | boolean | `false` | Persist the Tantivy index to disk at `.synapseed/index/` |
-| `temporal_decay_lambda` | float | `0.01` | Decay rate for temporal search boost. Higher values = stronger recency preference. |
+| `embeddings` | boolean | `false` | Enable vector embedding similarity search. Downloads ~22MB model on first use to `.synapseed/models/`. Required for the `similar` tool. |
+| `temporal_decay_lambda` | float | `0.01` | Decay rate for temporal search boost. Higher values = stronger recency preference. Score formula: `bm25 × (0.7 + 0.3 × e^(−λ × age_days))`. |
+
+### `context`
+
+Controls how many symbols the Whisper intent router includes in responses.
+
+| Field | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `max_symbols` | integer | `5` | Maximum symbols to include in context. Lower values reduce noise for ultra-small models (<3B). |
+
+### `hci`
+
+Human-Computer Interaction settings. Controls perceptual quality features.
+
+| Field | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `background_indexing` | boolean | `true` | Enable non-blocking code indexing at startup |
+| `port_retry` | boolean | `true` | Enable automatic port retry for the Visualizer dashboard |
+| `adaptive_linting` | boolean | `true` | Enable debounce escalation during rapid edits |
+| `mentor_mode` | boolean | `true` | Response depth adapts to query complexity |
+| `session_persistence` | boolean | `true` | Enable cross-session continuity |
+| `memory_ceiling_files` | integer | `null` | Max files to index (memory ceiling). `null` = unlimited (default: 10000) |
+| `model_profile` | string | `null` | Cognitive profile override: `"atomic"`, `"molecular"`, or `"galactic"`. Overrides auto-detected tier from MCP client fingerprinting. |
+
+### `security_patterns`
+
+Controls which vulnerability categories are checked by the `scan` tool's code pattern scanner.
+
+| Field | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `enabled` | boolean | `true` | Enable code pattern scanning |
+| `categories` | list | `[]` | Active categories: `sql_injection`, `xss`, `command_injection`, `path_traversal`. Empty = all active. |
 
 ### `architect`
 
@@ -129,6 +202,10 @@ Settings for the architecture analysis engine.
 | `density_high_threshold` | float | `0.5` | Topological density above this triggers a "high density" warning |
 | `density_low_threshold` | float | `0.02` | Topological density below this (with ≥ `density_low_min_modules` modules) triggers a "low density" warning |
 | `density_low_min_modules` | integer | `10` | Minimum module count before low-density warnings apply |
+| `god_object_max_symbols` | integer | `50` | Max public symbols before flagging as god object |
+| `god_object_max_lines` | integer | `1000` | Max approximate lines before flagging as god object |
+| `god_object_min_fan_in` | integer | `5` | Min fan-in to combine with size for god object detection |
+| `layers` | list | `[]` | Layer definitions for violation detection. Each entry has `name`, `rank`, and `modules`. |
 
 ### `visualizer_port`
 

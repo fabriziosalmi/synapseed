@@ -8,19 +8,19 @@ designed to be copy-pasted into your AI coding session.
 
 ---
 
-## Baseline (as of v3.6.1)
+## Baseline (as of v3.7.0)
 
 | Metric | Value |
 |--------|-------|
 | Architecture Score | **100/100 (Grade A)** |
 | Modules | 172 |
 | Symbols | 1746 |
-| Tests | 255 passing, 0 failing |
-| MCP Surface | 20 tools, 9 resources, 6 prompts |
+| Tests | 267 passing, 0 failing |
+| MCP Surface | 22 tools, 9 resources, 6 prompts |
 
 ---
 
-## The 20 MCP Tools — Organized by Role
+## The 22 MCP Tools — Organized by Role
 
 ### Tier 1: Orchestration (start here)
 
@@ -65,6 +65,8 @@ designed to be copy-pasted into your AI coding session.
 | `reset-telemetry` | Clear OTLP spans/metrics for a fresh observation window. | <10ms |
 | `diagnose` | Full project diagnostic: state, build system, git, metrics, plugins. | ~200ms |
 | `consult` | Query the DNA policy — preferred libs, naming, workspace strategy. | <10ms |
+| `oracle` | Auto-repair drifted documentation (version, crate counts, tool counts). | ~100ms |
+| `verify_path` | Verify whether a file path exists — prevents LLM hallucination. | <10ms |
 
 ---
 
@@ -143,7 +145,7 @@ scan("<any new config content>")   // DLP check
 
 Files to always check before commit (current hotspots):
 - `crates/whisper/src/router/mod.rs` — complexity 19, co-change hub
-- `crates/mcp/src/tools/mod.rs` — 19-tool dispatch, high fan-out
+- `crates/mcp/src/tools/mod.rs` — 22-tool dispatch, high fan-out
 - `crates/visualizer/assets/graph.js` — 81 symbols (god object remediation in progress)
 
 ### Step 5: Commit (2 min)
@@ -233,7 +235,7 @@ After each Quantum Loop iteration, record:
 
 1. **Architecture Score** — must be monotonically non-decreasing
 2. **Warning Count** — target: 0 (currently 0 in Rust, pre-existing in husk/search)
-3. **Test Count** — currently 93, should grow with each feature
+3. **Test Count** — currently 267, should grow with each feature
 4. **Violation Count** — currently 1, track toward 0
 5. **Hotspot Risk** — monitor top 3 files by `analyze` risk indicator
 

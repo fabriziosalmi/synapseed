@@ -18,7 +18,7 @@ Verify installation:
 
 ```bash
 synapseed --version
-# synapseed 2.2.1
+# synapseed 3.7.0
 ```
 
 ## Release Build
@@ -41,7 +41,7 @@ The workspace contains 14 library crates and 1 binary crate. All tests run with:
 
 ```bash
 cargo test
-# 89 tests across all crates
+# 267 tests across all crates
 ```
 
 ## Platform Support

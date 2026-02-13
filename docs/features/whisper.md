@@ -21,7 +21,7 @@ Natural language query
   → Route to subsystems based on intent
   → Execute all relevant tools in parallel
   → Aggregate results into EnrichedContext
-  → Generate smart_context summary
+  → Generate smart_context summary (tier-adapted)
   → Return to LLM
 ```
 
@@ -34,6 +34,70 @@ Natural language query
 | Explain | explain, understand, how, why, what | Code skeleton, History, Search |
 | Refactor | refactor, cleanup, rename, improve | Code skeleton, History, Diagnostics |
 | General | (everything else) | Code skeleton, Search |
+
+## Cognitive Tiers
+
+Whisper adapts its output format based on the detected **Model Tier** — the cognitive capacity of the connected LLM.
+
+| Tier | Target Models | Output Format |
+| :--- | :--- | :--- |
+| **Atomic** | <3B params (e.g., Qwen 2.5 0.5B) | Flat markdown, no `**bold**`, minimal structure |
+| **Molecular** | 7B–32B (e.g., Codestral, Mistral) | Hybrid — structured sections with phase indicator |
+| **Galactic** | Cloud/SOTA (e.g., Claude, GPT-4) | Dense output with SID metric and structured JSON |
+
+### Tier Detection
+
+Tiers are detected automatically via MCP client fingerprinting during `initialize`:
+
+1. **DNA override** (always wins): Set `hci.model_profile: "atomic"` in `dna.yaml`
+2. **Client fingerprint**: Extract `clientInfo.name` from the MCP `initialize` request
+3. **Default**: `Molecular` if no information available
+
+Known client fingerprints:
+
+| Client Name | Detected Tier |
+| :--- | :--- |
+| `claude-code`, `claude`, `anthropic` | Galactic |
+| `codex`, `openai`, `gpt` | Galactic |
+| `gemini`, `google` | Galactic |
+| `ollama`, `lmstudio`, `llamacpp` | Atomic |
+| (everything else) | Molecular |
+
+## Session Momentum
+
+Whisper tracks tool invocations through the **Momentum Engine** to detect which phase of work the developer is in.
+
+### Session Phases
+
+| Phase | Triggered By | Behavior |
+| :--- | :--- | :--- |
+| **Discovery** | `hoist`, `lookup`, `search`, `similar`, `diagnose`, `consult`, `blame` | Broad context, exploration-focused output |
+| **Implementation** | `quickfix`, `train`, `janitor`, `janitor-fix` | Focused, action-oriented output |
+| **Stabilization** | `diagnostics`, `architect`, `scan`, `check`, `analyze` | Quality gate emphasis, risk-aware output |
+
+The engine uses a sliding window (size 10) of recent tool invocations. When 3+ tools from the same phase category appear in the window, the phase transitions.
+
+**Git-Context Alignment:** If `git diff --cached` detects staged files, the phase is forced to **Stabilization** regardless of the tool window — the developer is about to commit.
+
+## Direct Symbol Injection (SID)
+
+When `raw: true` is passed to the `ask` tool, Whisper injects the exact source code of discovered symbols into the response between delimiters:
+
+```
+--- FILE: src/main.rs (lines 10-25) ---
+fn main() {
+    // actual source code here
+}
+--- END ---
+```
+
+The **SID (Semantic Information Density)** metric measures how much useful code was injected relative to prompt size:
+
+```
+SID = symbols_found / (prompt_tokens / 1000)
+```
+
+Higher SID values indicate more information-dense responses.
 
 ## Response Format
 
@@ -57,6 +121,13 @@ The `ask` tool returns:
 }
 ```
 
+For **Galactic** tier, the `smart_context` includes:
+- Phase indicator (e.g., `[Phase: Stabilization]`)
+- SID metric (e.g., `SID: 2.4 symbols/ktok`)
+- Structured sections with bold headers
+
+For **Atomic** tier, the `smart_context` is flat text with minimal formatting.
+
 ## MCP Integration
 
 | Tool | Description |
@@ -77,9 +148,25 @@ The `ask` tool returns:
 }
 ```
 
+With Direct Symbol Injection:
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "ask",
+    "arguments": {
+      "query": "explain the router module",
+      "raw": true
+    }
+  }
+}
+```
+
 This single call will:
-1. Search for login-related symbols
+1. Search for relevant symbols
 2. Check compiler diagnostics
 3. Analyze git history for recent changes
 4. Scan for security issues
-5. Return a unified context object
+5. Adapt output to the detected model tier and session phase
+6. Return a unified context object with SID metric (when `raw: true`)

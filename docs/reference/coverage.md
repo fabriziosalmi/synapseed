@@ -2,7 +2,7 @@
 
 ## Current Status
 
-📊 **255 tests passing** (up from 93 in v3.2.0)
+📊 **267 tests passing** (up from 93 in v3.2.0)
 
 Coverage tracking is now enabled via GitHub Actions with `cargo-llvm-cov` and Codecov.
 
@@ -10,7 +10,7 @@ Coverage tracking is now enabled via GitHub Actions with `cargo-llvm-cov` and Co
 
 ## Philosophy
 
-Test count alone is deceptive — 255 tests include many smoke tests. **Line coverage** is the objective baseline.
+Test count alone is deceptive — 267 tests include many smoke tests. **Line coverage** is the objective baseline.
 
 Current strategy: **report-only** (no CI gate). Once baseline is established, we'll add gates incrementally.
 
@@ -54,15 +54,15 @@ Once the first coverage run completes, this table will be populated:
 
 | Crate | LOC | Tests | Coverage | Priority |
 |-------|-----|-------|----------|----------|
-| `synapseed-core` | ~1900 | 15 | TBD | P0 (security) |
-| `synapseed-husk` | ~1400 | 24 | TBD | P0 (DLP) |
-| `synapseed-root` | ~800 | 28 | TBD | P0 (sentinel) |
-| `synapseed-mcp` | ~1800 | 31 | TBD | P1 (protocol) |
-| `synapseed-cortex` | ~1600 | 18 | TBD | P1 (indexing) |
-| `synapseed-search` | ~1400 | 9 | TBD | P2 |
-| `synapseed-whisper` | ~900 | 0 | TBD | P2 |
-| `synapseed-visualizer` | ~1200 | 5 | TBD | P2 |
-| Others | ~5000 | 125 | TBD | P3-P4 |
+| `synapseed-core` | ~2200 | 25 | TBD | P0 (security) |
+| `synapseed-husk` | ~1400 | 35 | TBD | P0 (DLP) |
+| `synapseed-root` | ~800 | 58 | TBD | P0 (sentinel) |
+| `synapseed-mcp` | ~2100 | 40 | TBD | P1 (protocol) |
+| `synapseed-cortex` | ~1600 | 25 | TBD | P1 (indexing) |
+| `synapseed-search` | ~1400 | 16 | TBD | P2 |
+| `synapseed-whisper` | ~1100 | 22 | TBD | P2 |
+| `synapseed-visualizer` | ~1200 | 4 | TBD | P2 |
+| Others | ~6000 | 42 | TBD | P3-P4 |
 
 ---
 
