@@ -21,7 +21,7 @@ mod train;
 use std::path::Path;
 
 use serde_json::json;
-use tracing::info;
+use tracing::{error, info};
 
 use synapseed_chronos::historian::Historian;
 use synapseed_core::context::SynapseContext;
@@ -425,7 +425,34 @@ fn resolve_tool_name(name: &str) -> Option<&'static str> {
 }
 
 /// Execute the handler for a resolved canonical tool name.
+/// Wrapped in `catch_unwind` so a panic in any tool (tree-sitter, git2, …)
+/// cannot kill the MCP server process (Q18 hardening).
 fn dispatch_tool(
+    canonical: &str,
+    args: &serde_json::Value,
+    ctx: &SynapseContext,
+) -> ToolCallResult {
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        dispatch_tool_inner(canonical, args, ctx)
+    }));
+    match result {
+        Ok(tool_result) => tool_result,
+        Err(panic) => {
+            let msg = if let Some(s) = panic.downcast_ref::<&str>() {
+                s.to_string()
+            } else if let Some(s) = panic.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "unknown panic".to_string()
+            };
+            error!(tool = canonical, panic = %msg, "Tool panicked — caught by catch_unwind");
+            error_result(format!("Internal error in tool '{canonical}': {msg}"))
+        }
+    }
+}
+
+/// Inner dispatch — actual match on canonical tool name.
+fn dispatch_tool_inner(
     canonical: &str,
     args: &serde_json::Value,
     ctx: &SynapseContext,

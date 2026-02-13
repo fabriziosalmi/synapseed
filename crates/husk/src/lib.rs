@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! # synapseed-husk
 //!
 //! The Security Shield of SYNAPSEED. Provides Data Loss Prevention

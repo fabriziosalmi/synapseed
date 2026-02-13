@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! # synapseed-core
 //!
 //! The kernel of SYNAPSEED. Defines shared types, traits, and domain

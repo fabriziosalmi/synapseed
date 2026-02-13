@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! # synapseed-chronos
 //!
 //! The Time-Travel Module of SYNAPSEED. Provides Git history analysis,

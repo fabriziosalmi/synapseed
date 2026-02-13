@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! # synapseed-telemetry-sink
 //!
 //! OTLP gRPC Receiver — ingests OpenTelemetry traces from running

@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! Shadow Compiler — background `cargo check` with live diagnostics.
 //!
 //! Runs `cargo check --message-format=json` in the background,

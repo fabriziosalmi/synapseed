@@ -1,5 +1,53 @@
 # Changelog
 
+## [3.5.0] — 2026-02-13
+
+### "Iron Curtain" Release — Security Hardening + Cognitive Telemetry
+
+Plugs every critical and high-severity vulnerability from the Quality Gate audit,
+adds compile-time unsafe protection, runtime crash isolation, encoded-secret
+detection, and introduces the SID cognitive metric.
+
+---
+
+#### Security — CRITICAL / HIGH
+
+- **Q7 — Gym Offline Mode** (`crates/gym/src/sandbox.rs`): forced `offline = true`
+  in the generated `.cargo/config.toml`. AI-generated code can no longer download
+  payloads or exfiltrate data during sandboxed evaluation.
+- **Q12 — Shadow Target Isolation** (`crates/shadow-check/src/runner.rs`): shadow
+  compiler now uses `--target-dir /tmp/synapseed-shadow-{hash}` (fxhash of project
+  root). Eliminates Cargo lock contention with user's own `cargo build`.
+- **Q5 — DLP Base64/Hex Decode** (`crates/husk/src/scanner.rs`): new Pass 0 detects
+  Base64 and Hex-encoded strings, decodes them, and re-scans decoded content.
+  Secrets encoded to bypass plaintext rules are now caught.
+- **Q18 — Unsafe Ban** (all 15 crates + `main.rs`): `#![forbid(unsafe_code)]` added
+  to every first-party crate. Compile-time enforcement — no unsafe Rust anywhere.
+- **Q18 — Panic Isolation** (`crates/mcp/src/tools/mod.rs`): `dispatch_tool()` wrapped
+  in `std::panic::catch_unwind(AssertUnwindSafe(...))`. A panic in tree-sitter, git2,
+  or any plugin returns an error instead of killing the MCP server.
+
+#### Scalability
+
+- **Q4 — Commit Cap** (`crates/chronos/src/historian.rs`): `count_commits()` now uses
+  `revwalk.take(10_000).count()`. Prevents freeze on repositories with millions of
+  commits (e.g., linux.git).
+
+#### Features
+
+- **Raw Injection Token Budget** (`crates/whisper/src/router/mod.rs`): hard cap of
+  16 000 chars (~4 000 tokens) on injected source code. Stops injecting once budget is
+  exhausted — prevents prompt overflow on large symbol sets.
+- **SID Metric — Semantic Information Density**: new `sid` field in `WhisperResult`.
+  Formula: `symbols_found / (prompt_tokens / 1000)`. Higher = more useful signal per
+  token budget. Appears in JSON output and can be used to compare raw vs. hoist mode.
+
+#### Dependencies
+
+- Added `fxhash = "0.2"` (workspace dependency, used by shadow-check for target-dir hashing).
+
+---
+
 ## [3.4.0] — 2026-02-13
 
 ### "Direct Truth" Release — Raw Symbol Injection

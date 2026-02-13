@@ -36,14 +36,15 @@ impl Sandbox {
         }
 
         // Configure cargo to use the global registry cache (no re-downloads).
-        // Also disable network to avoid fetching from crates.io during eval.
+        // SECURITY: Force offline mode to prevent AI-generated code from
+        // downloading payloads or exfiltrating data via network during eval.
         let cargo_dir = project_path.join(".cargo");
         std::fs::create_dir_all(&cargo_dir)
             .map_err(|e| crate::GymError::Sandbox(e.to_string()))?;
 
         std::fs::write(
             cargo_dir.join("config.toml"),
-            "[net]\noffline = false\n\n[build]\nincremental = false\n",
+            "[net]\noffline = true\n\n[build]\nincremental = false\n",
         )
         .map_err(|e| crate::GymError::Sandbox(e.to_string()))?;
 

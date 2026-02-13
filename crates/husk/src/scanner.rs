@@ -129,7 +129,31 @@ impl DlpScanner {
     }
 
     /// Scan content and return all findings.
+    ///
+    /// Three-pass approach:
+    /// - Pass 0: Decode Base64/Hex-encoded fragments and re-scan decoded text
+    /// - Pass 1: Aho-Corasick static terms (GB/s throughput)
+    /// - Pass 2: Regex patterns for structured secrets
     pub(crate) fn scan(&self, content: &str) -> Vec<Finding> {
+        let mut findings = self.scan_plain(content);
+
+        // Pass 0: Decode Base64/Hex-encoded strings and scan decoded content.
+        // This catches secrets that were encoded to bypass plaintext rules.
+        for decoded in Self::decode_encoded_fragments(content) {
+            for mut f in self.scan_plain(&decoded) {
+                f.rule_name = format!("encoded:{}", f.rule_name);
+                // Offsets don't map to the original content
+                f.start = 0;
+                f.end = 0;
+                findings.push(f);
+            }
+        }
+
+        findings
+    }
+
+    /// Core plaintext scan: Aho-Corasick + Regex.
+    fn scan_plain(&self, content: &str) -> Vec<Finding> {
         let mut findings = Vec::new();
 
         // Pass 1: Aho-Corasick static terms
@@ -164,6 +188,82 @@ impl DlpScanner {
         }
 
         findings
+    }
+
+    // ── Base64 / Hex decode helpers (no external deps) ──────────────
+
+    /// Find Base64 and Hex-encoded substrings, decode them, and return
+    /// any fragments that look like printable ASCII text.
+    fn decode_encoded_fragments(content: &str) -> Vec<String> {
+        let mut fragments = Vec::new();
+
+        // Base64: 20+ chars from the Base64 alphabet, optional = padding
+        let b64_re = Regex::new(r"[A-Za-z0-9+/]{20,}={0,2}").expect("valid regex");
+        for mat in b64_re.find_iter(content) {
+            if let Some(decoded) = Self::try_base64_decode(mat.as_str()) {
+                if decoded.chars().all(|c| c.is_ascii_graphic() || c.is_ascii_whitespace()) {
+                    fragments.push(decoded);
+                }
+            }
+        }
+
+        // Hex: 20+ hex chars (even length only)
+        let hex_re = Regex::new(r"\b[0-9a-fA-F]{20,}\b").expect("valid regex");
+        for mat in hex_re.find_iter(content) {
+            let s = mat.as_str();
+            if s.len() % 2 == 0 {
+                if let Some(decoded) = Self::try_hex_decode(s) {
+                    if decoded.chars().all(|c| c.is_ascii_graphic() || c.is_ascii_whitespace()) {
+                        fragments.push(decoded);
+                    }
+                }
+            }
+        }
+
+        fragments
+    }
+
+    /// Minimal Base64 decode (standard alphabet, with padding).
+    fn try_base64_decode(input: &str) -> Option<String> {
+        let alphabet = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let mut table = [255u8; 128];
+        for (i, &b) in alphabet.iter().enumerate() {
+            table[b as usize] = i as u8;
+        }
+
+        let clean: Vec<u8> = input.bytes().filter(|&b| b != b'=').collect();
+        let mut out = Vec::with_capacity(clean.len() * 3 / 4);
+
+        for chunk in clean.chunks(4) {
+            let mut buf = [0u8; 4];
+            for (i, &b) in chunk.iter().enumerate() {
+                if b >= 128 || table[b as usize] == 255 {
+                    return None;
+                }
+                buf[i] = table[b as usize];
+            }
+            let n = chunk.len();
+            if n >= 2 {
+                out.push((buf[0] << 2) | (buf[1] >> 4));
+            }
+            if n >= 3 {
+                out.push((buf[1] << 4) | (buf[2] >> 2));
+            }
+            if n >= 4 {
+                out.push((buf[2] << 6) | buf[3]);
+            }
+        }
+
+        String::from_utf8(out).ok()
+    }
+
+    /// Decode a hex string to UTF-8 text.
+    fn try_hex_decode(input: &str) -> Option<String> {
+        let bytes: Option<Vec<u8>> = (0..input.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&input[i..i + 2], 16).ok())
+            .collect();
+        bytes.and_then(|b| String::from_utf8(b).ok())
     }
 
     /// Scan and redact: replace all findings with [REDACTED].

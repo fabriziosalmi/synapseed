@@ -1,14 +1,15 @@
 [package]
-name = "synapseed-shadow-check"
-version.workspace = true
+description = "Shadow Compiler — background cargo check with live diagnostics"
 edition.workspace = true
 license.workspace = true
-description = "Shadow Compiler — background cargo check with live diagnostics"
+name = "synapseed-shadow-check"
+version.workspace = true
 
 [dependencies]
-synapseed-core = { workspace = true }
-parking_lot = { workspace = true }
-tokio = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-tracing = { workspace = true }
+fxhash = {workspace = true}
+parking_lot = {workspace = true}
+serde = {workspace = true}
+serde_json = {workspace = true}
+synapseed-core = {workspace = true}
+tokio = {workspace = true}
+tracing = {workspace = true}

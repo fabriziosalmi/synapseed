@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! # synapseed-mcp
 //!
 //! MCP (Model Context Protocol) server implementation for SYNAPSEED.

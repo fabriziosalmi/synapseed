@@ -88,6 +88,9 @@ pub struct WhisperResult {
     pub code_context: Option<CodeContext>,
     pub security_status: String,
     pub smart_context: String,
+    /// Semantic Information Density: symbols_found / (prompt_tokens / 1000).
+    /// Higher = more useful signal per token budget.
+    pub sid: f64,
 }
 
 // ── Query Complexity (HCI Req 5: Mentor Mode) ─────────────────────────
@@ -181,6 +184,13 @@ fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> W
         &raw_sources,
     );
 
+    // ── SID: Semantic Information Density ───────────────────────────
+    // Formula: symbols_found / (prompt_tokens / 1000)
+    // prompt_tokens ≈ smart_context.len() / 4 (rough char→token ratio)
+    let symbols_found = code_ctx.as_ref().map_or(0, |c| c.symbols.len());
+    let prompt_tokens = (smart_context.len() as f64 / 4.0).max(1.0);
+    let sid = symbols_found as f64 / (prompt_tokens / 1000.0);
+
     WhisperResult {
         intent,
         complexity,
@@ -191,6 +201,7 @@ fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> W
         code_context: code_ctx,
         security_status: sec_status,
         smart_context,
+        sid,
     }
 }
 
@@ -406,8 +417,10 @@ pub struct RawSource {
 
 /// Read the actual source code for each target that has file/line info.
 fn inject_raw_sources(targets: &[Target], ctx: &SynapseContext) -> Vec<RawSource> {
+    const CHAR_BUDGET: usize = 16_000; // ~4 000 tokens at 4 chars/token
     let root = ctx.project_root();
     let mut sources = Vec::new();
+    let mut budget_used: usize = 0;
 
     // Also look up Cortex symbols for precise line_end
     let graph = CodeGraph::new();
@@ -448,6 +461,12 @@ fn inject_raw_sources(targets: &[Target], ctx: &SynapseContext) -> Vec<RawSource
         let e = end.max(s).min(lines.len());
 
         let snippet: String = lines[(s - 1)..e].join("\n");
+
+        // Enforce token budget — stop injecting once we exceed ~4 000 tokens
+        if budget_used + snippet.len() > CHAR_BUDGET {
+            break;
+        }
+        budget_used += snippet.len();
 
         sources.push(RawSource {
             file_path: rel_path,

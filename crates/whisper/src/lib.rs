@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! # synapseed-whisper
 //!
 //! The Whisperer — Intent Router that orchestrates all SYNAPSEED subsystems.

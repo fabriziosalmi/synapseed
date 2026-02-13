@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! # synapseed-cortex
 //!
 //! The Semantic Brain of SYNAPSEED. Parses source code into ASTs

@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! # SYNAPSEED Architect
 //!
 //! Structural analysis engine: builds module dependency graphs from CodeGraph

@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! # synapseed-visualizer
 //!
 //! Live architecture visualization dashboard. Spawns an embedded HTTP

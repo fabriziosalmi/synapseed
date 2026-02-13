@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! # SYNAPSEED Janitor
 //!
 //! Autonomous code maintenance module that monitors a project for

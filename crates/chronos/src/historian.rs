@@ -225,7 +225,7 @@ impl Historian {
             if revwalk.push_head().is_err() {
                 return Ok(0);
             }
-            Ok(revwalk.count())
+            Ok(revwalk.take(10_000).count())
         })
     }
 }

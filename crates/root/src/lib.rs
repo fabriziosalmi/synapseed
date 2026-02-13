@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! # synapseed-root
 //!
 //! The Infrastructure Layer of SYNAPSEED. Manages command execution

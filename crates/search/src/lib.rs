@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! Semantic Code Search — Tantivy-powered full-text index over AST symbols,
 //! with optional vector embedding similarity search.
 //!

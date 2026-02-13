@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! # SYNAPSEED Gym
 //!
 //! An isolated RL sandbox for compiling, testing, and benchmarking Rust code.

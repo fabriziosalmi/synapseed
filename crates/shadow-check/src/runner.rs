@@ -146,10 +146,19 @@ impl DiagnosticStore {
             inner.project_root.clone()
         };
 
+        // Use a separate target directory to avoid lock contention with
+        // the user's own `cargo build` / `cargo check` (Q12 fix).
+        let shadow_target = std::env::temp_dir().join(format!(
+            "synapseed-shadow-{:x}",
+            fxhash::hash64(project_root.as_os_str().as_encoded_bytes())
+        ));
+
         let start = Instant::now();
 
         let output = Command::new("cargo")
             .args(["check", "--message-format=json", "--quiet"])
+            .arg("--target-dir")
+            .arg(&shadow_target)
             .current_dir(&project_root)
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
