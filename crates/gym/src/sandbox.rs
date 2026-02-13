@@ -296,7 +296,10 @@ impl Sandbox {
 
                     // Inject mutated source
                     let src_path = self.project_path.join("src/lib.rs");
-                    let _ = std::fs::write(&src_path, &mutated_source);
+                    if let Err(e) = std::fs::write(&src_path, &mutated_source) {
+                        warn!(error = %e, "Gym: Failed to write mutated source");
+                        continue;
+                    }
 
                     // Quick check: does it compile?
                     let compiles = Command::new("cargo")
@@ -328,7 +331,9 @@ impl Sandbox {
                 }
 
                 // Restore original source
-                let _ = std::fs::write(self.project_path.join("src/lib.rs"), &original_src);
+                if let Err(e) = std::fs::write(self.project_path.join("src/lib.rs"), &original_src) {
+                    warn!(error = %e, "Gym: Failed to restore original source after mutation testing");
+                }
 
                 let total = outcomes.len();
                 let detected_count = outcomes.iter().filter(|o| o.detected).count();

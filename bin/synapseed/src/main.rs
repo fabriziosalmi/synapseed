@@ -489,7 +489,7 @@ async fn wait_for_index(ctx: &SynapseContext, timeout: Duration) {
             );
 
             let mut rx = ctx.subscribe();
-            let _ = tokio::time::timeout(tantivy_wait, async {
+            match tokio::time::timeout(tantivy_wait, async {
                 loop {
                     match rx.recv().await {
                         Ok(SynapseEvent::SearchReady) => break,
@@ -498,7 +498,14 @@ async fn wait_for_index(ctx: &SynapseContext, timeout: Duration) {
                     }
                 }
             })
-            .await;
+            .await
+            {
+                Ok(()) => debug!("wait_for_index: SearchReady received"),
+                Err(_) => debug!(
+                    wait_ms = tantivy_wait.as_millis() as u64,
+                    "wait_for_index: Tantivy timeout elapsed, proceeding without SearchReady"
+                ),
+            }
             return;
         }
     }

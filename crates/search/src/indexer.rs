@@ -278,7 +278,9 @@ impl SemanticIndex {
         if let Err(e) = writer.commit() {
             warn!(error = %e, "Search: Failed to commit incremental update");
         }
-        let _ = self.reader.reload();
+        if let Err(e) = self.reader.reload() {
+            warn!(error = %e, "Search: Failed to reload reader after reindex");
+        }
 
         debug!(file = %file.path, symbols = count, "Search: Reindexed file");
         count
@@ -289,8 +291,12 @@ impl SemanticIndex {
         if let Ok(mut writer) = self.writer.lock() {
             let term = Term::from_field_text(self.fields.file_path, path);
             writer.delete_term(term);
-            let _ = writer.commit();
-            let _ = self.reader.reload();
+            if let Err(e) = writer.commit() {
+                warn!(error = %e, file = path, "Search: Failed to commit file removal");
+            }
+            if let Err(e) = self.reader.reload() {
+                warn!(error = %e, file = path, "Search: Failed to reload reader after removal");
+            }
             debug!(file = path, "Search: Removed file from index");
         }
     }

@@ -169,3 +169,104 @@ fn count_meaningful_files(root: &Path) -> usize {
         })
         .count()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detect_virgin_repo() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("README.md"), "# Hello").unwrap();
+        let state = ProjectState::detect(dir.path());
+        assert_eq!(state, ProjectState::VirginRepo);
+    }
+
+    #[test]
+    fn detect_healthy_cargo() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("Cargo.toml"), "[package]\nname = \"x\"").unwrap();
+        std::fs::create_dir(dir.path().join("src")).unwrap();
+        std::fs::write(dir.path().join("src").join("main.rs"), "fn main() {}").unwrap();
+        let state = ProjectState::detect(dir.path());
+        assert!(matches!(
+            state,
+            ProjectState::HealthyWorkspace {
+                build_system: BuildSystem::Cargo,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn detect_partial_cargo_no_src() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("Cargo.toml"), "[package]\nname = \"x\"").unwrap();
+        let state = ProjectState::detect(dir.path());
+        assert!(matches!(state, ProjectState::PartialSetup { .. }));
+    }
+
+    #[test]
+    fn detect_npm_project() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("package.json"), "{}").unwrap();
+        std::fs::create_dir(dir.path().join("src")).unwrap();
+        let state = ProjectState::detect(dir.path());
+        assert!(matches!(
+            state,
+            ProjectState::HealthyWorkspace {
+                build_system: BuildSystem::Npm,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn detect_unknown() {
+        let dir = tempfile::tempdir().unwrap();
+        // Many files but no build system
+        for i in 0..10 {
+            std::fs::write(dir.path().join(format!("file{i}.txt")), "data").unwrap();
+        }
+        let state = ProjectState::detect(dir.path());
+        assert_eq!(state, ProjectState::Unknown);
+    }
+
+    #[test]
+    fn diagnostic_output_not_empty() {
+        let states = vec![
+            ProjectState::VirginRepo,
+            ProjectState::Unknown,
+            ProjectState::PartialSetup {
+                has_build_file: true,
+                has_src: false,
+                missing: vec!["src/".into()],
+            },
+            ProjectState::HealthyWorkspace {
+                build_system: BuildSystem::Cargo,
+                file_count: 42,
+            },
+        ];
+        for state in states {
+            let diag = state.diagnostic();
+            assert!(!diag.is_empty());
+            assert!(diag.contains("STATUS:"));
+        }
+    }
+
+    #[test]
+    fn build_system_serde_roundtrip() {
+        for bs in [
+            BuildSystem::Cargo,
+            BuildSystem::Npm,
+            BuildSystem::Poetry,
+            BuildSystem::Pip,
+            BuildSystem::Makefile,
+            BuildSystem::Mixed,
+        ] {
+            let json = serde_json::to_string(&bs).unwrap();
+            let back: BuildSystem = serde_json::from_str(&json).unwrap();
+            assert_eq!(bs, back);
+        }
+    }
+}

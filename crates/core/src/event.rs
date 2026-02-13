@@ -79,3 +79,70 @@ pub enum Severity {
     High,
     Critical,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn file_change_kind_serde_roundtrip() {
+        for kind in [
+            FileChangeKind::Created,
+            FileChangeKind::Modified,
+            FileChangeKind::Deleted,
+        ] {
+            let json = serde_json::to_string(&kind).unwrap();
+            let back: FileChangeKind = serde_json::from_str(&json).unwrap();
+            assert_eq!(format!("{:?}", kind), format!("{:?}", back));
+        }
+    }
+
+    #[test]
+    fn severity_serde_roundtrip() {
+        for sev in [Severity::Low, Severity::Medium, Severity::High, Severity::Critical] {
+            let json = serde_json::to_string(&sev).unwrap();
+            let back: Severity = serde_json::from_str(&json).unwrap();
+            assert_eq!(sev, back);
+        }
+    }
+
+    #[test]
+    fn event_serde_tagged() {
+        let event = SynapseEvent::IndexingComplete;
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"type\""));
+        assert!(json.contains("indexing_complete"));
+    }
+
+    #[test]
+    fn event_file_changed_roundtrip() {
+        let event = SynapseEvent::FileChanged {
+            path: "src/main.rs".into(),
+            kind: FileChangeKind::Modified,
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        let back: SynapseEvent = serde_json::from_str(&json).unwrap();
+        if let SynapseEvent::FileChanged { path, .. } = back {
+            assert_eq!(path, "src/main.rs");
+        } else {
+            panic!("Expected FileChanged variant");
+        }
+    }
+
+    #[test]
+    fn event_security_alert_roundtrip() {
+        let event = SynapseEvent::SecurityAlert {
+            rule: "aws_key".into(),
+            severity: Severity::Critical,
+            context: "line 42".into(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        let back: SynapseEvent = serde_json::from_str(&json).unwrap();
+        if let SynapseEvent::SecurityAlert { rule, severity, .. } = back {
+            assert_eq!(rule, "aws_key");
+            assert_eq!(severity, Severity::Critical);
+        } else {
+            panic!("Expected SecurityAlert variant");
+        }
+    }
+}

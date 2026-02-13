@@ -54,3 +54,65 @@ impl Default for SecurityPolicy {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn security_policy_default_fail_closed() {
+        let policy = SecurityPolicy::default();
+        assert!(policy.fail_closed);
+        assert!(policy.dlp_rules.is_empty());
+        assert!(policy.command_rules.is_empty());
+        assert!(policy.dlp_whitelist.is_empty());
+    }
+
+    #[test]
+    fn security_policy_serde_roundtrip() {
+        let policy = SecurityPolicy {
+            dlp_rules: vec![DlpRule {
+                name: "aws_key".into(),
+                pattern: "AKIA[0-9A-Z]{16}".into(),
+                action: PolicyAction::Deny,
+            }],
+            command_rules: vec![CommandRule {
+                pattern: "rm -rf /".into(),
+                action: PolicyAction::Deny,
+                description: Some("Block recursive delete of root".into()),
+            }],
+            fail_closed: false,
+            dlp_whitelist: vec!["CancellationToken".into()],
+        };
+        let json = serde_json::to_string(&policy).unwrap();
+        let back: SecurityPolicy = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.fail_closed, false);
+        assert_eq!(back.dlp_rules.len(), 1);
+        assert_eq!(back.dlp_rules[0].action, PolicyAction::Deny);
+        assert_eq!(back.command_rules.len(), 1);
+        assert_eq!(back.dlp_whitelist, vec!["CancellationToken"]);
+    }
+
+    #[test]
+    fn policy_action_serde_all_variants() {
+        for action in [
+            PolicyAction::Allow,
+            PolicyAction::Deny,
+            PolicyAction::Redact,
+            PolicyAction::Audit,
+        ] {
+            let json = serde_json::to_string(&action).unwrap();
+            let back: PolicyAction = serde_json::from_str(&json).unwrap();
+            assert_eq!(action, back);
+        }
+    }
+
+    #[test]
+    fn security_policy_deserialize_missing_defaults() {
+        // fail_closed defaults to true, lists default to empty
+        let json = r#"{}"#;
+        let policy: SecurityPolicy = serde_json::from_str(json).unwrap();
+        assert!(policy.fail_closed);
+        assert!(policy.dlp_rules.is_empty());
+    }
+}

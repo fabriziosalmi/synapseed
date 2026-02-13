@@ -89,3 +89,70 @@ impl SessionState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Duration;
+
+    #[test]
+    fn new_session_is_recent() {
+        let session = SessionState::new(Path::new("/tmp/test"));
+        assert!(session.is_recent());
+    }
+
+    #[test]
+    fn new_session_time_ago_is_moments() {
+        let session = SessionState::new(Path::new("/tmp/test"));
+        assert_eq!(session.time_ago(), "moments ago");
+    }
+
+    #[test]
+    fn old_session_not_recent() {
+        let mut session = SessionState::new(Path::new("/tmp/test"));
+        session.last_active = Utc::now() - Duration::hours(25);
+        assert!(!session.is_recent());
+    }
+
+    #[test]
+    fn time_ago_hours() {
+        let mut session = SessionState::new(Path::new("/tmp/test"));
+        session.last_active = Utc::now() - Duration::hours(3);
+        assert!(session.time_ago().contains("hours ago"));
+    }
+
+    #[test]
+    fn time_ago_days() {
+        let mut session = SessionState::new(Path::new("/tmp/test"));
+        session.last_active = Utc::now() - Duration::days(5);
+        assert!(session.time_ago().contains("days ago"));
+    }
+
+    #[test]
+    fn save_and_load_roundtrip() {
+        let dir = tempfile::tempdir().unwrap();
+        let session = SessionState::new(dir.path());
+        session.save(dir.path());
+
+        let loaded = SessionState::load(dir.path());
+        assert!(loaded.is_some());
+        let loaded = loaded.unwrap();
+        assert_eq!(loaded.session_id, session.session_id);
+        assert_eq!(loaded.project_root, session.project_root);
+    }
+
+    #[test]
+    fn load_nonexistent_returns_none() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(SessionState::load(dir.path()).is_none());
+    }
+
+    #[test]
+    fn load_malformed_returns_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_dir = dir.path().join(".synapseed");
+        std::fs::create_dir_all(&session_dir).unwrap();
+        std::fs::write(session_dir.join("session.json"), "not valid json").unwrap();
+        assert!(SessionState::load(dir.path()).is_none());
+    }
+}

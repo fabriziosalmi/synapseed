@@ -4,7 +4,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use tracing::info;
+use tracing::{info, warn};
 
 use synapseed_core::context::SynapseContext;
 use synapseed_core::error::Result;
@@ -76,7 +76,9 @@ impl SynapsePlugin for ShadowCheckPlugin {
 
                     if is_source {
                         if let Some(tx) = &self.trigger_tx {
-                            let _ = tx.send(());
+                            if let Err(e) = tx.send(()) {
+                                warn!(error = %e, "ShadowCheck: Failed to send recheck trigger");
+                            }
                         }
                     }
                 }

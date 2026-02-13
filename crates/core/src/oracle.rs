@@ -169,7 +169,9 @@ pub fn fix_docs(project_root: &Path) -> Vec<String> {
 
     // Write back if changed
     if patched != readme {
-        let _ = std::fs::write(&readme_path, &patched);
+        if let Err(e) = std::fs::write(&readme_path, &patched) {
+            changes.push(format!("ERROR: Failed to write README.md: {e}"));
+        }
     }
 
     changes
