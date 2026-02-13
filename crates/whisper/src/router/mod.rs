@@ -18,6 +18,7 @@ use tracing::{debug, info};
 
 use synapseed_core::context::SynapseContext;
 use synapseed_core::momentum::{ModelTier, MomentumEngine, SessionPhase};
+use synapseed_core::symbol::SymbolKind;
 use synapseed_cortex::graph::CodeGraph;
 use synapseed_search::indexer::SemanticIndex;
 
@@ -177,7 +178,14 @@ fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> W
     let complexity = analyze_complexity(query);
     debug!(intent = ?intent, complexity = ?complexity, "Whisperer: Classified");
 
-    let targets = extract_targets(query, ctx);
+    let mut targets = extract_targets(query, ctx);
+
+    // Atomic Greedy Pruning: force max 2 symbols for sub-3B models
+    // to reduce noise and maximize focus per symbol.
+    if tier == ModelTier::Atomic && targets.len() > 2 {
+        debug!(before = targets.len(), "Whisper: Atomic greedy pruning to 2 targets");
+        targets.truncate(2);
+    }
     debug!(target_count = targets.len(), "Whisperer: Extracted targets");
 
     // Intent Hardening: if query matched known symbols but intent is General,
@@ -333,12 +341,35 @@ fn classify_intent(query: &str) -> Intent {
 
 // ── Target Extraction ──────────────────────────────────────────────────
 
-/// Words to ignore when searching for symbols.
+/// Words to ignore when searching for symbols and when cleaning queries.
 const STOP_WORDS: &[&str] = &[
+    // English
     "the", "is", "a", "an", "in", "on", "at", "to", "for", "of", "and", "or", "why", "how", "what",
     "fix", "broken", "error", "explain", "security", "audit", "this", "that", "my", "code", "file",
-    "it", "perché", "come", "cosa", "dove", "il", "la", "un", "una",
+    "it", "does", "do", "work", "works", "from", "with", "about", "are", "was", "were", "be",
+    "been", "being", "have", "has", "had", "not", "but", "by", "can", "could", "would", "should",
+    "all", "each", "every", "both", "few", "more", "most", "some", "such", "than", "too", "very",
+    "just", "also", "into", "through", "between", "after", "before", "during", "where", "when",
+    "which", "who", "whom", "whose", "there", "here", "then", "out", "up", "down",
+    // Italian
+    "perché", "come", "cosa", "dove", "il", "la", "un", "una", "lo", "gli", "le", "dei", "del",
+    "della", "delle", "degli", "nel", "nella", "nelle", "nei", "negli", "con", "per", "tra", "fra",
+    "che", "chi", "cui", "quale", "quali", "questo", "questa", "questi", "queste", "quello",
+    "quella", "quelli", "quelle", "suo", "sua", "suoi", "sue", "mio", "mia", "nostro", "nostra",
+    "sono", "sei", "siamo", "siete", "hanno", "avere", "essere", "fare", "funziona", "spiega",
+    "descrivi", "mostra", "dimmi",
 ];
+
+/// Strip stop words and return cleaned technical terms for Tantivy search.
+/// "Come funziona il chunked transfer encoding in requests?" → "chunked transfer encoding requests"
+fn clean_query_for_search(query: &str) -> String {
+    query
+        .split(|c: char| c.is_whitespace() || c == '?' || c == '!' || c == ',')
+        .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric() && c != '_'))
+        .filter(|w| w.len() >= 2 && !STOP_WORDS.contains(&w.to_lowercase().as_str()))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
 
 fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> {
     let mut targets = Vec::new();
@@ -365,29 +396,35 @@ fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> {
     }
 
     // Pass 2: Semantic search for relevant symbols (with confidence thresholding)
+    // Clean query: strip EN/IT stop words so Tantivy BM25 focuses on technical terms.
+    let search_query = clean_query_for_search(query);
     let min_confidence = ctx.dna().context.min_confidence;
-    if let Some(index) = ctx.get_extension::<SemanticIndex>() {
-        let results = index.search(query, 3);
-        for r in results {
-            if r.score < min_confidence {
-                debug!(
-                    symbol = %r.symbol, score = r.score, threshold = min_confidence,
-                    "Whisper: dropping low-confidence search result"
-                );
-                continue;
+    if !search_query.is_empty() {
+        if let Some(index) = ctx.get_extension::<SemanticIndex>() {
+            debug!(raw = query, cleaned = %search_query, "Whisper: cleaned query for search");
+            let results = index.search(&search_query, 5);
+            for r in results {
+                if r.score < min_confidence {
+                    debug!(
+                        symbol = %r.symbol, score = r.score, threshold = min_confidence,
+                        "Whisper: dropping low-confidence search result"
+                    );
+                    continue;
+                }
+                targets.push(Target {
+                    kind: TargetKind::Symbol,
+                    name: r.symbol.clone(),
+                    file_path: Some(r.file.clone()),
+                    line_start: Some(r.line_start as usize),
+                });
             }
-            targets.push(Target {
-                kind: TargetKind::Symbol,
-                name: r.symbol.clone(),
-                file_path: Some(r.file.clone()),
-                line_start: Some(r.line_start as usize),
-            });
         }
     }
 
     // Pass 3: Fallback — cortex lookup on significant words
     // Reuse the existing CodeGraph from context (populated by cortex plugin)
     // instead of creating a new one and re-indexing from scratch.
+    // Skip Import/Variable symbols — they're noise (e.g., `import requests`).
     if targets.is_empty() {
         let graph = ctx.get_extension::<CodeGraph>().unwrap_or_else(|| {
             // Last resort: create a fresh graph and index synchronously
@@ -400,7 +437,11 @@ fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> {
                 .trim_matches(|c: char| !c.is_alphanumeric() && c != '_')
                 .to_lowercase();
             if clean.len() >= 3 && !STOP_WORDS.contains(&clean.as_str()) {
-                for sym in graph.lookup(&clean).into_iter().take(2) {
+                for sym in graph.lookup(&clean).into_iter().take(4) {
+                    // Filter out Import and Variable — they're noise
+                    if matches!(sym.kind, SymbolKind::Import | SymbolKind::Variable) {
+                        continue;
+                    }
                     targets.push(Target {
                         kind: TargetKind::Symbol,
                         name: sym.name.clone(),
@@ -661,7 +702,7 @@ struct SmartContextInput<'a> {
 /// Design principles:
 /// - NO JSON, NO `**bold**`, NO `##` headers — flat Markdown only
 /// - `ENVIRONMENT:` header anchors the model to the real project
-/// - `--- BEGIN FILE: path ---` delimiters are easier for tiny models to anchor to
+/// - `@@@ START_OF_TRUTH: path @@@` delimiters are unambiguous for tiny models
 /// - Language reinforcement every ~10 lines inside injected code
 /// - Raw source injection is always forced (even if user didn't request it)
 fn build_atomic_context(
@@ -691,19 +732,21 @@ fn build_atomic_context(
         parts.push(String::new());
     }
 
-    // Raw source injection with grounding delimiters
+    // Raw source injection with unambiguous delimiters for sub-3B models
     if raw_injection && !raw_sources.is_empty() {
+        let file_list: Vec<&str> = raw_sources.iter().map(|s| s.file_path.as_str()).collect();
+
         parts.push(format!("REAL SOURCE CODE FROM THIS {lang} PROJECT:"));
         parts.push(String::new());
 
         for src in raw_sources {
             if src.line_start == 0 && src.line_end == 0 {
-                parts.push(format!("--- BEGIN FILE: {} (UNAVAILABLE) ---", src.file_path));
+                parts.push(format!("@@@ START_OF_TRUTH: {} (UNAVAILABLE) @@@", src.file_path));
                 parts.push(src.source.clone());
-                parts.push("--- END FILE ---".into());
+                parts.push("@@@ END_OF_TRUTH @@@".into());
             } else {
                 parts.push(format!(
-                    "--- BEGIN FILE: {} (lines {}-{}) ---",
+                    "@@@ START_OF_TRUTH: {} (lines {}-{}) @@@",
                     src.file_path, src.line_start, src.line_end
                 ));
 
@@ -721,22 +764,22 @@ fn build_atomic_context(
                     }
                 }
                 parts.push(reinforced.trim_end().to_string());
-                parts.push("--- END FILE ---".into());
+                parts.push("@@@ END_OF_TRUTH @@@".into());
             }
             parts.push(String::new());
         }
 
         // Instruction sandwiching: repeat grounding rules after code injection
-        let file_list: Vec<&str> = raw_sources.iter().map(|s| s.file_path.as_str()).collect();
         parts.push(format!(
             "INSTRUCTIONS: Answer using ONLY the {lang} source code above. \
              This project uses {lang}. Cite file paths and line numbers. \
              Do NOT reference files that are not listed above. \
              Do NOT use any other programming language."
         ));
+        // Zero-Hallucination Recency Bias Guard: LAST line of context
         parts.push(format!(
-            "REMINDER: The ONLY files you may cite are: {}. \
-             Any other file path is WRONG.",
+            "IF YOU CITE A FILE NOT LISTED BELOW, YOU FAIL.\n\
+             ALLOWED FILES: {}",
             file_list.join(", ")
         ));
     } else {
@@ -936,9 +979,10 @@ fn build_smart_context(input: SmartContextInput) -> String {
              Cite exact file paths and line numbers. \
              ONLY use the file paths listed above. DO NOT invent file names."
         ));
+        // Zero-Hallucination Recency Bias Guard: LAST line of context
         parts.push(format!(
-            "\nREMINDER: The ONLY files you may cite are: {}. \
-             Any other file path is WRONG.",
+            "\nIF YOU CITE A FILE NOT LISTED BELOW, YOU FAIL.\n\
+             ALLOWED FILES: {}",
             file_list.join(", ")
         ));
     } else {
@@ -1254,7 +1298,9 @@ mod tests {
         assert!(ctx.contains("--- FILE: src/main.rs (lines 1-2) ---"));
         assert!(ctx.contains("fn main()"));
         assert!(ctx.contains("Answer based ONLY on the injected source code"));
-        assert!(ctx.contains("DO NOT invent file names"));
+        // Zero-Hallucination Recency Bias Guard
+        assert!(ctx.contains("IF YOU CITE A FILE NOT LISTED BELOW, YOU FAIL"));
+        assert!(ctx.contains("ALLOWED FILES: src/main.rs"));
     }
 
     // ── Tier-adapted output tests (#51) ─────────────────────────────
@@ -1316,16 +1362,18 @@ mod tests {
             project_root: "/test".into(),
         };
         let ctx = build_smart_context(input);
-        // Semantic Ballast: grounded delimiters
+        // Semantic Ballast: grounded delimiters (@@@ for Atomic tier)
         assert!(ctx.contains("ENVIRONMENT: This is a Rust project"));
-        assert!(ctx.contains("--- BEGIN FILE: src/lib.rs (lines 1-5) ---"));
+        assert!(ctx.contains("@@@ START_OF_TRUTH: src/lib.rs (lines 1-5) @@@"));
         assert!(ctx.contains("pub fn hello()"));
-        assert!(ctx.contains("--- END FILE ---"));
+        assert!(ctx.contains("@@@ END_OF_TRUTH @@@"));
         assert!(ctx.contains("REAL SOURCE CODE"));
         // No "## Injected Source Code" header
         assert!(!ctx.contains("## Injected Source Code"));
         // Anti-hallucination instruction
         assert!(ctx.contains("Do NOT use any other programming language"));
+        // Zero-Hallucination Recency Bias Guard
+        assert!(ctx.contains("IF YOU CITE A FILE NOT LISTED BELOW, YOU FAIL"));
     }
 
     #[test]
@@ -1407,5 +1455,33 @@ mod tests {
         };
         let ctx = build_smart_context(input);
         assert!(ctx.contains("Phase: Stabilization"));
+    }
+
+    // ── Query cleaning tests (v3.9.0) ─────────────────────────────
+
+    #[test]
+    fn test_clean_query_italian_stops_removed() {
+        let cleaned = clean_query_for_search("Come funziona il chunked transfer encoding in requests?");
+        assert_eq!(cleaned, "chunked transfer encoding requests");
+    }
+
+    #[test]
+    fn test_clean_query_english_stops_removed() {
+        let cleaned = clean_query_for_search("How does the authentication flow work in this project?");
+        assert_eq!(cleaned, "authentication flow project");
+    }
+
+    #[test]
+    fn test_clean_query_preserves_technical_terms() {
+        let cleaned = clean_query_for_search("explain tokio::spawn and async runtime");
+        assert!(cleaned.contains("tokio::spawn"));
+        assert!(cleaned.contains("async"));
+        assert!(cleaned.contains("runtime"));
+    }
+
+    #[test]
+    fn test_clean_query_empty_result() {
+        let cleaned = clean_query_for_search("come il la un");
+        assert!(cleaned.is_empty());
     }
 }
