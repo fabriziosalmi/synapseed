@@ -1,11 +1,13 @@
 //! Target extraction pipeline — finds files and symbols relevant to a query.
 //!
-//! 5-pass extraction:
+//! 7-pass extraction:
 //! 1. Explicit file references (contain extension)
 //! 2. Hybrid RRF search: BM25 + vector fusion (v4.5.0), falls back to BM25-only
 //! 3. Cortex fallback for unmatched queries
 //! 4. Implementation Twin — derive source paths from test paths
 //! 5. Call Graph Lite — extract identifiers from test bodies
+//! 6. Python Config String Resolver (v4.2.0)
+//! 7. Reverse Test Lookup (v4.6.0) — "Il Ponte della Verità"
 
 use std::collections::HashSet;
 use std::sync::LazyLock;
@@ -436,6 +438,74 @@ pub(super) fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> 
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    // ── Pass 7: Reverse Test Lookup (v4.6.0) — "Il Ponte della Verità" ──
+    // For each source symbol found by earlier passes, search for test functions
+    // that exercise it. Tests are working usage examples — for an LLM, seeing
+    // `assert_eq!(handler(req), expected)` is more valuable than 100 lines of
+    // abstract implementation. This is the mirror of Passes 4-5 (test→source):
+    // Pass 7 goes source→test.
+    {
+        let source_symbols: Vec<String> = targets
+            .iter()
+            .filter(|t| matches!(t.kind, TargetKind::Symbol))
+            .filter(|t| !t.file_path.as_deref().is_some_and(is_test_path))
+            .filter(|t| t.name.len() >= 4) // skip short names (noise)
+            .map(|t| t.name.clone())
+            .collect();
+
+        if !source_symbols.is_empty() {
+            if let Some(index) = ctx.get_extension::<SemanticIndex>() {
+                let mut test_injections = 0usize;
+                const MAX_TEST_INJECTIONS: usize = 3;
+
+                for sym_name in &source_symbols {
+                    if test_injections >= MAX_TEST_INJECTIONS {
+                        break;
+                    }
+                    // Over-fetch from BM25: source files rank higher, so we need
+                    // extra results to find test files that reference this symbol.
+                    let results = index.search(sym_name, 10);
+                    for r in results {
+                        if test_injections >= MAX_TEST_INJECTIONS {
+                            break;
+                        }
+                        if !is_test_path(&r.file) {
+                            continue;
+                        }
+                        // Dedup: skip if this exact (name, file) is already a target
+                        if targets
+                            .iter()
+                            .any(|t| t.name == r.symbol && t.file_path.as_deref() == Some(&r.file))
+                        {
+                            continue;
+                        }
+                        debug!(
+                            source_sym = %sym_name,
+                            test_fn = %r.symbol,
+                            test_file = %r.file,
+                            score = r.score,
+                            "Whisper: Reverse Test Lookup found exercising test"
+                        );
+                        targets.push(Target {
+                            kind: TargetKind::Symbol,
+                            name: r.symbol.clone(),
+                            file_path: Some(r.file.clone()),
+                            line_start: Some(r.line_start as usize),
+                        });
+                        test_injections += 1;
+                    }
+                }
+
+                if test_injections > 0 {
+                    debug!(
+                        injected = test_injections,
+                        "Whisper: Reverse Test Lookup complete"
+                    );
                 }
             }
         }

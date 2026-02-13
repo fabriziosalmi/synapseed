@@ -1,5 +1,33 @@
 # Changelog
 
+## [4.6.0] — 2026-02-13
+
+### Reverse Test Lookup — "Il Ponte della Verità"
+
+New Pass 7 in the extraction pipeline: for each source symbol, automatically
+finds test functions that exercise it and injects them into the context.
+
+#### Core: Pass 7 in Whisper Extraction
+- For each source (non-test) symbol found by Passes 1-6, searches BM25 for test files that reference it
+- Tests are working usage examples: `assert_eq!(handler(req), expected)` teaches an LLM more than 100 lines of abstract implementation
+- Mirror of Passes 4-5 (test→source): Pass 7 goes source→test
+- Over-fetches 10 BM25 results per symbol to find test files ranked below source files
+- Caps at 3 test injections total (avoids bloating context)
+- Filters: minimum symbol name length (4+), skips Import/Variable kinds, deduplicates
+- Source-first ordering preserved: injected tests sort after source code
+
+#### Extraction Pipeline (now 7 passes)
+1. Explicit file references
+2. Hybrid RRF search (BM25 + vector fusion)
+3. Cortex fallback
+4. Implementation Twin (test→source)
+5. Call Graph Lite (test bodies→callees)
+6. Python Config String Resolver
+7. **Reverse Test Lookup (source→test)** ← NEW
+
+#### Stats
+- 321 tests, 0 failures
+
 ## [4.5.0] — 2026-02-13
 
 ### Hybrid Retrieval — Reciprocal Rank Fusion (RRF)
