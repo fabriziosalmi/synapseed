@@ -22,7 +22,7 @@ resolver = "2"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/fabriziosalmi/synapseed"
-version = "3.7.0"
+version = "3.8.0"
 
 [workspace.dependencies]
 # Async Runtime

@@ -5,7 +5,7 @@ use std::time::Duration;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use serde_json::json;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use synapseed_core::context::SynapseContext;
 use synapseed_core::event::SynapseEvent;
@@ -426,7 +426,7 @@ async fn cmd_ask(path: &Path, query: &str, raw: bool, json_output: bool) -> Resu
     let ctx = init_full_context(path).await?;
 
     // ── Wait for background indexing (Issue #44) ────────────────
-    wait_for_index(&ctx, Duration::from_secs(2)).await;
+    wait_for_index(&ctx, Duration::from_secs(5)).await;
 
     let result = handle_tool_call("ask", &json!({"query": query, "raw": raw}), &ctx);
 
@@ -449,23 +449,48 @@ async fn cmd_ask(path: &Path, query: &str, raw: bool, json_output: bool) -> Resu
 
 /// Wait for background indexing to complete, with a timeout fallback.
 ///
-/// Subscribes to the event bus and waits for `IndexingComplete`.  If the
-/// timeout expires the code graph is still empty, performs a **synchronous**
-/// hoist so `ask` never returns with 0 symbols when files exist.
+/// Subscribes to the event bus and waits for both `IndexingComplete` (CodeGraph)
+/// and `SearchReady` (Tantivy).  If the timeout expires before both fire,
+/// ensures the CodeGraph is populated so the Whisperer's fallback pass works.
 async fn wait_for_index(ctx: &SynapseContext, timeout: Duration) {
     // Fast path: graph already populated (MCP serve mode, or index was instant)
     if let Some(graph) = ctx.get_extension::<CodeGraph>() {
         if graph.file_count() > 0 {
+            // CodeGraph ready — still try to wait briefly for Tantivy
+            let mut rx = ctx.subscribe();
+            let _ = tokio::time::timeout(Duration::from_millis(500), async {
+                loop {
+                    match rx.recv().await {
+                        Ok(SynapseEvent::SearchReady) => break,
+                        Err(_) => break,
+                        _ => continue,
+                    }
+                }
+            })
+            .await;
             return;
         }
     }
 
-    // Subscribe and wait for IndexingComplete
+    // Subscribe and wait for both IndexingComplete + SearchReady
     let mut rx = ctx.subscribe();
+    let mut got_index = false;
+    let mut got_search = false;
     let result = tokio::time::timeout(timeout, async {
         loop {
             match rx.recv().await {
-                Ok(SynapseEvent::IndexingComplete) => break,
+                Ok(SynapseEvent::IndexingComplete) => {
+                    got_index = true;
+                    if got_search {
+                        break;
+                    }
+                }
+                Ok(SynapseEvent::SearchReady) => {
+                    got_search = true;
+                    if got_index {
+                        break;
+                    }
+                }
                 Err(_) => break, // channel closed
                 _ => continue,
             }
@@ -474,15 +499,26 @@ async fn wait_for_index(ctx: &SynapseContext, timeout: Duration) {
     .await;
 
     if result.is_err() {
-        // Timeout — perform synchronous hoist as fallback
-        warn!("Index timeout ({timeout:?}), performing synchronous hoist");
-        if let Some(graph) = ctx.get_extension::<CodeGraph>() {
-            if graph.file_count() == 0 {
-                let root = ctx.project_root();
-                if let Err(e) = graph.index_directory(&root) {
-                    warn!(error = %e, "Synchronous hoist failed");
+        // Timeout — ensure CodeGraph is populated for Whisperer fallback
+        if !got_index {
+            warn!("Index timeout ({timeout:?}), performing synchronous hoist");
+            if let Some(graph) = ctx.get_extension::<CodeGraph>() {
+                if graph.file_count() == 0 {
+                    let root = ctx.project_root();
+                    if let Err(e) = graph.index_directory(&root) {
+                        warn!(error = %e, "Synchronous hoist failed");
+                    } else {
+                        info!(
+                            files = graph.file_count(),
+                            symbols = graph.symbol_count(),
+                            "Synchronous hoist completed"
+                        );
+                    }
                 }
             }
+        }
+        if !got_search {
+            debug!("Tantivy not ready — Whisperer will use CodeGraph fallback");
         }
     }
 }

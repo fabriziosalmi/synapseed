@@ -18,7 +18,7 @@ Verify installation:
 
 ```bash
 synapseed --version
-# synapseed 3.7.0
+# synapseed 3.8.0
 ```
 
 ## Release Build

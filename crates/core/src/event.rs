@@ -56,6 +56,9 @@ pub enum SynapseEvent {
     /// Code graph indexing completed in the background.
     /// Fired by CortexPlugin after async indexing finishes.
     IndexingComplete,
+    /// Tantivy search index is warm and ready for queries.
+    /// Fired by SearchPlugin after background indexing completes.
+    SearchReady,
     /// System is shutting down
     SystemShutdown,
 }

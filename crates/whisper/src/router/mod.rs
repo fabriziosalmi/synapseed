@@ -24,7 +24,7 @@ use synapseed_search::indexer::SemanticIndex;
 // ── Types ──────────────────────────────────────────────────────────────
 
 /// Detected intent category.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Intent {
     BugFix,
@@ -93,6 +93,10 @@ pub struct WhisperResult {
     /// Semantic Information Density: symbols_found / (prompt_tokens / 1000).
     /// Higher = more useful signal per token budget.
     pub sid: f64,
+    /// Raw source code snippets injected for discovered symbols.
+    /// Exposed in JSON so external tools can consume code directly.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub raw_sources: Vec<RawSource>,
 }
 
 // ── Query Complexity (HCI Req 5: Mentor Mode) ─────────────────────────
@@ -169,12 +173,23 @@ fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> W
     // ── Semantic Ballast (v3.7.0): Atomic tier forces raw injection ──
     let effective_raw = raw_injection || tier == ModelTier::Atomic;
 
-    let intent = classify_intent(query);
+    let mut intent = classify_intent(query);
     let complexity = analyze_complexity(query);
     debug!(intent = ?intent, complexity = ?complexity, "Whisperer: Classified");
 
     let targets = extract_targets(query, ctx);
     debug!(target_count = targets.len(), "Whisperer: Extracted targets");
+
+    // Intent Hardening: if query matched known symbols but intent is General,
+    // promote to Explain — the user is asking about specific code entities.
+    if intent == Intent::General
+        && targets
+            .iter()
+            .any(|t| matches!(t.kind, TargetKind::Symbol))
+    {
+        debug!("Intent hardened: General -> Explain (query contains known symbols)");
+        intent = Intent::Explain;
+    }
 
     // Execute plan based on intent — each gather fn knows when to activate
     let diag = diagnostics::gather_diagnostics(&intent, &targets, ctx);
@@ -225,6 +240,7 @@ fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> W
         security_status: sec_status,
         smart_context,
         sid,
+        raw_sources,
     }
 }
 
@@ -362,23 +378,27 @@ fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> {
     }
 
     // Pass 3: Fallback — cortex lookup on significant words
+    // Reuse the existing CodeGraph from context (populated by cortex plugin)
+    // instead of creating a new one and re-indexing from scratch.
     if targets.is_empty() {
-        let root = ctx.project_root();
-        let graph = CodeGraph::new();
-        if graph.index_directory(&root).is_ok() {
-            for word in &words {
-                let clean = word
-                    .trim_matches(|c: char| !c.is_alphanumeric() && c != '_')
-                    .to_lowercase();
-                if clean.len() >= 3 && !STOP_WORDS.contains(&clean.as_str()) {
-                    for sym in graph.lookup(&clean).into_iter().take(2) {
-                        targets.push(Target {
-                            kind: TargetKind::Symbol,
-                            name: sym.name.clone(),
-                            file_path: Some(sym.file_path.clone()),
-                            line_start: Some(sym.line_start),
-                        });
-                    }
+        let graph = ctx.get_extension::<CodeGraph>().unwrap_or_else(|| {
+            // Last resort: create a fresh graph and index synchronously
+            let g = CodeGraph::new();
+            let _ = g.index_directory(&ctx.project_root());
+            std::sync::Arc::new(g)
+        });
+        for word in &words {
+            let clean = word
+                .trim_matches(|c: char| !c.is_alphanumeric() && c != '_')
+                .to_lowercase();
+            if clean.len() >= 3 && !STOP_WORDS.contains(&clean.as_str()) {
+                for sym in graph.lookup(&clean).into_iter().take(2) {
+                    targets.push(Target {
+                        kind: TargetKind::Symbol,
+                        name: sym.name.clone(),
+                        file_path: Some(sym.file_path.clone()),
+                        line_start: Some(sym.line_start),
+                    });
                 }
             }
         }
@@ -808,10 +828,14 @@ fn build_smart_context(input: SmartContextInput) -> String {
 
     if section_count < max_sections {
         if let Some(code) = code_context {
-            parts.push(format!(
-                "- **Code**: {} relevant symbol(s) found",
-                code.symbols.len()
-            ));
+            if code.symbols.is_empty() {
+                parts.push("- **Code**: No matching symbols found for this query".into());
+            } else {
+                parts.push(format!(
+                    "- **Code**: {} relevant symbol(s) found",
+                    code.symbols.len()
+                ));
+            }
             section_count += 1;
         }
     }

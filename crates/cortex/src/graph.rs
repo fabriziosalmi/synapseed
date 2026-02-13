@@ -30,6 +30,8 @@ pub struct CodeGraph {
     files: DashMap<PathBuf, FileStructure>,
     /// Symbol ID -> (file_path, symbol index) for O(1) lookup
     symbol_index: DashMap<SymbolId, (PathBuf, usize)>,
+    /// Lowercase name -> SymbolIds for O(1) case-insensitive lookup
+    lowercase_index: DashMap<String, Vec<SymbolId>>,
 }
 
 impl CodeGraph {
@@ -37,6 +39,7 @@ impl CodeGraph {
         Self {
             files: DashMap::new(),
             symbol_index: DashMap::new(),
+            lowercase_index: DashMap::new(),
         }
     }
 
@@ -44,10 +47,15 @@ impl CodeGraph {
     pub fn index_file(&self, parser: &mut AstParser, path: &Path, source: &str) -> Result<()> {
         let mut structure = parser.parse_file(path, source)?;
 
-        // Fill in file_path for all symbols and build the index
+        // Fill in file_path for all symbols and build both indices
         for (i, sym) in structure.symbols.iter_mut().enumerate() {
             sym.file_path = path.display().to_string();
             self.symbol_index.insert(sym.id, (path.to_path_buf(), i));
+            // Secondary index: lowercase name -> SymbolIds
+            self.lowercase_index
+                .entry(sym.name.to_ascii_lowercase())
+                .or_default()
+                .push(sym.id);
         }
 
         self.files.insert(path.to_path_buf(), structure);
@@ -59,17 +67,16 @@ impl CodeGraph {
         self.files.get(path).map(|entry| entry.value().clone())
     }
 
-    /// Look up a symbol by name across all indexed files.
+    /// Look up a symbol by name across all indexed files (case-insensitive, O(1)).
     pub fn lookup(&self, name: &str) -> Vec<Symbol> {
-        let mut results = Vec::new();
-        for entry in self.files.iter() {
-            for sym in &entry.value().symbols {
-                if sym.name == name {
-                    results.push(sym.clone());
-                }
-            }
+        let key = name.to_ascii_lowercase();
+        match self.lowercase_index.get(&key) {
+            Some(ids) => ids
+                .iter()
+                .filter_map(|id| self.get_symbol(id))
+                .collect(),
+            None => Vec::new(),
         }
-        results
     }
 
     /// Get a symbol by its unique ID.
