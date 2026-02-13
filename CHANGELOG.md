@@ -1,5 +1,30 @@
 # Changelog
 
+## [3.10.0] — 2026-02-13
+
+### The Stale Reader — Critical Tantivy Fix & Search Intelligence
+
+#### Critical Fix
+
+- **Search — Stale Reader Bug**: `ReloadPolicy::OnCommitWithDelay` caused ~500ms lag after Tantivy commit. The Whisperer raced immediately after `SearchReady` and always got an empty reader (0 segments). Added explicit `reader.reload()` after every commit (`index_all`, `reindex_file`, `remove_file`). **This was the root cause of Tantivy returning 0 results in all benchmark runs.**
+
+#### New Features
+
+- **Search — Vendor/Static Penalty**: Files in `/vendor/`, `/node_modules/`, `/static/`, `/dist/`, `/build/`, `.min.` etc. get 0.1x score in Tantivy. Prevents vendored code (e.g., Django's `select2.full.js`) from competing with real source.
+- **Whisper — Vendor Drop for Atomic**: Atomic tier now drops vendor/static targets entirely before pruning, preventing wasted context slots.
+- **Whisper — Italian Stop Words Expansion**: Added ~80 Italian verbs/nouns commonly mixed with technical terms ("viene", "gestita", "decodifica", "funzioni", "chiamano", "riga", etc.)
+- **Whisper — Synonym Expansion**: Morphological variants ("chunked"→"chunk","chunking") + domain synonym pairs ("chunk"→"stream","iter"; "encode"→"decode","codec"; "route"→"router","dispatch"; etc.)
+- **Search — Body Snippet Expansion**: 5→15 lines captured per symbol, matching domain keywords in docstrings
+- **Search — BM25 Boost Rebalance**: `body_snippet` 0.5→1.5x, `doc_comment` 1.5→2.0x
+- **Whisper — Atomic Pruning v2**: 2→3 unique-file targets with source-first ordering (source > test > vendor)
+
+#### Impact
+
+- Before: `synapseed ask "chunked transfer encoding"` on psf/requests → **0 targets** (Tantivy empty), SID 0.0
+- After: → `iter_content` in `src/requests/models.py:801`, SID 1.64, full source code injected
+- Before: Django middleware query → `select2.full.js` wasting 1 of 3 Atomic slots
+- After: → `handlers.py`, `security.py`, `wsgi.py` — all real Django source
+
 ## [3.9.3] — 2026-02-13
 
 ### Source-First Heuristics — Test-to-Implementation Discovery

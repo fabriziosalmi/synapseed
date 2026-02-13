@@ -185,11 +185,25 @@ fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> W
 
     let mut targets = extract_targets(query, ctx);
 
-    // Atomic Greedy Pruning: force max 2 symbols for sub-3B models
-    // to reduce noise and maximize focus per symbol.
-    if tier == ModelTier::Atomic && targets.len() > 2 {
-        debug!(before = targets.len(), "Whisper: Atomic greedy pruning to 2 targets");
-        targets.truncate(2);
+    // Atomic Greedy Pruning (v3.9.4): max 3 unique-file targets for sub-3B models.
+    // Prefer diversity: one target per unique file path to maximize coverage.
+    // Source-first ordering ensures implementation files come before test/vendor files.
+    if tier == ModelTier::Atomic {
+        // Drop vendor/static targets entirely — they waste precious Atomic slots
+        let before = targets.len();
+        targets.retain(|t| !t.file_path.as_deref().map_or(false, is_vendor_path));
+        if targets.len() < before {
+            debug!(before, after = targets.len(), "Whisper: dropped vendor/static targets");
+        }
+        if targets.len() > 3 {
+            debug!(before = targets.len(), "Whisper: Atomic greedy pruning to 3 unique-file targets");
+            let mut seen_files = std::collections::HashSet::new();
+            targets.retain(|t| {
+                let key = t.file_path.as_deref().unwrap_or("");
+                seen_files.insert(key.to_string())
+            });
+            targets.truncate(3);
+        }
     }
     debug!(target_count = targets.len(), "Whisperer: Extracted targets");
 
@@ -356,24 +370,97 @@ const STOP_WORDS: &[&str] = &[
     "all", "each", "every", "both", "few", "more", "most", "some", "such", "than", "too", "very",
     "just", "also", "into", "through", "between", "after", "before", "during", "where", "when",
     "which", "who", "whom", "whose", "there", "here", "then", "out", "up", "down",
-    // Italian
+    // Italian — articles, prepositions, pronouns
     "perché", "come", "cosa", "dove", "il", "la", "un", "una", "lo", "gli", "le", "dei", "del",
     "della", "delle", "degli", "nel", "nella", "nelle", "nei", "negli", "con", "per", "tra", "fra",
     "che", "chi", "cui", "quale", "quali", "questo", "questa", "questi", "queste", "quello",
     "quella", "quelli", "quelle", "suo", "sua", "suoi", "sue", "mio", "mia", "nostro", "nostra",
     "sono", "sei", "siamo", "siete", "hanno", "avere", "essere", "fare", "funziona", "spiega",
     "descrivi", "mostra", "dimmi",
+    // Italian — verbs, nouns, adjectives commonly mixed with technical terms
+    "viene", "viene", "gestita", "gestito", "gestire", "gestione", "chiamano", "chiamata",
+    "chiamate", "chiama", "riga", "righe", "linea", "linee", "file", "cartella", "progetto",
+    "funzione", "funzioni", "metodo", "metodi", "classe", "classi", "variabile", "variabili",
+    "tipo", "tipi", "valore", "valori", "parametro", "parametri", "argomento", "argomenti",
+    "risultato", "risultati", "errore", "errori", "problema", "problemi",
+    "quando", "ogni", "altro", "altra", "altri", "altre", "primo", "secondo", "terzo",
+    "nuovo", "nuova", "nuovi", "nuove", "stesso", "stessa", "stessi", "stesse",
+    "dentro", "fuori", "sopra", "sotto", "prima", "dopo", "durante", "sempre", "mai",
+    "anche", "ancora", "già", "solo", "molto", "poco", "troppo", "tutto", "tutti",
+    "parte", "parti", "modo", "modi", "punto", "punti", "caso", "casi",
+    // Italian — technical verbs that don't add search value
+    "decodifica", "codifica", "elabora", "elaborazione", "gestisce", "implementa",
+    "implementazione", "utilizza", "utilizzata", "usa", "usata", "usato",
+    "esegue", "eseguita", "eseguito", "restituisce", "ritorna", "passa", "riceve",
 ];
 
 /// Strip stop words and return cleaned technical terms for Tantivy search.
 /// "Come funziona il chunked transfer encoding in requests?" → "chunked transfer encoding requests"
 fn clean_query_for_search(query: &str) -> String {
-    query
+    let terms: Vec<&str> = query
         .split(|c: char| c.is_whitespace() || c == '?' || c == '!' || c == ',')
         .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric() && c != '_'))
         .filter(|w| w.len() >= 2 && !STOP_WORDS.contains(&w.to_lowercase().as_str()))
-        .collect::<Vec<_>>()
-        .join(" ")
+        .collect();
+
+    // Synonym expansion (v3.9.4): add morphological variants to improve BM25 recall.
+    // "chunked" → also match "chunk", "encoding" → "encode decode", etc.
+    let mut expanded = terms.iter().map(|t| t.to_string()).collect::<Vec<_>>();
+    for term in &terms {
+        let lower = term.to_lowercase();
+        for synonym in expand_synonyms(&lower) {
+            if !expanded.iter().any(|e| e.to_lowercase() == synonym) {
+                expanded.push(synonym);
+            }
+        }
+    }
+
+    expanded.join(" ")
+}
+
+/// Expand a technical term with morphological variants and domain synonyms.
+/// Returns additional terms to append to the search query.
+fn expand_synonyms(term: &str) -> Vec<String> {
+    let mut synonyms = Vec::new();
+
+    // Morphological: strip common suffixes to get root form
+    if let Some(root) = term.strip_suffix("ed") {
+        synonyms.push(root.to_string()); // "chunked" → "chunk"
+        synonyms.push(format!("{root}ing")); // "chunked" → "chunking"
+    } else if let Some(root) = term.strip_suffix("ing") {
+        synonyms.push(root.to_string()); // "encoding" → "encod"
+        synonyms.push(format!("{root}e")); // "encoding" → "encode"
+    } else if let Some(root) = term.strip_suffix("tion") {
+        synonyms.push(root.to_string()); // "authentication" → "authentica"
+        synonyms.push(format!("{root}te")); // "authentication" → "authenticate"
+    }
+
+    // Domain-specific synonyms (bidirectional)
+    static SYNONYM_PAIRS: &[(&str, &[&str])] = &[
+        ("encode", &["decode", "codec", "encoding"]),
+        ("decode", &["encode", "codec", "decoding"]),
+        ("chunk", &["stream", "iter", "iterate"]),
+        ("route", &["router", "routing", "dispatch"]),
+        ("handle", &["handler", "middleware"]),
+        ("auth", &["authenticate", "authorization", "login"]),
+        ("request", &["response", "http"]),
+        ("parse", &["parser", "parsing", "deserialize"]),
+        ("serialize", &["deserialize", "marshal", "unmarshal"]),
+        ("connect", &["connection", "socket", "transport"]),
+        ("transfer", &["transport", "stream"]),
+    ];
+
+    for &(key, values) in SYNONYM_PAIRS {
+        if term == key || term.starts_with(key) {
+            for &v in values {
+                if !synonyms.contains(&v.to_string()) {
+                    synonyms.push(v.to_string());
+                }
+            }
+        }
+    }
+
+    synonyms
 }
 
 fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> {
@@ -541,9 +628,12 @@ fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> {
         }
     }
 
-    // Source-first ordering: non-test targets before test targets (v3.9.3)
+    // Source-first ordering: source > test > vendor/static (v3.9.4)
     targets.sort_by_key(|t| {
-        if t.file_path.as_deref().map_or(false, is_test_path) {
+        let fp = t.file_path.as_deref().unwrap_or("");
+        if is_vendor_path(fp) {
+            2
+        } else if is_test_path(fp) {
             1
         } else {
             0
@@ -588,6 +678,22 @@ fn is_test_path(path: &str) -> bool {
         || p.starts_with("spec/")
         || p.contains("_spec.")
         || p.contains(".spec.")
+}
+
+/// Returns true if the path looks like vendored/static/generated code.
+fn is_vendor_path(path: &str) -> bool {
+    let p = path.to_ascii_lowercase();
+    p.contains("/vendor/")
+        || p.contains("/node_modules/")
+        || p.contains("/static/")
+        || p.contains("/dist/")
+        || p.contains("/build/")
+        || p.contains("/generated/")
+        || p.contains(".min.")
+        || p.contains("/third_party/")
+        || p.contains("/third-party/")
+        || p.contains("/extern/")
+        || p.contains("/deps/")
 }
 
 /// Derive candidate source file paths from a test file path.
@@ -1676,13 +1782,42 @@ mod tests {
     #[test]
     fn test_clean_query_italian_stops_removed() {
         let cleaned = clean_query_for_search("Come funziona il chunked transfer encoding in requests?");
-        assert_eq!(cleaned, "chunked transfer encoding requests");
+        // Core terms preserved
+        assert!(cleaned.starts_with("chunked transfer encoding requests"));
+        // Synonym expansion adds related terms
+        assert!(cleaned.contains("chunk")); // from "chunked"
+        assert!(cleaned.contains("stream")); // synonym of chunk
+    }
+
+    #[test]
+    fn test_clean_query_italian_extended_stops() {
+        // v3.9.4: "viene gestita decodifica funzioni chiamano riga" should all be removed
+        let cleaned = clean_query_for_search(
+            "In quale file e riga viene gestita la decodifica del chunked transfer encoding e quali funzioni lo chiamano?"
+        );
+        // Core technical terms preserved, synonyms expanded
+        assert!(cleaned.contains("chunked"));
+        assert!(cleaned.contains("transfer"));
+        assert!(cleaned.contains("encoding"));
+        // Synonym expansion: "chunked" → "chunk", "encoding" → "encode"
+        assert!(cleaned.contains("chunk"));
+        assert!(cleaned.contains("stream")); // synonym of chunk
+        // Italian noise removed
+        assert!(!cleaned.contains("viene"));
+        assert!(!cleaned.contains("gestita"));
+        assert!(!cleaned.contains("decodifica"));
+        assert!(!cleaned.contains("riga"));
+        assert!(!cleaned.contains("funzioni"));
+        assert!(!cleaned.contains("chiamano"));
     }
 
     #[test]
     fn test_clean_query_english_stops_removed() {
         let cleaned = clean_query_for_search("How does the authentication flow work in this project?");
-        assert_eq!(cleaned, "authentication flow project");
+        // Core terms preserved (synonyms may be appended)
+        assert!(cleaned.starts_with("authentication flow project"));
+        // "authentication" → synonym expansion via "tion" suffix stripping + auth synonyms
+        assert!(cleaned.contains("authenticate"));
     }
 
     #[test]
@@ -1691,6 +1826,26 @@ mod tests {
         assert!(cleaned.contains("tokio::spawn"));
         assert!(cleaned.contains("async"));
         assert!(cleaned.contains("runtime"));
+    }
+
+    #[test]
+    fn test_synonym_expansion() {
+        // "chunked" → "chunk", "chunking"
+        let synonyms = expand_synonyms("chunked");
+        assert!(synonyms.contains(&"chunk".to_string()));
+
+        // "encoding" → "encode" via morphological strip
+        let synonyms = expand_synonyms("encoding");
+        assert!(synonyms.contains(&"encode".to_string()));
+
+        // "chunk" → domain synonyms "stream", "iter"
+        let synonyms = expand_synonyms("chunk");
+        assert!(synonyms.contains(&"stream".to_string()));
+        assert!(synonyms.contains(&"iter".to_string()));
+
+        // Unknown word → no synonyms
+        let synonyms = expand_synonyms("foobar");
+        assert!(synonyms.is_empty());
     }
 
     #[test]

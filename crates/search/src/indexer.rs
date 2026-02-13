@@ -176,6 +176,13 @@ impl SemanticIndex {
             warn!(error = %e, "Search: Failed to commit index");
         }
 
+        // Force reader reload so searches see the new segments immediately.
+        // Without this, OnCommitWithDelay introduces ~500ms lag and callers
+        // racing right after SearchReady would get stale (empty) results.
+        if let Err(e) = self.reader.reload() {
+            warn!(error = %e, "Search: Failed to reload reader after commit");
+        }
+
         info!(symbols = count, "Search: Indexed symbols");
         count
     }
@@ -227,6 +234,7 @@ impl SemanticIndex {
         if let Err(e) = writer.commit() {
             warn!(error = %e, "Search: Failed to commit incremental update");
         }
+        let _ = self.reader.reload();
 
         debug!(file = %file.path, symbols = count, "Search: Reindexed file");
         count
@@ -238,11 +246,12 @@ impl SemanticIndex {
             let term = Term::from_field_text(self.fields.file_path, path);
             writer.delete_term(term);
             let _ = writer.commit();
+            let _ = self.reader.reload();
             debug!(file = path, "Search: Removed file from index");
         }
     }
 
-    /// Semantic search with per-field boosts: symbol_name (3x) > doc_comment (1.5x) > signature (1x) > body (0.5x).
+    /// Semantic search with per-field boosts: symbol_name (3x) > doc_comment (2x) > body (1.5x) > signature (1x).
     pub fn search(&self, query_str: &str, limit: usize) -> Vec<SearchResult> {
         let searcher = self.reader.searcher();
 
@@ -256,11 +265,13 @@ impl SemanticIndex {
             ],
         );
 
-        // Per-field boosts: name matches rank highest, then docs, then signature, then body
+        // Per-field boosts: name > doc_comment > body_snippet > signature.
+        // body_snippet raised to 1.5 (v3.9.4): domain keywords often appear in docstrings
+        // and early body lines but NOT in the symbol name (e.g. "chunk" in iter_content).
         query_parser.set_field_boost(self.fields.symbol_name, 3.0);
-        query_parser.set_field_boost(self.fields.doc_comment, 1.5);
+        query_parser.set_field_boost(self.fields.doc_comment, 2.0);
         query_parser.set_field_boost(self.fields.signature, 1.0);
-        query_parser.set_field_boost(self.fields.body_snippet, 0.5);
+        query_parser.set_field_boost(self.fields.body_snippet, 1.5);
 
         // Try to parse the user query. If it fails (bad syntax), fall back to a simpler approach.
         let query = match query_parser.parse_query(query_str) {
@@ -317,9 +328,15 @@ impl SemanticIndex {
             };
             let temporal_boost = 0.7 + 0.3 * (-self.temporal_decay_lambda * age_days).exp();
 
-            // Source-First (v3.9.3): boost non-test files, penalize test files
+            // Source-First (v3.9.3): boost source, penalize test/vendor/static files
             let file_path = get_text(self.fields.file_path);
-            let source_boost: f32 = if is_test_path(&file_path) { 0.5 } else { 1.5 };
+            let source_boost: f32 = if is_vendor_path(&file_path) {
+                0.1 // Vendored/static files are almost never relevant
+            } else if is_test_path(&file_path) {
+                0.5
+            } else {
+                1.5
+            };
 
             results.push(SearchResult {
                 score: score * temporal_boost as f32 * source_boost,
@@ -417,7 +434,9 @@ fn extract_doc_comment(source: &str, line_start: usize) -> String {
     doc_lines.join(" ")
 }
 
-/// Extract the first 5 lines of a symbol's body as a snippet.
+/// Extract the first lines of a symbol's body as a snippet for BM25 indexing.
+/// Captures up to 15 lines to include docstrings and early body content,
+/// which often contain domain-specific keywords not present in the symbol name.
 fn extract_body_snippet(source: &str, line_start: usize, line_end: usize) -> String {
     let lines: Vec<&str> = source.lines().collect();
     if line_start == 0 || line_start > lines.len() {
@@ -425,7 +444,7 @@ fn extract_body_snippet(source: &str, line_start: usize, line_end: usize) -> Str
     }
 
     let start = line_start.saturating_sub(1); // 0-indexed
-    let end = (start + 5)
+    let end = (start + 15)
         .min(line_end.saturating_sub(1) + 1)
         .min(lines.len());
 
@@ -449,6 +468,22 @@ fn is_test_path(path: &str) -> bool {
         || p.contains(".spec.")
 }
 
+/// Returns true if the path looks like vendored/static/generated code.
+fn is_vendor_path(path: &str) -> bool {
+    let p = path.to_ascii_lowercase();
+    p.contains("/vendor/")
+        || p.contains("/node_modules/")
+        || p.contains("/static/")
+        || p.contains("/dist/")
+        || p.contains("/build/")
+        || p.contains("/generated/")
+        || p.contains(".min.")
+        || p.contains("/third_party/")
+        || p.contains("/third-party/")
+        || p.contains("/extern/")
+        || p.contains("/deps/")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -469,11 +504,19 @@ pub fn authenticate_user(credentials: &Credentials) -> Result<Token> {
 
     #[test]
     fn test_extract_body_snippet() {
+        // With 15-line capture, lines 2-7 (6 lines) should all be included
         let source = "line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8";
         let snippet = extract_body_snippet(source, 2, 7);
         assert!(snippet.starts_with("line2"));
         assert!(snippet.contains("line6"));
-        assert!(!snippet.contains("line7"));
+        assert!(snippet.contains("line7")); // now included with 15-line window
+        assert!(!snippet.contains("line8")); // beyond line_end=7
+
+        // Test truncation at 15 lines
+        let long_source = (1..=20).map(|i| format!("line{i}")).collect::<Vec<_>>().join("\n");
+        let snippet = extract_body_snippet(&long_source, 1, 20);
+        assert!(snippet.contains("line15")); // 15th line included
+        assert!(!snippet.contains("line16")); // beyond 15-line window
     }
 
     #[test]
