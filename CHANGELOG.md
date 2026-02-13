@@ -1,5 +1,38 @@
 # Changelog
 
+## [4.12.0] — 2026-02-14
+
+### Il Segnale + L'Espansione — Score Propagation, Enriched Embeddings, Prefix Matching
+
+#### v4.12 "Il Segnale" — Context Quality
+- **Score propagation**: Added `score: Option<f32>` to `Target` struct — search scores
+  now flow through the entire Whisper pipeline for rank-aware context building
+- **HashSet dedup (Sort First, Cut Later)**: Replaced sequential `dedup_by` with
+  `HashSet<(name, file_path)>` deduplication after sorting by score DESC → source order ASC,
+  eliminating O(n²) scanning and preserving best-ranked variants
+- **Diagnostic items in prompt**: Context builder now renders up to 10 actual compiler
+  error/warning messages (severity, file, line, message) instead of just a count
+- **Multi-file history**: `gather_histories()` replaces single-file `gather_history()`,
+  analyzing up to 5 unique file paths from targets for broader git context
+- **Multi-intent classification**: New `classify_intent_scores()` returns ranked
+  `Vec<(String, usize)>` intent scores, enabling intent-aware context prioritization
+
+#### v4.13 "L'Espansione" — Embedding & Search Enrichment
+- **Enriched embedding text**: `build_embedding_text()` now uses weighted concatenation:
+  Name(3×) | Signature(2×) | Docstring(1×) | Body Keywords(0.5×) for denser vector
+  representations that capture symbol semantics beyond just the name
+- **Body keyword extraction**: New `extract_body_keywords()` helper extracts unique
+  identifiers from function bodies (>3 chars, non-keyword, non-type) for embedding input
+- **Prefix matching fallback**: Added `prefix_search()` via Tantivy `RegexQuery` as
+  intermediate fallback between BM25 and fuzzy — catches `handle_req` → `handle_request`
+  matches that BM25 misses but fuzzy overshoots
+- **Three-tier search cascade**: BM25 → Prefix → Fuzzy with progressive fallback,
+  improving recall for partial symbol name queries
+
+#### Counts
+- 373 tests pass, 0 failures
+- Release binary: 33 MB (unchanged)
+
 ## [4.10.0] — 2026-02-13
 
 ### Language-Aware Visibility Boost & Benchmark Suite

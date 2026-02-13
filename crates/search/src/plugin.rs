@@ -186,18 +186,89 @@ impl SynapsePlugin for SearchPlugin {
     }
 }
 
-/// Build the embedding text for a symbol: name + signature + doc comments, truncated.
-fn build_embedding_text(sym: &synapseed_core::symbol::Symbol) -> String {
-    let mut text = sym.name.clone();
+/// Build the embedding text for a symbol (v4.13.0: enriched).
+///
+/// Weighted concatenation: Name (3x) | Signature (2x) | Docstring (1x) | Body Keywords (0.5x).
+/// Truncated to 512 chars for embedding model token limits.
+fn build_embedding_text(sym: &synapseed_core::symbol::Symbol, source: Option<&str>) -> String {
+    let mut text = String::with_capacity(512);
+
+    // Name (weight: 3x — repeat name for emphasis in embedding space)
+    text.push_str(&sym.name);
+    text.push(' ');
+    text.push_str(&sym.name);
+    text.push(' ');
+    text.push_str(&sym.name);
+
+    // Signature (weight: 2x)
     if let Some(sig) = &sym.signature {
         text.push(' ');
         text.push_str(sig);
+        text.push(' ');
+        text.push_str(sig);
     }
+
+    // Doc comment (weight: 1x — the richest semantic signal)
+    if let Some(src) = source {
+        let doc = crate::indexer::extract_doc_comment(src, sym.line_start);
+        if !doc.is_empty() {
+            text.push(' ');
+            text.push_str(&doc);
+        }
+    }
+
+    // Body keywords (weight: 0.5x — extract unique identifiers from first 10 lines)
+    if let Some(src) = source {
+        let body_kw = extract_body_keywords(src, sym.line_start, sym.line_end, 10);
+        if !body_kw.is_empty() {
+            text.push(' ');
+            text.push_str(&body_kw);
+        }
+    }
+
     // Truncate to 512 chars for embedding efficiency
     if text.len() > 512 {
-        text.truncate(512);
+        // Safe truncation at char boundary
+        let end = text.floor_char_boundary(512);
+        text.truncate(end);
     }
     text
+}
+
+/// Extract unique identifiers from the first N lines of a symbol's body.
+/// Returns a space-separated string of keywords (lowercase, ≥3 chars, deduplicated).
+fn extract_body_keywords(source: &str, line_start: usize, line_end: usize, max_lines: usize) -> String {
+    let lines: Vec<&str> = source.lines().collect();
+    if line_start == 0 || line_start > lines.len() {
+        return String::new();
+    }
+    let start = line_start.saturating_sub(1);
+    let end = (start + max_lines).min(line_end.saturating_sub(1) + 1).min(lines.len());
+
+    let mut seen = std::collections::HashSet::new();
+    let mut keywords = Vec::new();
+
+    for line in &lines[start..end] {
+        // Extract alphanumeric+underscore words ≥3 chars
+        for word in line.split(|c: char| !c.is_alphanumeric() && c != '_') {
+            if word.len() >= 3 {
+                let lower = word.to_lowercase();
+                // Skip common Rust/Python/JS keywords
+                if !matches!(lower.as_str(),
+                    "let" | "mut" | "pub" | "use" | "mod" | "fn" | "impl" | "self" | "super"
+                    | "return" | "match" | "some" | "none" | "true" | "false" | "else"
+                    | "def" | "class" | "import" | "from" | "pass" | "with" | "async" | "await"
+                    | "const" | "var" | "function" | "new" | "this" | "null" | "undefined"
+                    | "for" | "while" | "loop" | "break" | "continue" | "struct" | "enum"
+                    | "type" | "trait" | "where" | "dyn" | "ref" | "str" | "string"
+                ) && seen.insert(lower.clone()) {
+                    keywords.push(lower);
+                }
+            }
+        }
+    }
+
+    keywords.join(" ")
 }
 
 /// Returns true if the symbol kind is worth embedding.
@@ -251,12 +322,18 @@ fn embed_all_symbols(
     let mut entries = Vec::new();
 
     for file in files {
+        // Read source once per file for doc comment & body keyword extraction
+        let source = {
+            let safe_path = project_root.join(&file.path);
+            std::fs::read_to_string(&safe_path).ok()
+        };
+
         for sym in &file.symbols {
             if !should_embed(sym.kind) {
                 continue;
             }
 
-            let text = build_embedding_text(sym);
+            let text = build_embedding_text(sym, source.as_deref());
             entries.push(VectorEntry {
                 file_path: file.path.clone(),
                 symbol_name: sym.name.clone(),
@@ -328,12 +405,19 @@ fn reembed_file(file: &FileStructure, ctx: &SynapseContext) {
     let mut texts = Vec::new();
     let mut entries = Vec::new();
 
+    // Read source for enriched embedding text
+    let source = {
+        let root = ctx.project_root();
+        let safe_path = root.join(&file.path);
+        std::fs::read_to_string(&safe_path).ok()
+    };
+
     for sym in &file.symbols {
         if !should_embed(sym.kind) {
             continue;
         }
 
-        let text = build_embedding_text(sym);
+        let text = build_embedding_text(sym, source.as_deref());
         entries.push(VectorEntry {
             file_path: file.path.clone(),
             symbol_name: sym.name.clone(),

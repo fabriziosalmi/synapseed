@@ -8,6 +8,7 @@
 pub mod indexer;
 pub mod plugin;
 pub mod schema;
+pub mod tokenizer;
 
 #[cfg(feature = "embeddings")]
 pub mod embeddings;

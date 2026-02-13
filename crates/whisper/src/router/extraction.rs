@@ -228,6 +228,7 @@ pub(super) fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> 
                 name: clean.to_string(),
                 file_path: Some(clean.to_string()),
                 line_start: None,
+                score: None,
             });
         }
     }
@@ -290,6 +291,7 @@ pub(super) fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> 
                     name: r.symbol.clone(),
                     file_path: Some(r.file.clone()),
                     line_start: Some(r.line_start as usize),
+                    score: Some(r.score),
                 });
             }
         }
@@ -321,6 +323,7 @@ pub(super) fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> 
                         name: sym.name.clone(),
                         file_path: Some(sym.file_path.clone()),
                         line_start: Some(sym.line_start),
+                        score: None,
                     });
                 }
             }
@@ -367,6 +370,7 @@ pub(super) fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> 
                                 name: sym.name.clone(),
                                 file_path: Some(sym.file_path.clone()),
                                 line_start: Some(sym.line_start),
+                                score: None,
                             });
                         }
                         break; // Found the twin, stop searching candidates
@@ -402,6 +406,7 @@ pub(super) fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> 
                                 name: sym.name.clone(),
                                 file_path: Some(sym.file_path.clone()),
                                 line_start: Some(sym.line_start),
+                                score: None,
                             });
                         }
                     }
@@ -448,6 +453,7 @@ pub(super) fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> 
                                     name: sym.name.clone(),
                                     file_path: Some(sym.file_path.clone()),
                                     line_start: Some(sym.line_start),
+                                    score: None,
                                 });
                             }
                         }
@@ -510,6 +516,7 @@ pub(super) fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> 
                             name: r.symbol.clone(),
                             file_path: Some(r.file.clone()),
                             line_start: Some(r.line_start as usize),
+                            score: Some(r.score),
                         });
                         test_injections += 1;
                     }
@@ -525,20 +532,33 @@ pub(super) fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> 
         }
     }
 
-    // Source-first ordering: source > test > vendor/static (v3.9.4)
-    targets.sort_by_key(|t| {
-        let fp = t.file_path.as_deref().unwrap_or("");
-        if is_vendor_path(fp) {
-            2
-        } else if is_test_path(fp) {
-            1
-        } else {
-            0
+    // ── Sort First, Cut Later (v4.12.0) ────────────────────────────────
+    // 1. Sort by score DESC so highest-quality targets come first.
+    //    Targets without scores (non-search passes) are ordered by source-first
+    //    heuristic within their group.
+    // 2. HashSet dedup: keeps the FIRST occurrence (= highest score).
+    //    This fixes the old dedup_by which only caught consecutive duplicates.
+    targets.sort_by(|a, b| {
+        // Primary: score descending (None after Some)
+        let score_cmp = b.score.unwrap_or(-1.0).total_cmp(&a.score.unwrap_or(-1.0));
+        if score_cmp != std::cmp::Ordering::Equal {
+            return score_cmp;
         }
+        // Secondary: source > test > vendor
+        let a_order = source_order(a.file_path.as_deref().unwrap_or(""));
+        let b_order = source_order(b.file_path.as_deref().unwrap_or(""));
+        a_order.cmp(&b_order)
     });
 
-    // Dedup by (name, file_path)
-    targets.dedup_by(|a, b| a.name == b.name && a.file_path == b.file_path);
+    // HashSet dedup by (name, file_path) — keeps highest-scored version
+    {
+        let mut seen = HashSet::new();
+        targets.retain(|t| {
+            let key = (t.name.clone(), t.file_path.clone().unwrap_or_default());
+            seen.insert(key)
+        });
+    }
+
     // Configurable pruning (v3.6.2): respect DNA context.max_symbols
     let max_symbols = ctx.dna().context.max_symbols;
     targets.truncate(max_symbols);
@@ -560,6 +580,17 @@ pub(super) fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> 
 }
 
 // ── Source-First Helpers (v3.9.3) ─────────────────────────────────────
+
+/// Source-first ordering: source=0, test=1, vendor=2.
+fn source_order(path: &str) -> u8 {
+    if is_vendor_path(path) {
+        2
+    } else if is_test_path(path) {
+        1
+    } else {
+        0
+    }
+}
 
 /// Returns true if the path looks like a test file.
 pub(super) fn is_test_path(path: &str) -> bool {

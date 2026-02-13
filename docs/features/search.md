@@ -32,9 +32,38 @@ For each symbol in the codebase:
 Cortex indexes project → AST symbols
   → Search builds Tantivy index (in-memory or persistent)
   → Query parsed with Tantivy query parser
-  → TF-IDF scoring + fuzzy matching
-  → Temporal boost applied: score × (0.7 + 0.3 × e^(−λ × age_days))
-  → Results ranked by adjusted relevance
+  → Three-tier search cascade: BM25 → Prefix → Fuzzy
+  → Additive normalized scoring (8 features, weights sum to 1.0)
+  → Results ranked by composite relevance
+```
+
+## Search Cascade
+
+Search uses a progressive three-tier cascade to maximize recall without sacrificing precision:
+
+1. **BM25** — Standard full-text search with the Tantivy query parser
+2. **Prefix matching** — Falls back to `RegexQuery` (`query.*`) on `symbol_name` when BM25 returns insufficient results. Catches partial matches like `handle_req` → `handle_request`
+3. **Fuzzy matching** — Final fallback with Levenshtein distance for typo tolerance
+
+Each tier only activates if the previous tier didn't return enough results.
+
+## Scoring Model
+
+Search results are scored using an **additive normalized model** with 8 weighted features, all min-max normalized to [0, 1]:
+
+| Feature | Weight | Description |
+| :--- | :--- | :--- |
+| BM25 | 0.45 | Tantivy TF-IDF relevance |
+| Source | 0.15 | Priority by extraction source |
+| Path | 0.10 | File path proximity boost |
+| PageRank | 0.10 | Module authority (symbol graph) |
+| Visibility | 0.05 | Public API prioritization |
+| Kind | 0.05 | Symbol kind preference |
+| Specificity | 0.05 | Name specificity boost |
+| Temporal | 0.05 | File recency decay |
+
+```
+score = W_BM25 × norm(bm25) + W_SOURCE × norm(source) + ... + W_TEMPORAL × norm(temporal)
 ```
 
 ## Temporal Boost
@@ -62,6 +91,16 @@ search:
 ```
 
 When enabled, the Tantivy index is written to `.synapseed/index/` and reused across restarts. The index is incrementally updated when files change, which significantly speeds up startup for large projects.
+
+## Vector Embeddings
+
+When `search.embeddings: true` is set in `dna.yaml`, each indexed symbol also gets a vector embedding via `all-MiniLM-L6-v2` (384 dims, ONNX). Embedding text is built with **weighted concatenation**:
+
+```
+Name(3×) | Signature(2×) | Docstring(1×) | Body Keywords(0.5×)
+```
+
+Body keywords are unique identifiers extracted from function bodies (>3 chars, excluding language keywords and primitive types). This produces dense vectors that capture symbol semantics beyond just the name.
 
 ## MCP Integration
 

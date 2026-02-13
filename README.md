@@ -149,9 +149,9 @@ graph LR
 | `synapseed-husk` | DLP shield — Aho-Corasick + regex secret detection |
 | `synapseed-root` | Command sentinel — policy-based command evaluation |
 | `synapseed-chronos` | Git history with semantic commit tags and intent analysis |
-| `synapseed-search` | Tantivy FTS + local vector embeddings (fastembed, cosine similarity) |
+| `synapseed-search` | Tantivy FTS + prefix matching + vector embeddings (fastembed, cosine) |
 | `synapseed-shadow-check` | Background `cargo check` with severity filtering and adaptive debounce |
-| `synapseed-whisper` | Intent router with query complexity analysis (Mentor Mode) |
+| `synapseed-whisper` | Intent router — multi-intent classification, multi-file history, score-aware context |
 | `synapseed-telemetry-sink` | OTLP gRPC receiver on port 4317, SpanStore, heatmap |
 | `synapseed-gym` | RL sandbox — safe code evaluation with compilation + test feedback |
 | `synapseed-janitor` | Autonomous maintenance — clippy + unused deps, validated proposals |
@@ -160,7 +160,7 @@ graph LR
 
 ---
 
-## MCP Tools (20)
+## MCP Tools (21)
 
 | Tool | Tier | CLI Alias | Description |
 | :--- | :--- | :--- | :--- |
@@ -184,8 +184,9 @@ graph LR
 | `architect` | SPECIALIZED | `architect_analyze` | Structural health analysis (score, cycles, coupling) |
 | `oracle` | SPECIALIZED | `oracle_fix_docs` | Auto-repair drifted documentation (version, counts) |
 | `similar` | SPECIALIZED | `semantic_similarity` | Vector embedding similarity search |
+| `verify_path` | LOW-LEVEL | `verify_path` | Verify file path exists (prevents LLM hallucination) |
 
-## MCP Resources (8)
+## MCP Resources (9)
 
 | URI | Description |
 | :--- | :--- |
@@ -193,6 +194,7 @@ graph LR
 | `synapseed://dna` | Project DNA configuration |
 | `synapseed://security/policy` | Active security policy rules |
 | `synapseed://diagnostics/active` | Current compiler diagnostics |
+| `synapseed://visualizer/url` | Visualizer dashboard URL |
 | `synapseed://telemetry/hotspots` | Top-10 performance hotspots from OTLP spans |
 | `synapseed://janitor/proposals` | Janitor fix proposals |
 | `synapseed://architect/health` | Architecture health score and violations |

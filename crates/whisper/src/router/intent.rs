@@ -91,6 +91,39 @@ pub(super) fn classify_intent(query: &str) -> Intent {
     }
 }
 
+/// Return all non-zero intent scores sorted by score descending (v4.12.0).
+/// The first entry is the winner; subsequent entries carry secondary signals
+/// (e.g., "fix the security bug" → [("bug_fix", 2), ("security", 1)]).
+pub(super) fn classify_intent_scores(query: &str) -> Vec<(String, usize)> {
+    let lower = query.to_lowercase();
+
+    let bug_score = BUG_KEYWORDS.iter().filter(|k| lower.contains(**k)).count();
+    let sec_score = SECURITY_KEYWORDS
+        .iter()
+        .filter(|k| lower.contains(**k))
+        .count();
+    let exp_score = EXPLAIN_KEYWORDS
+        .iter()
+        .filter(|k| lower.contains(**k))
+        .count();
+    let ref_score = REFACTOR_KEYWORDS
+        .iter()
+        .filter(|k| lower.contains(**k))
+        .count();
+
+    let mut scores: Vec<(String, usize)> = vec![
+        ("bug_fix".to_string(), bug_score),
+        ("security".to_string(), sec_score),
+        ("explain".to_string(), exp_score),
+        ("refactor".to_string(), ref_score),
+    ];
+
+    // Keep only non-zero, sort descending
+    scores.retain(|(_, s)| *s > 0);
+    scores.sort_by(|a, b| b.1.cmp(&a.1));
+    scores
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -107,19 +107,39 @@ The `ask` tool returns:
 {
   "smart_context": "Human-readable summary of findings",
   "intent": "bug_fix",
+  "intent_scores": [["bug_fix", 5], ["explain", 2]],
   "diagnostics": [...],
-  "history": {
-    "churn_score": 0.8,
-    "convergence_rate": 0.95,
-    "rigidity": 0.05,
-    "fix_chain_count": 2,
-    "co_changes": [...],
-    "semantic_tags": [...]
-  },
+  "histories": [
+    {
+      "file": "src/main.rs",
+      "churn_score": 0.8,
+      "convergence_rate": 0.95,
+      "rigidity": 0.05,
+      "fix_chain_count": 2,
+      "co_changes": [...],
+      "semantic_tags": [...]
+    }
+  ],
   "code_context": [...],
   "security_status": "CLEAN"
 }
 ```
+
+### Multi-Intent Classification
+
+Whisper scores the query against all intent categories simultaneously, returning ranked `(intent, score)` pairs. The primary intent drives routing, but secondary intents influence context gathering — e.g., a "fix this security bug" query will engage both Bug/Fix and Security subsystems.
+
+### Multi-File History
+
+Instead of analyzing only one file, Whisper gathers git history for up to **5 unique files** across all discovered targets. This provides broader context about recent changes across the affected area of the codebase.
+
+### Diagnostic Items in Context
+
+When compiler diagnostics exist, the `smart_context` includes up to **10 actual error/warning messages** with severity, file path, line number, and message text — not just a count. This gives the LLM actionable information about build failures.
+
+### Score-Aware Targets
+
+Search result scores propagate through `Target.score`, enabling rank-aware deduplication (Sort First, Cut Later with `HashSet`) and context ordering. Targets from non-search sources (AST, diagnostics) carry `score: None` and sort by source priority.
 
 For **Galactic** tier, the `smart_context` includes:
 - Phase indicator (e.g., `[Phase: Stabilization]`)

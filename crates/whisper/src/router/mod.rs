@@ -59,6 +59,10 @@ pub struct Target {
     pub file_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub line_start: Option<usize>,
+    /// Search relevance score propagated from the search index (v4.12.0).
+    /// None for targets from non-search passes (explicit file refs, cortex fallback).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub score: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -109,13 +113,18 @@ pub struct RawSource {
 #[derive(Debug, Clone, Serialize)]
 pub struct WhisperResult {
     pub intent: Intent,
+    /// All non-zero intent scores (v4.12.0: multi-intent awareness).
+    /// Sorted by score descending. The `intent` field holds the winner.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub intent_scores: Vec<(String, usize)>,
     pub complexity: QueryComplexity,
     pub query: String,
     pub targets: Vec<Target>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diagnostics: Option<DiagnosticsContext>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub history: Option<HistoryContext>,
+    /// Git history for all target files (v4.12.0: multi-file).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub histories: Vec<HistoryContext>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub code_context: Option<CodeContext>,
     pub security_status: String,
@@ -204,6 +213,7 @@ fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> W
     let effective_raw = raw_injection || tier == ModelTier::Atomic;
 
     let mut intent_result = intent::classify_intent(query);
+    let intent_scores = intent::classify_intent_scores(query);
     let complexity = analyze_complexity(query);
     debug!(intent = ?intent_result, complexity = ?complexity, "Whisperer: Classified");
 
@@ -249,7 +259,7 @@ fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> W
 
     // Execute plan based on intent — each gather fn knows when to activate
     let diag = diagnostics::gather_diagnostics(&intent_result, &targets, ctx);
-    let hist = history::gather_history(&intent_result, &targets, ctx);
+    let histories = history::gather_histories(&intent_result, &targets, ctx);
     let code_ctx = code::gather_code_context(&intent_result, &targets, ctx);
     let sec_status = security::gather_security(&intent_result, &targets, ctx);
 
@@ -266,7 +276,7 @@ fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> W
         intent: &intent_result,
         complexity,
         diagnostics: &diag,
-        history: &hist,
+        histories: &histories,
         code_context: &code_ctx,
         security_status: &sec_status,
         raw_injection: effective_raw,
@@ -287,11 +297,12 @@ fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> W
 
     WhisperResult {
         intent: intent_result,
+        intent_scores,
         complexity,
         query: query.to_string(),
         targets,
         diagnostics: diag,
-        history: hist,
+        histories,
         code_context: code_ctx,
         security_status: sec_status,
         smart_context,

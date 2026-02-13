@@ -117,6 +117,7 @@ mod tests {
             name: name.to_string(),
             file_path: Some(file.to_string()),
             line_start: Some(1),
+            score: None,
         }
     }
 

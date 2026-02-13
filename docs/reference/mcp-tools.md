@@ -1,6 +1,6 @@
 # MCP Tools
 
-SYNAPSEED exposes 22 tools via the Model Context Protocol. Tools are callable actions that the LLM can invoke.
+SYNAPSEED exposes 21 tools via the Model Context Protocol. Tools are callable actions that the LLM can invoke.
 
 ## `hoist`
 

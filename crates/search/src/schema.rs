@@ -1,15 +1,16 @@
-//! Tantivy index schema for semantic code search.
+//! Tantivy index schema for semantic code search (v4.11.0+).
 //!
 //! Fields:
 //!   - file_path:    Stored STRING — exact file location
-//!   - symbol_name:  TEXT (indexed + stored) — for name-based matching
+//!   - symbol_name:  TEXT (indexed + stored, tokenizer: "code") — name-based matching
 //!   - kind:         STRING (stored + indexed) — faceted: Function, Struct, Enum, ...
-//!   - signature:    TEXT (stored) — first line / function signature
-//!   - doc_comment:  TEXT (indexed) — crucial for semantic search
-//!   - body_snippet: TEXT (stored) — first 30 lines of the symbol body
+//!   - signature:    TEXT (stored, tokenizer: "code") — function signature
+//!   - doc_comment:  TEXT (indexed, tokenizer: "en_stem") — semantic search (prose)
+//!   - body_snippet: TEXT (stored, tokenizer: "en_stem") — first 30 lines of body
 //!   - line_start:   u64 (stored + fast) — for jump-to-source
 //!   - line_end:     u64 (stored + fast)
 //!   - visibility:   STRING (stored + indexed) — public/crate/super/private/unknown
+//!   - _schema_v:    u64 (stored) — schema version sentinel for disk index migration
 
 use tantivy::schema::{
     Field, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, FAST, STORED, STRING,
@@ -28,7 +29,11 @@ pub struct SearchFields {
     pub line_end: Field,
     pub last_modified_epoch: Field,
     pub visibility: Field,
+    pub schema_version: Field,
 }
+
+/// Current schema version. Bump when tokenizer or field layout changes.
+pub const SCHEMA_VERSION: u64 = 2;
 
 /// Build the Tantivy schema and return (schema, field handles).
 pub fn build_schema() -> (Schema, SearchFields) {
@@ -36,24 +41,25 @@ pub fn build_schema() -> (Schema, SearchFields) {
 
     let file_path = builder.add_text_field("file_path", STRING | STORED);
 
-    // symbol_name: heavily indexed for name matching
+    // symbol_name: "code" tokenizer (CamelCase + snake_case splitting, no stemming)
     let name_opts = TextOptions::default().set_stored().set_indexing_options(
         TextFieldIndexing::default()
-            .set_tokenizer("en_stem")
+            .set_tokenizer("code")
             .set_index_option(IndexRecordOption::WithFreqsAndPositions),
     );
     let symbol_name = builder.add_text_field("symbol_name", name_opts);
 
     let kind = builder.add_text_field("kind", STRING | STORED);
 
+    // signature: "code" tokenizer (same as symbol_name — code identifiers)
     let sig_opts = TextOptions::default().set_stored().set_indexing_options(
         TextFieldIndexing::default()
-            .set_tokenizer("en_stem")
+            .set_tokenizer("code")
             .set_index_option(IndexRecordOption::WithFreqsAndPositions),
     );
     let signature = builder.add_text_field("signature", sig_opts);
 
-    // doc_comment: indexed for semantic search, not stored (saves space)
+    // doc_comment: "en_stem" for natural-language semantic search (prose)
     let doc_opts = TextOptions::default().set_indexing_options(
         TextFieldIndexing::default()
             .set_tokenizer("en_stem")
@@ -61,6 +67,7 @@ pub fn build_schema() -> (Schema, SearchFields) {
     );
     let doc_comment = builder.add_text_field("doc_comment", doc_opts);
 
+    // body_snippet: "en_stem" — body text is a mix of code and prose
     let body_opts = TextOptions::default().set_stored().set_indexing_options(
         TextFieldIndexing::default()
             .set_tokenizer("en_stem")
@@ -73,8 +80,10 @@ pub fn build_schema() -> (Schema, SearchFields) {
     let last_modified_epoch = builder.add_u64_field("last_modified_epoch", FAST | STORED);
 
     // Visibility (v4.9.0): stored + indexed as STRING for faceted filtering
-    // and visibility boost. Values: "public", "crate", "super", "private", "unknown".
     let visibility = builder.add_text_field("visibility", STRING | STORED);
+
+    // Schema version sentinel (v4.11.0): forces disk index recreation on upgrade
+    let schema_version = builder.add_u64_field("_schema_v", STORED);
 
     let schema = builder.build();
 
@@ -89,12 +98,14 @@ pub fn build_schema() -> (Schema, SearchFields) {
         line_end,
         last_modified_epoch,
         visibility,
+        schema_version,
     };
 
     (schema, fields)
 }
 
 /// Recover field handles from an existing schema (e.g., opened from disk).
+/// Returns `None` if any field is missing (triggers index recreation).
 pub fn fields_from_schema(schema: &Schema) -> Option<SearchFields> {
     Some(SearchFields {
         file_path: schema.get_field("file_path").ok()?,
@@ -107,5 +118,6 @@ pub fn fields_from_schema(schema: &Schema) -> Option<SearchFields> {
         line_end: schema.get_field("line_end").ok()?,
         last_modified_epoch: schema.get_field("last_modified_epoch").ok()?,
         visibility: schema.get_field("visibility").ok()?,
+        schema_version: schema.get_field("_schema_v").ok()?,
     })
 }

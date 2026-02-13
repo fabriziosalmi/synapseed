@@ -22,7 +22,7 @@ pub(super) struct SmartContextInput<'a> {
     pub intent: &'a Intent,
     pub complexity: QueryComplexity,
     pub diagnostics: &'a Option<DiagnosticsContext>,
-    pub history: &'a Option<HistoryContext>,
+    pub histories: &'a [HistoryContext],
     pub code_context: &'a Option<CodeContext>,
     pub security_status: &'a str,
     pub raw_injection: bool,
@@ -472,7 +472,7 @@ pub(super) fn build_smart_context(input: SmartContextInput) -> String {
     let intent = input.intent;
     let complexity = input.complexity;
     let diagnostics = input.diagnostics;
-    let history = input.history;
+    let histories = input.histories;
     let code_context = input.code_context;
     let security_status = input.security_status;
     let raw_injection = input.raw_injection;
@@ -556,6 +556,17 @@ pub(super) fn build_smart_context(input: SmartContextInput) -> String {
                     "- **Compiler**: {} error(s), {} warning(s)",
                     diag.error_count, diag.warning_count
                 ));
+                // v4.12.0: Show actual diagnostic items so the LLM can see which errors exist.
+                // Cap at 10 items to avoid overwhelming the context window.
+                for item in diag.items.iter().take(10) {
+                    let file = item.get("file").and_then(|v| v.as_str()).unwrap_or("?");
+                    let line = item.get("line").and_then(|v| v.as_u64()).unwrap_or(0);
+                    let level = item.get("level").and_then(|v| v.as_str()).unwrap_or("error");
+                    let msg = item.get("message").and_then(|v| v.as_str()).unwrap_or("");
+                    if !msg.is_empty() {
+                        parts.push(format!("  {level}: {file}:{line}: {msg}"));
+                    }
+                }
             } else {
                 parts.push("- **Compiler**: No errors or warnings".into());
             }
@@ -564,7 +575,8 @@ pub(super) fn build_smart_context(input: SmartContextInput) -> String {
     }
 
     if section_count < max_sections {
-        if let Some(hist) = history {
+        // v4.12.0: Multi-file history — show churn/risk for all target files.
+        for hist in histories {
             // Chronos Sentiment Bridge (v3.6.2): include latest commit message
             let latest_msg = hist
                 .recent_commits
@@ -594,6 +606,8 @@ pub(super) fn build_smart_context(input: SmartContextInput) -> String {
                     hist.file, hist.rigidity * 100.0, effort
                 ));
             }
+        }
+        if !histories.is_empty() {
             section_count += 1;
         }
     }
@@ -775,7 +789,7 @@ mod tests {
             intent: &Intent::Explain,
             complexity: QueryComplexity::Standard,
             diagnostics: &None,
-            history: &None,
+            histories: &[],
             code_context: &code_ctx,
             security_status: "CLEAN",
             raw_injection: false,
@@ -805,7 +819,7 @@ mod tests {
             intent: &Intent::Explain,
             complexity: QueryComplexity::Standard,
             diagnostics: &None,
-            history: &None,
+            histories: &[],
             code_context: &None,
             security_status: "CLEAN",
             raw_injection: true,
@@ -834,7 +848,7 @@ mod tests {
             intent: &Intent::Explain,
             complexity: QueryComplexity::Standard,
             diagnostics: &None,
-            history: &None,
+            histories: &[],
             code_context: &None,
             security_status: "CLEAN",
             raw_injection: false,
@@ -874,7 +888,7 @@ mod tests {
             intent: &Intent::Explain,
             complexity: QueryComplexity::Standard,
             diagnostics: &None,
-            history: &None,
+            histories: &[],
             code_context: &code_ctx,
             security_status: "CLEAN",
             raw_injection: true,
@@ -924,7 +938,7 @@ mod tests {
             intent: &Intent::Explain,
             complexity: QueryComplexity::Standard,
             diagnostics: &None,
-            history: &None,
+            histories: &[],
             code_context: &code_ctx,
             security_status: "CLEAN",
             raw_injection: true,
@@ -945,7 +959,7 @@ mod tests {
             intent: &Intent::Explain,
             complexity: QueryComplexity::Standard,
             diagnostics: &None,
-            history: &None,
+            histories: &[],
             code_context: &None,
             security_status: "CLEAN",
             raw_injection: false,
@@ -966,7 +980,7 @@ mod tests {
             intent: &Intent::Explain,
             complexity: QueryComplexity::Standard,
             diagnostics: &None,
-            history: &None,
+            histories: &[],
             code_context: &None,
             security_status: "CLEAN",
             raw_injection: false,
