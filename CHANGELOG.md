@@ -1,5 +1,20 @@
 # Changelog
 
+## [4.2.0] — 2026-02-13
+
+### Coherence Gate — "The Cigarette Break"
+
+Anti-hallucination mechanism: when the extraction pipeline produces targets scattered across many unrelated modules, the Coherence Gate detects the incoherence and reorders by clustering targets by module proximity.
+
+#### Formula
+- **Coherence Score**: `CS = 1 - (unique_modules - 1) / max(total_targets - 1, 1)`
+- **Threshold τ = 0.4**: below this, the gate activates
+- **Clustering**: groups targets by module prefix, keeps top-K clusters (K=2 Atomic, K=3 otherwise)
+- Largest cluster first → most query-relevant symbols dominate the context
+
+#### Stats
+- 306 tests, 0 failures (+9 new coherence tests)
+
 ## [4.1.0] — 2026-02-13
 
 ### CamelCase-Aware BM25 & Intent Coverage Fix

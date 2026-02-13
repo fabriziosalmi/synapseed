@@ -7,10 +7,11 @@
 //! Level 0: Deterministic keyword heuristics.
 //! Level 1 (future): Pluggable small-LLM classifier.
 //!
-//! # Module Layout (v4.0.0)
+//! # Module Layout (v4.2.0)
 //!
 //! - `intent.rs`          — keyword-based intent classification (EN/IT)
 //! - `extraction.rs`      — 5-pass target extraction pipeline
+//! - `coherence.rs`       — Coherence Gate: scatter detection & module clustering
 //! - `context_builder.rs` — tier-aware smart context assembly
 //! - `code.rs`            — code structure gathering
 //! - `diagnostics.rs`     — compiler diagnostics gathering
@@ -18,6 +19,7 @@
 //! - `security.rs`        — security scanning & status
 
 mod code;
+mod coherence;
 mod context_builder;
 mod diagnostics;
 mod extraction;
@@ -227,6 +229,11 @@ fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> W
             targets.truncate(3);
         }
     }
+
+    // Coherence Gate (v4.2.0): detect scattered targets and reorder by module proximity.
+    // "The Cigarette Break" — when targets are incoherent, pause, cluster, prune, resume.
+    coherence::coherence_gate(&mut targets, tier);
+
     debug!(target_count = targets.len(), "Whisperer: Extracted targets");
 
     // Intent Hardening: if query matched known symbols but intent is General,
