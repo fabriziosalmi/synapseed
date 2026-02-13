@@ -22,7 +22,7 @@ edition = "2021"
 license = "Apache-2.0"
 authors = ["Fabrizio Salmi <fabrizio.salmi@gmail.com>"]
 repository = "https://github.com/fabriziosalmi/synapseed"
-version = "4.8.0"
+version = "4.9.0"
 
 [workspace.dependencies]
 # Async Runtime

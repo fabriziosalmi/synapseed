@@ -21,6 +21,7 @@ fn make_file(path: &str, name: &str, signature: &str) -> FileStructure {
             line_start: 1,
             line_end: 10,
             signature: Some(signature.to_string()),
+            visibility: None,
             children: Vec::new(),
         }],
     }
@@ -42,6 +43,7 @@ fn make_file_multi(path: &str, symbols: Vec<(&str, SymbolKind, &str)>) -> FileSt
                 line_start: i * 10 + 1,
                 line_end: (i + 1) * 10,
                 signature: Some(sig.to_string()),
+                visibility: None,
                 children: Vec::new(),
             })
             .collect(),

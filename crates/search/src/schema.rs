@@ -9,6 +9,7 @@
 //!   - body_snippet: TEXT (stored) — first 30 lines of the symbol body
 //!   - line_start:   u64 (stored + fast) — for jump-to-source
 //!   - line_end:     u64 (stored + fast)
+//!   - visibility:   STRING (stored + indexed) — public/crate/super/private/unknown
 
 use tantivy::schema::{
     Field, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, FAST, STORED, STRING,
@@ -26,6 +27,7 @@ pub struct SearchFields {
     pub line_start: Field,
     pub line_end: Field,
     pub last_modified_epoch: Field,
+    pub visibility: Field,
 }
 
 /// Build the Tantivy schema and return (schema, field handles).
@@ -70,6 +72,10 @@ pub fn build_schema() -> (Schema, SearchFields) {
     let line_end = builder.add_u64_field("line_end", FAST | STORED);
     let last_modified_epoch = builder.add_u64_field("last_modified_epoch", FAST | STORED);
 
+    // Visibility (v4.9.0): stored + indexed as STRING for faceted filtering
+    // and visibility boost. Values: "public", "crate", "super", "private", "unknown".
+    let visibility = builder.add_text_field("visibility", STRING | STORED);
+
     let schema = builder.build();
 
     let fields = SearchFields {
@@ -82,6 +88,7 @@ pub fn build_schema() -> (Schema, SearchFields) {
         line_start,
         line_end,
         last_modified_epoch,
+        visibility,
     };
 
     (schema, fields)
@@ -99,5 +106,6 @@ pub fn fields_from_schema(schema: &Schema) -> Option<SearchFields> {
         line_start: schema.get_field("line_start").ok()?,
         line_end: schema.get_field("line_end").ok()?,
         last_modified_epoch: schema.get_field("last_modified_epoch").ok()?,
+        visibility: schema.get_field("visibility").ok()?,
     })
 }

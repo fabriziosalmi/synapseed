@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use synapseed_core::error::{Result, SynapseedError};
-use synapseed_core::symbol::{FileStructure, Symbol, SymbolId, SymbolKind};
+use synapseed_core::symbol::{FileStructure, Symbol, SymbolId, SymbolKind, Visibility};
 use tracing::debug;
 
 use crate::language::Language;
@@ -103,6 +103,7 @@ impl AstParser {
                     line_start: line_idx + 1,
                     line_end: line_idx + 1,
                     signature: Some(signature),
+                    visibility: None,
                     children: Vec::new(),
                 });
             }
@@ -205,6 +206,8 @@ impl AstParser {
                 (name, signature)
             };
 
+            let visibility = Self::extract_visibility(node, source, lang);
+
             symbols.push(Symbol {
                 id: SymbolId::new(),
                 name,
@@ -213,6 +216,7 @@ impl AstParser {
                 line_start: node.start_position().row + 1,
                 line_end: node.end_position().row + 1,
                 signature,
+                visibility,
                 children: Vec::new(),
             });
         }
@@ -265,6 +269,58 @@ impl AstParser {
             }
         }
         parents
+    }
+
+    /// Extract visibility modifier from a tree-sitter node (v4.9.0).
+    ///
+    /// Rust: `pub`, `pub(crate)`, `pub(super)` via `visibility_modifier` child.
+    /// Python: names starting with `_` are private by convention.
+    /// JavaScript: `export` keyword means public.
+    fn extract_visibility(
+        node: tree_sitter::Node,
+        source: &str,
+        lang: Language,
+    ) -> Option<Visibility> {
+        match lang {
+            Language::Rust => {
+                // tree-sitter-rust exposes "visibility_modifier" as a named child
+                let mut cursor = node.walk();
+                for child in node.children(&mut cursor) {
+                    if child.kind() == "visibility_modifier" {
+                        let text = child.utf8_text(source.as_bytes()).ok()?;
+                        return Some(if text.contains("crate") {
+                            Visibility::Crate
+                        } else if text.contains("super") {
+                            Visibility::Super
+                        } else {
+                            // "pub" without restriction
+                            Visibility::Public
+                        });
+                    }
+                }
+                // No visibility modifier → private
+                Some(Visibility::Private)
+            }
+            Language::Python => {
+                // Convention: _name = private, __name = very private
+                let name = Self::extract_name(node, source, lang)?;
+                Some(if name.starts_with('_') {
+                    Visibility::Private
+                } else {
+                    Visibility::Public
+                })
+            }
+            Language::JavaScript => {
+                // If the parent is an export_statement, it's public
+                if let Some(parent) = node.parent() {
+                    if parent.kind() == "export_statement" {
+                        return Some(Visibility::Public);
+                    }
+                }
+                Some(Visibility::Private)
+            }
+            Language::Unknown => None,
+        }
     }
 
     fn extract_signature(node: tree_sitter::Node, source: &str) -> Option<String> {

@@ -1,5 +1,52 @@
 # Changelog
 
+## [4.9.0] — 2026-02-13
+
+### Visibility Boost — Public API Prioritization
+
+Fixes the **fidelity defect** where internal implementation symbols (e.g., `Server`)
+outrank public API symbols (e.g., `HttpServer`) in search results, causing small
+LLMs to trust injected context over their training knowledge.
+
+Benchmark evidence: `easy_server_struct` task on actix-web showed -67% accuracy
+degradation (BLIND: 100% → SYNAPSEED: 33%) because the internal `Server` struct
+was injected instead of the public `HttpServer`.
+
+#### Core: `Visibility` enum in `symbol.rs`
+- New `Visibility` enum: `Public`, `Crate`, `Super`, `Private`
+- Added `visibility: Option<Visibility>` field to `Symbol`
+- `None` = unknown (legacy/unsupported languages)
+
+#### Parser: AST visibility extraction in `cortex/parser.rs`
+- Rust: reads `visibility_modifier` child node — detects `pub`, `pub(crate)`, `pub(super)`, private
+- Python: convention-based — `_name` = private, else public
+- JavaScript: `export_statement` parent = public, else private
+- Zero overhead for Unknown languages (returns `None`)
+
+#### Search: Tantivy schema + visibility boost
+- New `visibility` STRING field in Tantivy schema (stored + indexed)
+- Stored as `"public"` / `"crate"` / `"super"` / `"private"` / `"unknown"`
+- Disk indexes auto-recreate on schema mismatch (existing behavior)
+
+#### Ranking: 8th multiplicative boost factor
+- `pub` → ×1.5 (strong boost for public API)
+- `pub(crate)` → ×1.0 (neutral)
+- `pub(super)` → ×0.8 (mild penalty)
+- private → ×0.6 (strong penalty)
+- unknown → ×1.0 (neutral for legacy docs)
+
+#### Boost Stack (updated)
+```
+score = BM25 × temporal × source × path × specificity × interface × pagerank × visibility
+         │        │         │        │         │            │           │          │
+         │     0.7-1.0   0.1-1.5  1.0-3.0  1.0-1.3     1.0-1.4    1.0-1.5   0.6-1.5
+         └─ per-field weights: name(3x) > doc(2x) > body(1.5x) > sig(1x)
+```
+
+Expected impact: `HttpServer` (pub, ×1.5) now outranks `Server` (pub(crate), ×1.0)
+by 50% in visibility alone, fixing the fidelity defect without reducing internal
+symbol discoverability.
+
 ## [4.8.0] — 2026-02-13
 
 ### Module Authority — PageRank on Symbol Graph

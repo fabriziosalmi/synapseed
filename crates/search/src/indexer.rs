@@ -13,7 +13,7 @@ use tantivy::{doc, Index, IndexReader, IndexWriter, ReloadPolicy, TantivyDocumen
 use tracing::{debug, info, warn};
 
 use synapseed_core::error::safe_resolve_path;
-use synapseed_core::symbol::FileStructure;
+use synapseed_core::symbol::{FileStructure, Visibility};
 
 use crate::schema::{build_schema, fields_from_schema, SearchFields};
 
@@ -184,6 +184,7 @@ impl SemanticIndex {
 
                 let kind_str = format!("{:?}", sym.kind);
                 let sig = sym.signature.clone().unwrap_or_default();
+                let vis_str = visibility_to_str(sym.visibility);
 
                 match writer.add_document(doc!(
                     self.fields.file_path => file.path.clone(),
@@ -195,6 +196,7 @@ impl SemanticIndex {
                     self.fields.line_start => sym.line_start as u64,
                     self.fields.line_end => sym.line_end as u64,
                     self.fields.last_modified_epoch => mtime,
+                    self.fields.visibility => vis_str,
                 )) {
                     Ok(_) => count += 1,
                     Err(e) => warn!(error = %e, symbol = %sym.name, "Search: Failed to add document"),
@@ -254,6 +256,7 @@ impl SemanticIndex {
 
             let kind_str = format!("{:?}", sym.kind);
             let sig = sym.signature.clone().unwrap_or_default();
+            let vis_str = visibility_to_str(sym.visibility);
 
             match writer.add_document(doc!(
                 self.fields.file_path => file.path.clone(),
@@ -265,6 +268,7 @@ impl SemanticIndex {
                 self.fields.line_start => sym.line_start as u64,
                 self.fields.line_end => sym.line_end as u64,
                 self.fields.last_modified_epoch => mtime,
+                self.fields.visibility => vis_str,
             )) {
                 Ok(_) => count += 1,
                 Err(e) => warn!(error = %e, symbol = %sym.name, "Search: Failed to add document"),
@@ -430,8 +434,21 @@ impl SemanticIndex {
                 pr.get(&file_path).map(|s| 1.0 + s * 0.5).unwrap_or(1.0)
             };
 
+            // Visibility Boost (v4.9.0 — Public API Prioritization): public API
+            // symbols rank higher than internal implementation details.
+            // Fixes the fidelity defect where `Server` (internal) outranks
+            // `HttpServer` (public API), causing LLM hallucination.
+            let visibility_str = get_text(self.fields.visibility);
+            let visibility_boost: f32 = match visibility_str.as_str() {
+                "public" => 1.5,
+                "crate" => 1.0,
+                "super" => 0.8,
+                "private" => 0.6,
+                _ => 1.0, // "unknown" or legacy docs without visibility
+            };
+
             results.push(SearchResult {
-                score: score * temporal_boost as f32 * source_boost * path_boost * specificity_boost * interface_boost * pagerank_boost,
+                score: score * temporal_boost as f32 * source_boost * path_boost * specificity_boost * interface_boost * pagerank_boost * visibility_boost,
                 file: file_path,
                 symbol: get_text(self.fields.symbol_name),
                 kind: get_text(self.fields.kind),
@@ -470,6 +487,19 @@ impl SemanticIndex {
             .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
             .map(|d| d.as_secs())
             .unwrap_or(0)
+    }
+}
+
+// ── Visibility Helpers ──────────────────────────────────────────────
+
+/// Convert a Visibility option to its string representation for Tantivy storage.
+fn visibility_to_str(vis: Option<Visibility>) -> &'static str {
+    match vis {
+        Some(Visibility::Public) => "public",
+        Some(Visibility::Crate) => "crate",
+        Some(Visibility::Super) => "super",
+        Some(Visibility::Private) => "private",
+        None => "unknown",
     }
 }
 
