@@ -456,6 +456,123 @@ impl Counter {
     }
 }
 
+// ══════════════════════════════════════════════════════════════
+// 8. Inheritance Boost — Python (v4.4.0)
+// ══════════════════════════════════════════════════════════════
+
+#[test]
+fn test_python_class_inheritance_simple() {
+    let dir = TempDir::new().unwrap();
+    write_file(
+        dir.path(),
+        "middleware.py",
+        r#"
+class MiddlewareMixin:
+    def process_request(self, request):
+        pass
+
+class SecurityMiddleware(MiddlewareMixin):
+    def process_request(self, request):
+        return self.check_security(request)
+"#,
+    );
+
+    let graph = CodeGraph::new();
+    let mut parser = AstParser::new().unwrap();
+    let source = fs::read_to_string(dir.path().join("middleware.py")).unwrap();
+    graph
+        .index_file(&mut parser, &dir.path().join("middleware.py"), &source)
+        .unwrap();
+
+    // SecurityMiddleware should have [inherits: MiddlewareMixin] in signature
+    let security = graph.lookup("SecurityMiddleware");
+    assert!(!security.is_empty(), "Should find SecurityMiddleware");
+    let sig = security[0].signature.as_deref().unwrap_or("");
+    assert!(
+        sig.contains("[inherits: MiddlewareMixin]"),
+        "Signature should contain inheritance tag, got: {sig}"
+    );
+
+    // MiddlewareMixin (no parent) should NOT have [inherits: ...]
+    let mixin = graph.lookup("MiddlewareMixin");
+    assert!(!mixin.is_empty(), "Should find MiddlewareMixin");
+    let mixin_sig = mixin[0].signature.as_deref().unwrap_or("");
+    assert!(
+        !mixin_sig.contains("[inherits:"),
+        "Base class should not have inherits tag, got: {mixin_sig}"
+    );
+}
+
+#[test]
+fn test_python_class_multiple_inheritance() {
+    let dir = TempDir::new().unwrap();
+    write_file(
+        dir.path(),
+        "views.py",
+        r#"
+class View:
+    pass
+
+class LoginRequiredMixin:
+    pass
+
+class DashboardView(LoginRequiredMixin, View):
+    def get(self, request):
+        return render(request, "dashboard.html")
+"#,
+    );
+
+    let graph = CodeGraph::new();
+    let mut parser = AstParser::new().unwrap();
+    let source = fs::read_to_string(dir.path().join("views.py")).unwrap();
+    graph
+        .index_file(&mut parser, &dir.path().join("views.py"), &source)
+        .unwrap();
+
+    let dashboard = graph.lookup("DashboardView");
+    assert!(!dashboard.is_empty(), "Should find DashboardView");
+    let sig = dashboard[0].signature.as_deref().unwrap_or("");
+    assert!(
+        sig.contains("LoginRequiredMixin"),
+        "Signature should contain first parent: {sig}"
+    );
+    assert!(
+        sig.contains("View"),
+        "Signature should contain second parent: {sig}"
+    );
+}
+
+#[test]
+fn test_python_class_dotted_superclass() {
+    let dir = TempDir::new().unwrap();
+    write_file(
+        dir.path(),
+        "models.py",
+        r#"
+import django.db.models
+
+class Article(django.db.models.Model):
+    title = CharField(max_length=200)
+"#,
+    );
+
+    let graph = CodeGraph::new();
+    let mut parser = AstParser::new().unwrap();
+    let source = fs::read_to_string(dir.path().join("models.py")).unwrap();
+    graph
+        .index_file(&mut parser, &dir.path().join("models.py"), &source)
+        .unwrap();
+
+    let article = graph.lookup("Article");
+    assert!(!article.is_empty(), "Should find Article");
+    let sig = article[0].signature.as_deref().unwrap_or("");
+    // Dotted superclass: extracts last component "Model"
+    assert!(
+        sig.contains("[inherits: Model]"),
+        "Should extract last component from dotted superclass: {sig}"
+    );
+}
+
 #[test]
 fn test_default_trait() {
     let graph = CodeGraph::default();

@@ -180,6 +180,24 @@ impl AstParser {
                     sig
                 };
                 (type_name, enriched_sig)
+            } else if kind == "class_definition" {
+                // Inheritance Boost (v4.4.0): extract superclass names from Python
+                // class definitions and append to signature for BM25 discoverability.
+                // "class SecurityMiddleware(MiddlewareMixin):" → [inherits: MiddlewareMixin]
+                let name =
+                    Self::extract_name(node, source, lang).unwrap_or_else(|| "<anon>".into());
+                let sig = Self::extract_signature(node, source);
+                let parents = Self::extract_superclasses(node, source);
+                let enriched_sig = if !parents.is_empty() {
+                    Some(format!(
+                        "{} [inherits: {}]",
+                        sig.as_deref().unwrap_or(""),
+                        parents.join(", ")
+                    ))
+                } else {
+                    sig
+                };
+                (name, enriched_sig)
             } else {
                 let name =
                     Self::extract_name(node, source, lang).unwrap_or_else(|| "<anon>".into());
@@ -215,6 +233,38 @@ impl AstParser {
         node.child_by_field_name(name_field)
             .and_then(|n| n.utf8_text(source.as_bytes()).ok())
             .map(String::from)
+    }
+
+    /// Extract superclass names from a Python `class_definition` node.
+    ///
+    /// Handles both simple names (`class Foo(Bar)`) and dotted names
+    /// (`class Foo(module.Bar)` → extracts `Bar`).
+    fn extract_superclasses(node: tree_sitter::Node, source: &str) -> Vec<String> {
+        let superclasses = match node.child_by_field_name("superclasses") {
+            Some(sc) => sc,
+            None => return Vec::new(),
+        };
+        let mut parents = Vec::new();
+        let mut cursor = superclasses.walk();
+        for child in superclasses.children(&mut cursor) {
+            match child.kind() {
+                "identifier" => {
+                    if let Ok(text) = child.utf8_text(source.as_bytes()) {
+                        parents.push(text.to_string());
+                    }
+                }
+                "attribute" => {
+                    // dotted name like `module.ClassName` → extract last component
+                    if let Some(attr) = child.child_by_field_name("attribute") {
+                        if let Ok(text) = attr.utf8_text(source.as_bytes()) {
+                            parents.push(text.to_string());
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        parents
     }
 
     fn extract_signature(node: tree_sitter::Node, source: &str) -> Option<String> {

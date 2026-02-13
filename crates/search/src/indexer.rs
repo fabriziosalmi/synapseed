@@ -379,6 +379,17 @@ impl SemanticIndex {
                 1.0
             };
 
+            // Interface Boost (v4.4.0): trait/interface definitions are high-value
+            // architectural symbols that define contracts. Boosting them ensures
+            // FromRequest, MiddlewareMixin, ServiceFactory etc. surface over
+            // concrete implementations in BM25 rankings.
+            let kind_value = get_text(self.fields.kind);
+            let interface_boost: f32 = if kind_value == "Interface" {
+                1.4
+            } else {
+                1.0
+            };
+
             // Path-relevance boost (v3.10.2): if query terms appear in the
             // file path, the result is likely more relevant.
             let path_lower = file_path.to_ascii_lowercase();
@@ -395,7 +406,7 @@ impl SemanticIndex {
             };
 
             results.push(SearchResult {
-                score: score * temporal_boost as f32 * source_boost * path_boost * specificity_boost,
+                score: score * temporal_boost as f32 * source_boost * path_boost * specificity_boost * interface_boost,
                 file: file_path,
                 symbol: get_text(self.fields.symbol_name),
                 kind: get_text(self.fields.kind),

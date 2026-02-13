@@ -1,5 +1,25 @@
 # Changelog
 
+## [4.4.0] — 2026-02-13
+
+### Inheritance Boost & Interface Ranking
+
+Two complementary BM25 improvements addressing Axum extractor and Django middleware benchmark gaps.
+
+#### Python: Inheritance Boost (Cortex Parser)
+- `class Foo(Bar)` now enriches signature with `[inherits: Bar]` for BM25 discoverability
+- Supports multiple inheritance: `class DashboardView(LoginRequiredMixin, View)` → `[inherits: LoginRequiredMixin, View]`
+- Handles dotted superclasses: `class Article(django.db.models.Model)` → extracts `Model`
+- Enables BM25 to connect child classes to parent frameworks (MiddlewareMixin, Model, View)
+
+#### BM25: Interface/Trait Boost (Search Indexer)
+- Trait/interface definitions now receive 1.4x boost in BM25 search ranking
+- `FromRequest`, `ServiceFactory`, `MiddlewareMixin` surface over concrete implementations
+- Addresses Axum benchmark gap where `axum-core/FromRequest` lost to `axum-extra/cookie`
+
+#### Stats
+- 316 tests, 0 failures (+3 new tests)
+
 ## [4.3.0] — 2026-02-13
 
 ### Trait Expansion & Python Config Resolver
