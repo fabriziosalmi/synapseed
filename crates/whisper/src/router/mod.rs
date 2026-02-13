@@ -40,7 +40,9 @@ pub enum Intent {
 pub struct Target {
     pub kind: TargetKind,
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub file_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub line_start: Option<usize>,
 }
 
@@ -86,8 +88,11 @@ pub struct WhisperResult {
     pub complexity: QueryComplexity,
     pub query: String,
     pub targets: Vec<Target>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub diagnostics: Option<DiagnosticsContext>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub history: Option<HistoryContext>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub code_context: Option<CodeContext>,
     pub security_status: String,
     pub smart_context: String,

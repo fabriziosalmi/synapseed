@@ -7,9 +7,12 @@ use clap::{Parser, Subcommand};
 use serde_json::json;
 use tracing::{debug, info, warn};
 
+use std::sync::{Arc, Mutex};
+
 use synapseed_core::context::SynapseContext;
 use synapseed_core::event::SynapseEvent;
 use synapseed_core::liquid::ProjectDna;
+use synapseed_core::momentum::{ModelTier, MomentumEngine};
 use synapseed_core::plugin::SynapsePlugin;
 use synapseed_core::state::ProjectState;
 use synapseed_core::telemetry;
@@ -424,6 +427,21 @@ async fn init_full_context(path: &Path) -> Result<SynapseContext> {
 /// hoist if the timeout expires.
 async fn cmd_ask(path: &Path, query: &str, raw: bool, json_output: bool) -> Result<()> {
     let ctx = init_full_context(path).await?;
+
+    // ── Register MomentumEngine for CLI mode (v3.9.1) ────────────
+    // Priority: SYNAPSEED_MODEL_TIER env > DNA hci.model_profile > default (Molecular)
+    let tier = if let Ok(env_tier) = std::env::var("SYNAPSEED_MODEL_TIER") {
+        let t = ModelTier::from_config(&env_tier).unwrap_or_default();
+        info!(tier = %t, source = "env", "Model tier from SYNAPSEED_MODEL_TIER");
+        t
+    } else if let Some(profile) = &ctx.dna().hci.model_profile {
+        let t = ModelTier::from_config(profile).unwrap_or_default();
+        info!(tier = %t, source = "dna", "Model tier from DNA override");
+        t
+    } else {
+        ModelTier::default()
+    };
+    ctx.set_extension(Arc::new(Mutex::new(MomentumEngine::new(tier))));
 
     // ── Wait for background indexing (Issue #44) ────────────────
     wait_for_index(&ctx, Duration::from_secs(5)).await;

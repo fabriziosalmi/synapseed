@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.9.1] — 2026-02-13
+
+### Rescue Sprint — NoneType Fix & CLI Cognitive Tiering
+
+#### Fixes
+
+- **Whisper — Null Serialization**: Added `skip_serializing_if` to `Option` fields in `WhisperResult` (`code_context`, `diagnostics`, `history`). Fields are now omitted from JSON instead of serialized as `null`, fixing `'NoneType' object has no attribute 'get'` crashes in downstream Python consumers.
+- **Whisper — Target Null Fields**: `file_path` and `line_start` in `Target` now also omitted when `None`.
+- **CLI — Cognitive Tiering**: Registered `MomentumEngine` in CLI `ask` command. Reads `SYNAPSEED_MODEL_TIER` env var (priority) or DNA `hci.model_profile` to set tier. Previously CLI always defaulted to `Molecular`, ignoring tier settings entirely.
+
+#### Benchmark Runner
+
+- **Defensive Null Handling**: All `dict.get()` chains use `(x or {})` pattern to guard against JSON `null` values.
+- **Synapseed System Prompt**: Separate, stricter system prompt for Synapseed runs referencing `@@@` delimiters.
+- **Full Tier Injection**: Sets `SYNAPSEED_MODEL_TIER` for all model sizes (atomic/molecular/galactic).
+
 ## [3.6.1] — 2026-02-13
 
 ### CI Hardening & CLI JSON Integration
