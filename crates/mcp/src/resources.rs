@@ -98,6 +98,17 @@ pub fn list_resources() -> Vec<ResourceDefinition> {
             ),
             mime_type: Some("application/json".into()),
         },
+        ResourceDefinition {
+            uri: "synapseed://context/active".into(),
+            name: "Active Context Briefing".into(),
+            description: Some(
+                "PRIORITY RESOURCE — Dynamic project briefing. Preload this for immediate situational awareness: \
+                 project state, active diagnostics summary, recent commit intent, architecture health, and \
+                 tool routing recommendations. Reading this resource eliminates the need for multiple initial tool calls."
+                    .into(),
+            ),
+            mime_type: Some("application/json".into()),
+        },
     ]
 }
 
@@ -113,6 +124,7 @@ pub fn read_resource(uri: &str, ctx: &SynapseContext) -> Option<ResourceContent>
         "synapseed://janitor/proposals" => Some(resource_janitor_proposals(ctx)),
         "synapseed://architect/health" => Some(resource_architect_health(ctx)),
         "synapseed://consistency" => Some(resource_consistency(ctx)),
+        "synapseed://context/active" => Some(resource_context_active(ctx)),
         _ => None,
     }
 }
@@ -430,6 +442,80 @@ fn resource_consistency(ctx: &SynapseContext) -> ResourceContent {
 
     ResourceContent {
         uri: "synapseed://consistency".into(),
+        mime_type: Some("application/json".into()),
+        text: Some(text),
+    }
+}
+
+/// Dynamic project briefing — aggregates key signals into a single resource.
+///
+/// This is the "Passive Interception" strategy: clients that preload this
+/// resource give the LLM situational awareness before any tool call,
+/// reducing roundtrips and improving routing accuracy.
+fn resource_context_active(ctx: &SynapseContext) -> ResourceContent {
+    let state = ctx.project_state();
+    let metrics = ctx.metrics();
+    let dna = ctx.dna();
+
+    // Diagnostics summary
+    let (error_count, warning_count) = ctx
+        .get_extension::<DiagnosticStore>()
+        .map(|store| {
+            let snap = store.snapshot();
+            (snap.error_count, snap.warning_count)
+        })
+        .unwrap_or((0, 0));
+
+    // Architecture health (cached)
+    let arch_score = ctx
+        .get_extension::<ReportStore>()
+        .and_then(|store| store.get())
+        .map(|r| r.grade.clone())
+        .unwrap_or_else(|| "unknown".into());
+
+    // Session continuity
+    let root = ctx.project_root();
+    let session_info = synapseed_core::session::SessionState::load(&root)
+        .filter(|s| s.is_recent())
+        .map(|s| {
+            json!({
+                "time_ago": s.time_ago(),
+                "files_indexed": s.files_indexed,
+                "tools_invoked": s.tools_invoked,
+            })
+        });
+
+    let state_label = match &state {
+        ProjectState::VirginRepo => "virgin_repo",
+        ProjectState::PartialSetup { .. } => "partial_setup",
+        ProjectState::HealthyWorkspace { .. } => "healthy_workspace",
+        ProjectState::Unknown => "unknown",
+    };
+
+    let text = serde_json::to_string_pretty(&json!({
+        "project_state": state_label,
+        "state_detail": state,
+        "dna": {
+            "strategy": dna.workspace_strategy,
+            "dlp_level": format!("{:?}", dna.dlp_level),
+            "plugins": dna.plugins,
+        },
+        "diagnostics": {
+            "errors": error_count,
+            "warnings": warning_count,
+        },
+        "architecture_grade": arch_score,
+        "metrics": {
+            "files_indexed": metrics.files_indexed,
+            "symbols_found": metrics.symbols_found,
+        },
+        "session": session_info,
+        "routing_hint": "For ANY code question, call the `ask` tool FIRST. It orchestrates all subsystems automatically.",
+    }))
+    .unwrap_or_default();
+
+    ResourceContent {
+        uri: "synapseed://context/active".into(),
         mime_type: Some("application/json".into()),
         text: Some(text),
     }

@@ -3,6 +3,14 @@
 //! Each tool maps to an internal SYNAPSEED capability.
 //! Tool implementations live in sub-modules; this file owns the schema
 //! registry, the dispatch table, and shared helpers.
+//!
+//! ## Tool Routing Hierarchy
+//!
+//! Descriptions are engineered for LLM tool selection:
+//! - **PRIMARY** (`ask`): Single entry point, orchestrates everything
+//! - **CORE**: Direct operations for targeted use
+//! - **SPECIALIZED**: Expert-level analysis and mutation
+//! - **LOW-LEVEL**: Granular access to subsystems
 
 mod architect;
 mod diagnose;
@@ -27,16 +35,157 @@ use tracing::{error, info};
 use synapseed_chronos::historian::Historian;
 use synapseed_core::context::SynapseContext;
 
-use crate::protocol::{ContentBlock, ToolCallResult, ToolDefinition};
+use crate::protocol::{ContentBlock, ToolAnnotations, ToolCallResult, ToolDefinition};
+
+/// Helper: annotations for a read-only, idempotent tool (most analysis tools).
+fn ro() -> Option<ToolAnnotations> {
+    Some(ToolAnnotations {
+        title: None,
+        read_only_hint: Some(true),
+        destructive_hint: Some(false),
+        idempotent_hint: Some(true),
+        open_world_hint: Some(false),
+    })
+}
+
+/// Helper: annotations for a mutating tool.
+fn rw(destructive: bool) -> Option<ToolAnnotations> {
+    Some(ToolAnnotations {
+        title: None,
+        read_only_hint: Some(false),
+        destructive_hint: Some(destructive),
+        idempotent_hint: Some(false),
+        open_world_hint: Some(false),
+    })
+}
 
 // ── Schema registry ─────────────────────────────────────────────────
 
 /// Return all available tool definitions.
 pub fn list_tools() -> Vec<ToolDefinition> {
     vec![
+        // ════════════════════════════════════════════════════════
+        // PRIMARY — The single entry point. Route ALL questions here first.
+        // ════════════════════════════════════════════════════════
+        ToolDefinition {
+            name: "ask".into(),
+            description: "PRIMARY — The intelligent entry point for ANY code question. ALWAYS call this tool FIRST. \
+                It automatically orchestrates semantic search, compiler diagnostics, git history, security scanning, \
+                and architecture analysis in a SINGLE call — no need to chain individual tools. Returns a comprehensive, \
+                model-tier-adapted context with ranked code symbols, active errors, recent changes, and security status. \
+                Handles natural language: 'why is login broken?', 'explain the router', 'run a security audit'. \
+                Set raw=true to inject exact source code for small models that need real code, not summaries.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Natural-language question about the codebase (e.g., 'why is the login broken?', 'explain the router module', 'run a security audit')"
+                    },
+                    "raw": {
+                        "type": "boolean",
+                        "description": "When true, inject the EXACT source code of discovered symbols into the response (Direct Symbol Injection). Set this for small/local models that need verbatim code.",
+                        "default": false
+                    }
+                },
+                "required": ["query"]
+            }),
+            annotations: ro(),
+        },
+
+        // ════════════════════════════════════════════════════════
+        // CORE — Targeted operations for specific needs.
+        // Use these when you know exactly what you need.
+        // ════════════════════════════════════════════════════════
+        ToolDefinition {
+            name: "search".into(),
+            description: "CORE — Semantic code search powered by Tantivy with BM25→Prefix→Fuzzy cascade. \
+                Finds symbols by name, signature, or documentation concept. Use this for TARGETED symbol \
+                lookup when you know what you're looking for. For broad questions, use `ask` instead — \
+                it includes search results automatically.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Semantic search query (e.g., 'authentication login', 'error handling', 'database connection')"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of results (default: 5)",
+                        "default": 5
+                    }
+                },
+                "required": ["query"]
+            }),
+            annotations: ro(),
+        },
+        ToolDefinition {
+            name: "lookup".into(),
+            description: "CORE — Resolve a symbol by exact name across the entire project. Returns file path, line range, kind, \
+                and full signature. Use when you KNOW the exact function/struct/trait name. For fuzzy or concept \
+                search, use `search`. For broad questions, use `ask`.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Exact symbol name to find (function, struct, trait, variable)"
+                    }
+                },
+                "required": ["name"]
+            }),
+            annotations: ro(),
+        },
+        ToolDefinition {
+            name: "scan".into(),
+            description: "CORE — Security scanner: detects API keys, passwords, tokens, PII, AND code vulnerability \
+                patterns (SQL injection, XSS, command injection, path traversal). ALWAYS scan code before sharing \
+                anything containing configuration, credentials, or user input handling. Returns CLEAN or ALERT \
+                with findings.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "content": {
+                        "type": "string",
+                        "description": "Text content to scan for secrets and vulnerability patterns"
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": ["all", "dlp", "patterns"],
+                        "description": "Scan mode: 'all' (default) = DLP + code patterns, 'dlp' = secrets only, 'patterns' = code vulnerabilities only"
+                    }
+                },
+                "required": ["content"]
+            }),
+            annotations: ro(),
+        },
+        ToolDefinition {
+            name: "check".into(),
+            description: "CORE — Command safety validator. Evaluates any shell command against the security policy \
+                BEFORE execution. Returns ALLOWED or DENIED with reason. ALWAYS call this before running or \
+                suggesting shell commands to prevent destructive operations (rm -rf, curl|sh, chmod 777, etc.).".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "Shell command to evaluate against the security policy"
+                    }
+                },
+                "required": ["command"]
+            }),
+            annotations: ro(),
+        },
+
+        // ════════════════════════════════════════════════════════
+        // DEEP-DIVE — Analysis and diagnostics
+        // ════════════════════════════════════════════════════════
         ToolDefinition {
             name: "hoist".into(),
-            description: "LOW-LEVEL — Index a project directory and return its AST skeleton (files, symbols, structure). Prefer `ask` for holistic queries; use this only when you need raw symbol data.".into(),
+            description: "Index a project directory and return its complete AST skeleton (files, symbols, relationships). \
+                Use for architecture overview or when you need the full symbol graph. Note: `ask` automatically \
+                includes relevant symbols — call `hoist` only when you need the RAW structure dump.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -46,57 +195,13 @@ pub fn list_tools() -> Vec<ToolDefinition> {
                     }
                 }
             }),
-        },
-        ToolDefinition {
-            name: "lookup".into(),
-            description: "LOW-LEVEL — Find a symbol by name across the entire project. Returns file path, line numbers, and signature. Prefer `ask` unless you know the exact symbol name.".into(),
-            input_schema: json!({
-                "type": "object",
-                "properties": {
-                    "name": {
-                        "type": "string",
-                        "description": "Symbol name to search for"
-                    }
-                },
-                "required": ["name"]
-            }),
-        },
-        ToolDefinition {
-            name: "scan".into(),
-            description: "LOW-LEVEL — Scan text content for sensitive data (API keys, passwords, tokens) AND code security anti-patterns (SQL injection, XSS, command injection, path traversal). Returns findings or CLEAN status. Use `mode` to select scan type.".into(),
-            input_schema: json!({
-                "type": "object",
-                "properties": {
-                    "content": {
-                        "type": "string",
-                        "description": "Text content to scan"
-                    },
-                    "mode": {
-                        "type": "string",
-                        "enum": ["all", "dlp", "patterns"],
-                        "description": "Scan mode: 'all' (default) = DLP + code patterns, 'dlp' = secrets only, 'patterns' = code anti-patterns only"
-                    }
-                },
-                "required": ["content"]
-            }),
-        },
-        ToolDefinition {
-            name: "check".into(),
-            description: "LOW-LEVEL — Evaluate a shell command against the security policy. Returns ALLOWED or DENIED with reason. Always call this before executing any shell command.".into(),
-            input_schema: json!({
-                "type": "object",
-                "properties": {
-                    "command": {
-                        "type": "string",
-                        "description": "Shell command to evaluate"
-                    }
-                },
-                "required": ["command"]
-            }),
+            annotations: ro(),
         },
         ToolDefinition {
             name: "blame".into(),
-            description: "LOW-LEVEL — Get git blame/history for a file. Shows who changed what and why. Prefer `analyze` for richer insights or `ask` for holistic context.".into(),
+            description: "Git blame and history for a specific file region. Shows who changed what, when, and why. \
+                Use for understanding code evolution or investigating when a bug was introduced. \
+                For richer analysis with churn metrics and risk scoring, use `analyze` instead.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -115,70 +220,13 @@ pub fn list_tools() -> Vec<ToolDefinition> {
                 },
                 "required": ["file"]
             }),
-        },
-        ToolDefinition {
-            name: "diagnose".into(),
-            description: "LOW-LEVEL — Run a full diagnostic on the project: detect state (virgin/partial/healthy), build system, git status, active plugins. Included automatically in `ask` responses.".into(),
-            input_schema: json!({
-                "type": "object",
-                "properties": {}
-            }),
-        },
-        ToolDefinition {
-            name: "consult".into(),
-            description: "LOW-LEVEL — Consult the project's architecture policy (DNA config). Returns preferred libraries, workspace strategy, naming conventions. Use `architect` for structural health or `ask` for holistic answers.".into(),
-            input_schema: json!({
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Architecture question (e.g., 'which async runtime?', 'error handling strategy?', 'project layout?')"
-                    }
-                },
-                "required": ["query"]
-            }),
-        },
-        ToolDefinition {
-            name: "search".into(),
-            description: "LOW-LEVEL — Search for code by concept (Tantivy keyword index). Finds symbols by name, signature, doc comments. Supports fuzzy matching. Prefer `ask` for broad queries; use this for targeted symbol search.".into(),
-            input_schema: json!({
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Semantic search query (e.g., 'authentication login', 'error handling', 'database connection')"
-                    },
-                    "limit": {
-                        "type": "integer",
-                        "description": "Maximum number of results (default: 5)",
-                        "default": 5
-                    }
-                },
-                "required": ["query"]
-            }),
-        },
-        ToolDefinition {
-            name: "diagnostics".into(),
-            description: "LOW-LEVEL — Get current compiler diagnostics from the background shadow compiler. Optionally filter by file path and/or severity. Included automatically in `ask` responses when relevant.".into(),
-            input_schema: json!({
-                "type": "object",
-                "properties": {
-                    "file": {
-                        "type": "string",
-                        "description": "Optional file path to filter diagnostics (returns all if omitted)"
-                    },
-                    "min_severity": {
-                        "type": "string",
-                        "enum": ["info", "warning", "error"],
-                        "description": "Minimum severity to include (default: 'warning')",
-                        "default": "warning"
-                    }
-                }
-            }),
+            annotations: ro(),
         },
         ToolDefinition {
             name: "analyze".into(),
-            description: "LOW-LEVEL — Analyze file history: churn/hotspot score, co-change patterns, semantic commit classification, risk assessment. Use for deep dives into a specific file; `ask` includes this automatically when relevant.".into(),
+            description: "Deep file history analysis: churn/hotspot score, co-change patterns, semantic commit classification, \
+                and risk assessment. Use for understanding WHY code is complex or fragile. Returns quantified risk \
+                metrics and change velocity data.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -197,10 +245,34 @@ pub fn list_tools() -> Vec<ToolDefinition> {
                 },
                 "required": ["file"]
             }),
+            annotations: ro(),
+        },
+        ToolDefinition {
+            name: "diagnostics".into(),
+            description: "Live compiler diagnostics from the background shadow compiler. Returns current errors, warnings, \
+                and available quick-fixes with file locations and severity. Filter by file or minimum severity. \
+                Note: `ask` includes diagnostics automatically when they're relevant.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "file": {
+                        "type": "string",
+                        "description": "Optional file path to filter diagnostics (returns all if omitted)"
+                    },
+                    "min_severity": {
+                        "type": "string",
+                        "enum": ["info", "warning", "error"],
+                        "description": "Minimum severity to include (default: 'warning')",
+                        "default": "warning"
+                    }
+                }
+            }),
+            annotations: ro(),
         },
         ToolDefinition {
             name: "quickfix".into(),
-            description: "LOW-LEVEL — Apply a compiler-suggested fix automatically. Only applies 'MachineApplicable' suggestions from rustc. Call `diagnostics` first to find the error code.".into(),
+            description: "Auto-apply a compiler-suggested fix. Only applies safe MachineApplicable suggestions from rustc. \
+                Call `diagnostics` first to identify the error code, then call this to fix it automatically.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -215,29 +287,39 @@ pub fn list_tools() -> Vec<ToolDefinition> {
                 },
                 "required": ["file", "error_code"]
             }),
+            annotations: rw(false),
         },
         ToolDefinition {
-            name: "ask".into(),
-            description: "PRIMARY TOOL — Start here. Ask a natural-language question and SYNAPSEED automatically orchestrates all relevant subsystems (compiler, search, history, security, architecture) in a single call. Returns enriched context with diagnostics, history, code context, and security status. Use this FIRST for any question instead of calling individual low-level tools.".into(),
+            name: "diagnose".into(),
+            description: "Full project diagnostic: detects project state (virgin/partial/healthy), build system, git status, \
+                and active plugin health. Use to understand the runtime situation of the project.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {}
+            }),
+            annotations: ro(),
+        },
+        ToolDefinition {
+            name: "consult".into(),
+            description: "Query the project's architecture policy (DNA config). Returns preferred libraries, workspace strategy, \
+                naming conventions, and team decisions. Use before making structural decisions to stay aligned \
+                with project conventions.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Natural-language question (e.g., 'why is the login broken?', 'run a security audit', 'explain the router module')"
-                    },
-                    "raw": {
-                        "type": "boolean",
-                        "description": "When true, inject the EXACT source code of discovered symbols into the prompt (Direct Symbol Injection). Ideal for small models that need real code, not summaries.",
-                        "default": false
+                        "description": "Architecture question (e.g., 'which async runtime?', 'error handling strategy?', 'project layout?')"
                     }
                 },
                 "required": ["query"]
             }),
+            annotations: ro(),
         },
         ToolDefinition {
             name: "intent".into(),
-            description: "LOW-LEVEL — Summarize the intent and direction of recent commits semantically. Groups by category (fix, feature, refactor, security). Prefer `ask` for broad project context.".into(),
+            description: "Semantic summary of recent commit intent. Groups commits by category (fix, feature, refactor, security) \
+                and extracts scope hints. Use to understand what the team has been working on recently.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -248,10 +330,60 @@ pub fn list_tools() -> Vec<ToolDefinition> {
                     }
                 }
             }),
+            annotations: ro(),
         },
         ToolDefinition {
+            name: "verify_path".into(),
+            description: "Verify a file path exists in the project. Returns existence, size, and detected language. \
+                Use this BEFORE citing file paths to prevent hallucination of non-existent files.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "File path relative to project root to verify"
+                    }
+                },
+                "required": ["path"]
+            }),
+            annotations: ro(),
+        },
+        ToolDefinition {
+            name: "similar".into(),
+            description: "SPECIALIZED — Vector embedding similarity search (cosine). \
+                Finds code semantically related to a natural-language description, even when keywords don't match. \
+                Requires `search.embeddings: true` in DNA config. Use for meaning-based code discovery beyond BM25.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Natural-language description of code you're looking for (e.g., 'authentication logic', 'error handling patterns')"
+                    },
+                    "top_k": {
+                        "type": "integer",
+                        "description": "Number of results to return (default: 5)",
+                        "default": 5
+                    },
+                    "min_similarity": {
+                        "type": "number",
+                        "description": "Minimum cosine similarity threshold (default: 0.3)",
+                        "default": 0.3
+                    }
+                },
+                "required": ["query"]
+            }),
+            annotations: ro(),
+        },
+
+        // ════════════════════════════════════════════════════════
+        // SPECIALIZED — Expert operations (mutation, evaluation)
+        // ════════════════════════════════════════════════════════
+        ToolDefinition {
             name: "train".into(),
-            description: "SPECIALIZED — Evaluate Rust code in an isolated sandbox (The Gym). Compiles, tests, benchmarks, and optionally runs adversarial mutation testing, returning metrics (compile time, binary size, test results, mutation score) and a composite score. Use to compare code variants or validate refactoring safety.".into(),
+            description: "SPECIALIZED — Evaluate Rust code in an isolated sandbox (The Gym). Compiles, tests, benchmarks, \
+                and optionally runs adversarial mutation testing. Returns metrics (compile time, binary size, test results, \
+                mutation score) and a composite quality score. Use to validate code before committing.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -281,32 +413,34 @@ pub fn list_tools() -> Vec<ToolDefinition> {
                 },
                 "required": ["source"]
             }),
-        },
-        ToolDefinition {
-            name: "reset-telemetry".into(),
-            description: "LOW-LEVEL — Clear all telemetry data (spans and metrics) from the OTLP receiver. Use to reset the heatmap and start fresh observation.".into(),
-            input_schema: json!({
-                "type": "object",
-                "properties": {}
+            annotations: Some(ToolAnnotations {
+                title: Some("Code Gym".into()),
+                read_only_hint: Some(true),
+                destructive_hint: Some(false),
+                idempotent_hint: Some(true),
+                open_world_hint: Some(false),
             }),
         },
         ToolDefinition {
             name: "janitor".into(),
-            description: "SPECIALIZED — Run the Janitor: scan for clippy warnings and unused dependencies, generate validated fix proposals. Returns findings and actionable proposals.".into(),
+            description: "SPECIALIZED — Scan for clippy warnings and unused dependencies. Generates validated fix proposals \
+                with UUIDs. Proposals are safe to preview — use `janitor-fix` to apply them.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {}
             }),
+            annotations: ro(),
         },
         ToolDefinition {
             name: "janitor-fix".into(),
-            description: "SPECIALIZED — Apply a specific Janitor fix proposal by ID. Default: preview only (dry-run). Set `confirm: true` to actually apply. Applied to the actual file, verified with `cargo check`. Automatically reverts if compilation breaks.".into(),
+            description: "SPECIALIZED — Apply a Janitor fix proposal by UUID. Preview-only by default (dry-run). \
+                Set confirm=true to actually apply the fix. Automatically reverts if compilation breaks.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
                     "proposal_id": {
                         "type": "string",
-                        "description": "The UUID of the proposal to apply (from janitor_run_now results)"
+                        "description": "The UUID of the proposal to apply (from janitor results)"
                     },
                     "confirm": {
                         "type": "boolean",
@@ -316,10 +450,12 @@ pub fn list_tools() -> Vec<ToolDefinition> {
                 },
                 "required": ["proposal_id"]
             }),
+            annotations: rw(false),
         },
         ToolDefinition {
             name: "architect".into(),
-            description: "SPECIALIZED — Analyze project structural health: dependency graph, coupling metrics, cycle detection, god objects, layer violations. Returns architecture score (A-F), violations, and recommendations.".into(),
+            description: "SPECIALIZED — Structural health analysis: dependency graph, coupling metrics, cycle detection, \
+                god objects, layer violations. Returns architecture score (A-F) with violations and recommendations.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -330,52 +466,27 @@ pub fn list_tools() -> Vec<ToolDefinition> {
                     }
                 }
             }),
+            annotations: ro(),
         },
         ToolDefinition {
             name: "oracle".into(),
-            description: "SPECIALIZED — Auto-repair drifted documentation. Updates version numbers, crate counts, and MCP tool/resource counts in README.md to match the actual codebase. Returns a list of changes made.".into(),
+            description: "SPECIALIZED — Auto-repair drifted documentation. Updates version numbers, crate counts, and MCP \
+                tool/resource counts in README.md to match the actual codebase.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {}
             }),
+            annotations: rw(false),
         },
         ToolDefinition {
-            name: "verify_path".into(),
-            description: "LOW-LEVEL — Check if a file exists in the project. Returns existence, size, and language. Use before citing a file path to avoid hallucination.".into(),
+            name: "reset-telemetry".into(),
+            description: "Clear all telemetry data (spans and metrics) from the OTLP receiver. Use to reset the performance \
+                heatmap and start fresh observation.".into(),
             input_schema: json!({
                 "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "File path relative to project root"
-                    }
-                },
-                "required": ["path"]
+                "properties": {}
             }),
-        },
-        ToolDefinition {
-            name: "similar".into(),
-            description: "SPECIALIZED — Find code similar to a natural-language query using vector embeddings (cosine similarity). Requires `search.embeddings: true` in DNA config. Use for meaning-based code search beyond keyword matching.".into(),
-            input_schema: json!({
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Natural-language query describing the code you're looking for (e.g., 'authentication logic', 'error handling patterns')"
-                    },
-                    "top_k": {
-                        "type": "integer",
-                        "description": "Number of results to return (default: 5)",
-                        "default": 5
-                    },
-                    "min_similarity": {
-                        "type": "number",
-                        "description": "Minimum cosine similarity threshold (default: 0.3)",
-                        "default": 0.3
-                    }
-                },
-                "required": ["query"]
-            }),
+            annotations: rw(false),
         },
     ]
 }

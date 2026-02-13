@@ -253,12 +253,12 @@ fn test_tool_definitions_have_valid_schemas() {
 // ══════════════════════════════════════════════════════════════
 
 #[test]
-fn test_list_resources_returns_9() {
+fn test_list_resources_returns_10() {
     let resources = resources::list_resources();
     assert_eq!(
         resources.len(),
-        9,
-        "Expected 9 resources, got {}",
+        10,
+        "Expected 10 resources, got {}",
         resources.len()
     );
 }

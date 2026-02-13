@@ -1,5 +1,55 @@
 # Changelog
 
+## [4.13.0] — 2026-02-13
+
+### Cognitive Dominance — LLM Tool Routing Optimization
+
+System-level strategy to make SYNAPSEED the "first citizen" in multi-tool MCP environments.
+Works on both 1.7B parameter models (Qwen3) and SOTA (Claude, GPT-4).
+
+#### Tool Description Engineering
+- **Imperative routing hierarchy**: All 21 tool descriptions rewritten with clear priority signals:
+  - `ask` (PRIMARY): "ALWAYS call this tool FIRST" — single entry point for any code question
+  - 4 CORE tools (search, lookup, scan, check): targeted operations with explicit routing guidance
+  - 10 analysis tools: deep-dive with cross-references to `ask` for broad queries
+  - 6 specialized tools: expert operations (train, janitor, architect, oracle, etc.)
+- **Cognitive funnel**: Every non-primary tool description says "use `ask` for broad questions",
+  statistically increasing the probability that LLMs route to the orchestrator first
+- **Authoritative language**: Action verbs (resolve, validate, evaluate) replace passive ones (get, read)
+
+#### MCP Tool Annotations (2025-03-26 spec)
+- Added `annotations` field to `ToolDefinition` with `readOnlyHint`, `destructiveHint`,
+  `idempotentHint`, `openWorldHint` — clients that support the 2025-03-26 MCP spec
+  can now classify tool safety without parsing descriptions
+- All analysis tools marked `readOnly=true, destructive=false`
+- Mutation tools (quickfix, janitor-fix, oracle, reset-telemetry) marked `readOnly=false`
+
+#### Dynamic Instructions Enhancement
+- Rewrote `build_instructions()` with a **priority-ordered routing decision tree**:
+  ```
+  1. ANY code question → `ask` FIRST
+  2. Specific symbol → `lookup` or `search`
+  3. Security → `scan` before sharing, `check` before executing
+  4. Architecture → `consult` or `architect`
+  5. Build errors → `diagnostics` then `quickfix`
+  6. Git context → `blame`, `analyze`, or `intent`
+  ```
+- Added **RULES** section: NEVER read files manually, NEVER execute commands without `check`,
+  NEVER share code without `scan`, use `verify_path` before citing files
+- Added **live diagnostics count** in instructions (error/warning count from shadow compiler)
+- Removed legacy alias names from instructions (use canonical short names)
+
+#### New Resource: `synapseed://context/active`
+- **Passive interception strategy**: Dynamic project briefing that clients can preload
+  into context before any tool call — eliminates multiple initial roundtrips
+- Contains: project state, DNA summary, active diagnostics count, architecture grade,
+  indexing metrics, session continuity, and tool routing hint
+- Description includes `PRIORITY RESOURCE` signal for LLM resource selection
+
+#### Counts
+- 21 tools, 10 resources, 6 prompts
+- 373 tests pass, 0 failures
+
 ## [4.12.0] — 2026-02-14
 
 ### Il Segnale + L'Espansione — Score Propagation, Enriched Embeddings, Prefix Matching

@@ -1,6 +1,6 @@
 # MCP Resources
 
-SYNAPSEED exposes 9 read-only resources. Resources provide context data that the LLM can inspect without side effects.
+SYNAPSEED exposes 10 read-only resources. Resources provide context data that the LLM can inspect without side effects.
 
 ## `synapseed://status`
 
@@ -206,3 +206,30 @@ Cross-references workspace members, README, docs, and crate metadata for inconsi
 ```
 
 The `score` is `1.0` when no inconsistencies are found.
+
+---
+
+## `synapseed://context/active`
+
+**Name:** Active Context Briefing
+
+**PRIORITY RESOURCE** — Dynamic project briefing that aggregates key signals for immediate situational awareness. Preloading this resource eliminates multiple initial tool calls.
+
+```json
+{
+  "project_state": "healthy_workspace",
+  "state_detail": { "build_system": "Cargo", "file_count": 42 },
+  "dna": {
+    "strategy": "monorepo",
+    "dlp_level": "Standard",
+    "plugins": ["cortex", "husk", "root", "chronos"]
+  },
+  "diagnostics": { "errors": 0, "warnings": 3 },
+  "architecture_grade": "B",
+  "metrics": { "files_indexed": 42, "symbols_found": 310 },
+  "session": { "time_ago": "5 minutes ago", "files_indexed": 42, "tools_invoked": 8 },
+  "routing_hint": "For ANY code question, call the `ask` tool FIRST."
+}
+```
+
+This resource supports the **Passive Interception** strategy: clients that preload it give the LLM project context before any tool call, reducing roundtrips.

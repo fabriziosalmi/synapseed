@@ -156,7 +156,7 @@ graph LR
 | `synapseed-gym` | RL sandbox — safe code evaluation with compilation + test feedback |
 | `synapseed-janitor` | Autonomous maintenance — clippy + unused deps, validated proposals |
 | `synapseed-architect` | Dependency graph, coupling metrics, cycle detection, scoring (A-F) |
-| `synapseed-mcp` | MCP protocol handler — 21 tools, 9 resources, 6 prompts |
+| `synapseed-mcp` | MCP protocol handler — 21 tools, 10 resources, 6 prompts |
 
 ---
 
@@ -186,7 +186,7 @@ graph LR
 | `similar` | SPECIALIZED | `semantic_similarity` | Vector embedding similarity search |
 | `verify_path` | LOW-LEVEL | `verify_path` | Verify file path exists (prevents LLM hallucination) |
 
-## MCP Resources (9)
+## MCP Resources (10)
 
 | URI | Description |
 | :--- | :--- |
@@ -199,6 +199,7 @@ graph LR
 | `synapseed://janitor/proposals` | Janitor fix proposals |
 | `synapseed://architect/health` | Architecture health score and violations |
 | `synapseed://consistency` | Consistency Oracle report (drift detection) |
+| `synapseed://context/active` | Dynamic project briefing (preload for instant situational awareness) |
 
 ## MCP Prompts (6)
 

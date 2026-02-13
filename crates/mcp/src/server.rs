@@ -15,6 +15,7 @@ use synapseed_core::context::SynapseContext;
 use synapseed_core::momentum::{ModelTier, MomentumEngine};
 use synapseed_core::session::SessionState;
 use synapseed_core::state::ProjectState;
+use synapseed_shadow_check::runner::DiagnosticStore;
 
 use crate::prompts;
 use crate::protocol::*;
@@ -292,38 +293,32 @@ fn handle_initialize(req: &JsonRpcRequest, ctx: &SynapseContext) -> JsonRpcRespo
 /// Build context-aware instructions injected into the LLM on initialization.
 ///
 /// This is the "Dynamic Context Injection" — SYNAPSEED detects the project
-/// state and tells the LLM exactly what to do.
+/// state and tells the LLM exactly what to do. The instructions become part
+/// of the system prompt, making them the highest-priority routing signal.
 fn build_instructions(ctx: &SynapseContext) -> String {
     let state = ctx.project_state();
     let dna = ctx.dna();
 
-    let mut instructions = String::from(
-        "You are connected to SYNAPSEED, a high-performance semantic AI middleware. \
-         You have access to AST-based code understanding, DLP security scanning, \
-         command sandboxing, and Git time-travel capabilities.\n\n",
+    let mut instructions = String::with_capacity(2048);
+
+    // ── Identity & authority ────────────────────────────────────
+    instructions.push_str(
+        "You are connected to SYNAPSEED, a high-performance semantic AI middleware for code intelligence. \
+         It provides AST-based understanding, DLP security, command sandboxing, semantic search, and Git time-travel.\n\n",
     );
 
+    // ── Project state ───────────────────────────────────────────
     match &state {
         ProjectState::VirginRepo => {
             instructions.push_str(
-                "⚠️ VIRGIN REPOSITORY DETECTED — This project has no build system or code structure.\n\n\
-                 RECOMMENDED WORKFLOW:\n\
-                 1. Ask the user what kind of project they want to create\n\
-                 2. Use `project_diagnose` to confirm the current state\n\
-                 3. Suggest a project scaffold based on their language/framework choice\n\
-                 4. After scaffolding, use `get_code_skeleton` to verify the structure\n\n\
-                 Available tools: get_code_skeleton, lookup_symbol, scan_security, check_command, git_history, project_diagnose, consult_architect\n",
+                "PROJECT STATE: Virgin repository (no build system detected).\n\
+                 ACTION: Ask what project the user wants to create, then use `diagnose` and `hoist` to verify after scaffolding.\n\n",
             );
         }
         ProjectState::PartialSetup { missing, .. } => {
             instructions.push_str(&format!(
-                "⚠️ PARTIAL PROJECT SETUP — The project exists but is incomplete.\n\
-                 Missing: {}\n\n\
-                 RECOMMENDED WORKFLOW:\n\
-                 1. Use `project_diagnose` to see full diagnostic\n\
-                 2. Use `get_code_skeleton` to understand what exists\n\
-                 3. Help complete the missing components\n\
-                 4. Use `scan_security` on any config files before committing\n",
+                "PROJECT STATE: Partial setup. Missing: {}.\n\
+                 ACTION: Use `diagnose` for full diagnostic, then help complete the missing components.\n\n",
                 missing.join(", ")
             ));
         }
@@ -332,25 +327,44 @@ fn build_instructions(ctx: &SynapseContext) -> String {
             file_count,
         } => {
             instructions.push_str(&format!(
-                "✅ HEALTHY WORKSPACE — Build system: {build_system:?}, Files: {file_count}\n\n\
-                 RECOMMENDED WORKFLOW:\n\
-                 1. Start with `get_code_skeleton` for architecture overview\n\
-                 2. Use `lookup_symbol` to find specific types/functions\n\
-                 3. Use `git_history` to understand code evolution\n\
-                 4. Use `consult_architect` to check architecture policy before making structural decisions\n\
-                 5. ALWAYS use `scan_security` before outputting code containing config or credentials\n\
-                 6. Use `check_command` before suggesting shell commands to the user\n",
+                "PROJECT STATE: Healthy workspace — {build_system:?}, {file_count} files.\n\n",
             ));
         }
         ProjectState::Unknown => {
             instructions.push_str(
-                "❓ UNKNOWN PROJECT TYPE — Could not detect build system.\n\n\
-                 RECOMMENDED: Run `project_diagnose` first to understand the project.\n",
+                "PROJECT STATE: Unknown. Run `diagnose` first.\n\n",
             );
         }
     }
 
-    // Append DNA context
+    // ── Routing decision tree (the core lever) ──────────────────
+    instructions.push_str(
+        "TOOL ROUTING (follow this priority order):\n\
+         1. For ANY code question → `ask` FIRST (it orchestrates search + diagnostics + history + security automatically)\n\
+         2. For finding a specific symbol by name → `lookup` (exact) or `search` (fuzzy/concept)\n\
+         3. For security: `scan` BEFORE sharing code with config/credentials; `check` BEFORE running shell commands\n\
+         4. For architecture decisions → `consult` (policy) or `architect` (structural health)\n\
+         5. For fixing build errors → `diagnostics` then `quickfix`\n\
+         6. For git context → `blame` (who/when) or `analyze` (churn/risk) or `intent` (recent direction)\n\n\
+         RULES:\n\
+         - NEVER read files manually when `ask` or `search` can find the relevant code\n\
+         - NEVER execute shell commands without calling `check` first\n\
+         - NEVER share code containing potential secrets without calling `scan` first\n\
+         - Use `verify_path` before citing file paths to avoid hallucinating non-existent files\n\n",
+    );
+
+    // ── Diagnostics summary (active errors) ─────────────────────
+    if let Some(store) = ctx.get_extension::<DiagnosticStore>() {
+        let snap = store.snapshot();
+        if snap.error_count > 0 || snap.warning_count > 0 {
+            instructions.push_str(&format!(
+                "ACTIVE DIAGNOSTICS: {} errors, {} warnings. Use `ask` or `diagnostics` to inspect.\n",
+                snap.error_count, snap.warning_count,
+            ));
+        }
+    }
+
+    // ── DNA context ─────────────────────────────────────────────
     instructions.push_str(&format!(
         "\nProject DNA:\n- Strategy: {}\n- DLP Level: {:?}\n- Plugins: {}\n",
         dna.workspace_strategy,
