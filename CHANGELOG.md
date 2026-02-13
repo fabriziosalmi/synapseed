@@ -1,5 +1,37 @@
 # Changelog
 
+## [4.0.0] — 2026-02-13
+
+### The Deep Index — Body-Level Search & Whisper Refactoring
+
+Major version: architectural restructuring of the Whisper router + search recall improvement backed by the MCP Grounding Experiment (F1 0.35→0.84).
+
+#### Search — Deep Body Indexing
+
+- **Body Snippet Expansion**: 15→30 lines captured per symbol. Addresses experiment failures Q4 (cargo check flags buried at line 28 of `run_check()`) and Q10 (debounce params at line 30 of `start_background_loop()`). Estimated +15% recall on function-internal queries.
+- **Body Snippet Positional Indexing**: Upgraded from `WithFreqs` to `WithFreqsAndPositions`. Enables phrase matching within function bodies (e.g., `"cargo check --quiet"` now matches as a phrase, not just individual terms). Better BM25 ranking for multi-word body queries.
+
+#### Whisper — Router Module Restructuring
+
+Split the 1,978-line god object (`whisper::router::mod`) into focused, single-responsibility modules:
+
+| Module | Lines | Responsibility |
+|--------|-------|----------------|
+| `intent.rs` | 170 | Keyword-based intent classification (EN/IT) |
+| `extraction.rs` | 420 | 5-pass target extraction pipeline |
+| `context_builder.rs` | 560 | Tier-aware smart context assembly (Atomic/Molecular/Galactic) |
+| `mod.rs` | 260 | Types, public API, complexity analysis |
+
+- **Zero behavior change**: All 39 whisper tests pass without modification. Public API (`ask`, `ask_raw`, `analyze_complexity`) unchanged.
+- **Resolves architect violation**: God Object warning (81 public symbols, limit 50) eliminated. `mod.rs` reduced from 81→12 public symbols.
+- **Module visibility**: Internal functions use `pub(super)` — clean encapsulation, no leaking.
+
+#### Architecture Impact
+
+- Architect score maintained at 91/A
+- God object violations: 2→1 (whisper resolved, sentinel_test remains as test-only)
+- Test count: 256+ passing, 0 failures
+
 ## [3.12.0] — 2026-02-13
 
 ### The Adaptive Index — Tantivy Timeout Fix & Path-Based Scoring

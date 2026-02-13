@@ -6,7 +6,7 @@
 //!   - kind:         STRING (stored + indexed) — faceted: Function, Struct, Enum, ...
 //!   - signature:    TEXT (stored) — first line / function signature
 //!   - doc_comment:  TEXT (indexed) — crucial for semantic search
-//!   - body_snippet: TEXT (stored) — first 5 lines of the symbol body
+//!   - body_snippet: TEXT (stored) — first 30 lines of the symbol body
 //!   - line_start:   u64 (stored + fast) — for jump-to-source
 //!   - line_end:     u64 (stored + fast)
 
@@ -62,7 +62,7 @@ pub fn build_schema() -> (Schema, SearchFields) {
     let body_opts = TextOptions::default().set_stored().set_indexing_options(
         TextFieldIndexing::default()
             .set_tokenizer("en_stem")
-            .set_index_option(IndexRecordOption::WithFreqs),
+            .set_index_option(IndexRecordOption::WithFreqsAndPositions),
     );
     let body_snippet = builder.add_text_field("body_snippet", body_opts);
 

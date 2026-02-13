@@ -459,8 +459,10 @@ fn extract_doc_comment(source: &str, line_start: usize) -> String {
 }
 
 /// Extract the first lines of a symbol's body as a snippet for BM25 indexing.
-/// Captures up to 15 lines to include docstrings and early body content,
+/// Captures up to 30 lines to include docstrings and early body content,
 /// which often contain domain-specific keywords not present in the symbol name.
+/// Expanded from 15 to 30 in v4.0.0 (The Deep Index) to capture constants and
+/// logic deeper in function bodies — addresses grounding experiment Q4/Q10 misses.
 fn extract_body_snippet(source: &str, line_start: usize, line_end: usize) -> String {
     let lines: Vec<&str> = source.lines().collect();
     if line_start == 0 || line_start > lines.len() {
@@ -468,7 +470,7 @@ fn extract_body_snippet(source: &str, line_start: usize, line_end: usize) -> Str
     }
 
     let start = line_start.saturating_sub(1); // 0-indexed
-    let end = (start + 15)
+    let end = (start + 30)
         .min(line_end.saturating_sub(1) + 1)
         .min(lines.len());
 
@@ -528,19 +530,19 @@ pub fn authenticate_user(credentials: &Credentials) -> Result<Token> {
 
     #[test]
     fn test_extract_body_snippet() {
-        // With 15-line capture, lines 2-7 (6 lines) should all be included
+        // With 30-line capture, lines 2-7 (6 lines) should all be included
         let source = "line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8";
         let snippet = extract_body_snippet(source, 2, 7);
         assert!(snippet.starts_with("line2"));
         assert!(snippet.contains("line6"));
-        assert!(snippet.contains("line7")); // now included with 15-line window
+        assert!(snippet.contains("line7")); // included within 30-line window
         assert!(!snippet.contains("line8")); // beyond line_end=7
 
-        // Test truncation at 15 lines
-        let long_source = (1..=20).map(|i| format!("line{i}")).collect::<Vec<_>>().join("\n");
-        let snippet = extract_body_snippet(&long_source, 1, 20);
-        assert!(snippet.contains("line15")); // 15th line included
-        assert!(!snippet.contains("line16")); // beyond 15-line window
+        // Test truncation at 30 lines
+        let long_source = (1..=40).map(|i| format!("line{i}")).collect::<Vec<_>>().join("\n");
+        let snippet = extract_body_snippet(&long_source, 1, 40);
+        assert!(snippet.contains("line30")); // 30th line included
+        assert!(!snippet.contains("line31")); // beyond 30-line window
     }
 
     #[test]
