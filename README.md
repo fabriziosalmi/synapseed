@@ -203,7 +203,7 @@ graph LR
 | `explain_dependency` | SPECIALIZED | — | Explain a compiled Rust dependency by binary analysis |
 | `run_benchmark` | SPECIALIZED | `benchmark` | Run reproducible SCR evaluation suite (F1, SID, hallucination rate) |
 
-## MCP Resources (10)
+## MCP Resources (9)
 
 | URI | Description |
 | :--- | :--- |
@@ -211,7 +211,6 @@ graph LR
 | `synapseed://dna` | Project DNA configuration |
 | `synapseed://security/policy` | Active security policy rules |
 | `synapseed://diagnostics/active` | Current compiler diagnostics |
-| `synapseed://visualizer/url` | Visualizer dashboard URL |
 | `synapseed://telemetry/hotspots` | Top-10 performance hotspots from OTLP spans |
 | `synapseed://janitor/proposals` | Janitor fix proposals |
 | `synapseed://architect/health` | Architecture health score and violations |

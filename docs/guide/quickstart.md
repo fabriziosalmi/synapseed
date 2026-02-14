@@ -48,23 +48,50 @@ synapseed diagnose --project .
 
 Outputs project state, DNA configuration, git status, and all metrics.
 
-## 7. Start the MCP Server
+## Start the MCP Server
 
 ```bash
 synapseed serve --project .
 ```
 
-This starts the JSON-RPC 2.0 server on stdin/stdout, ready for Claude Desktop or any MCP-compatible client.
+This starts the JSON-RPC 2.0 server on stdin/stdout, ready for Claude Desktop, VS Code extension, or any MCP-compatible client.
 
-## 8. Open the Visualizer
+## VS Code Integration
 
-When running in `serve` mode, open your browser at:
+Install the [VS Code extension](/integration/vscode-extension) for real-time panels showing project status, diagnostics, architecture health, and more.
 
+```bash
+cd vscode-extension
+npm install && npm run package
+code --install-extension synapseed-0.3.0.vsix
 ```
-http://localhost:3000
+
+## 8. Ask a Question (Recommended)
+
+For the best experience, use the intent router which orchestrates all subsystems:
+
+```bash
+synapseed ask "why is authentication failing?"
+# Returns orchestrated response using search, git history, diagnostics, etc.
+
+synapseed ask "what changed in the last week?"
+# Automatically uses git history and semantic analysis
 ```
 
-You'll see an interactive graph of your codebase with live WebSocket updates.
+## 9. Check Architecture Health
+
+```bash
+synapseed architect --refresh
+# Returns: Grade A, 97/100, 0 violations, 131 modules
+```
+
+## 10. Run Maintenance Scan
+
+```bash
+synapseed janitor
+# Scans for clippy warnings and unused dependencies
+# Returns: Actionable fix proposals with UUIDs
+```
 
 ## Self-Telemetry (Dogfooding)
 
