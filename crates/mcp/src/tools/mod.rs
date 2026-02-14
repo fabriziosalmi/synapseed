@@ -13,6 +13,7 @@
 //! - **LOW-LEVEL**: Granular access to subsystems
 
 mod architect;
+mod decompile;
 mod diagnose;
 mod diagnostics;
 mod history;
@@ -61,7 +62,7 @@ fn rw(destructive: bool) -> Option<ToolAnnotations> {
 
 // ── Schema registry ─────────────────────────────────────────────────
 
-/// Return all 21 MCP tool definitions.
+/// Return all 23 MCP tool definitions.
 ///
 /// Tools: ask (primary entry point for natural-language queries), search, lookup,
 /// scan, check, hoist, blame, analyze, diagnostics, quickfix, diagnose, consult,
@@ -496,6 +497,43 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
             annotations: rw(false),
         },
+
+        // ════════════════════════════════════════════════════════
+        // SPECIALIZED — Neural Decompiler (binary analysis)
+        // ════════════════════════════════════════════════════════
+        ToolDefinition {
+            name: "analyze_binary".into(),
+            description: "SPECIALIZED — Analyze a compiled binary (ELF/Mach-O/PE). Extracts symbols, strings, call graph, \
+                and infers behavioral patterns (network I/O, crypto, file I/O, etc.). Use to understand compiled dependencies \
+                or audit third-party binaries without source code.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Absolute or project-relative path to the binary file to analyze"
+                    }
+                },
+                "required": ["path"]
+            }),
+            annotations: ro(),
+        },
+        ToolDefinition {
+            name: "explain_dependency".into(),
+            description: "SPECIALIZED — Explain what a compiled Rust dependency does by analyzing its built artifact \
+                in target/debug/deps or target/release/deps. Finds the library by crate name and runs full binary analysis.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "crate_name": {
+                        "type": "string",
+                        "description": "Name of the dependency crate to explain (e.g., 'serde', 'tokio')"
+                    }
+                },
+                "required": ["crate_name"]
+            }),
+            annotations: ro(),
+        },
     ]
 }
 
@@ -506,7 +544,7 @@ const TOOL_NAMES: &[&str] = &[
     "hoist", "lookup", "scan", "check", "blame", "diagnose", "consult",
     "search", "diagnostics", "analyze", "quickfix", "ask", "intent",
     "train", "reset-telemetry", "janitor", "janitor-fix", "architect",
-    "oracle", "similar", "verify_path",
+    "oracle", "similar", "verify_path", "analyze_binary", "explain_dependency",
 ];
 
 /// Resolve a tool name: canonical names pass through, legacy names are mapped.
@@ -534,6 +572,8 @@ fn resolve_tool_name(name: &str) -> Option<&'static str> {
         "oracle" => Some("oracle"),
         "similar" => Some("similar"),
         "verify_path" => Some("verify_path"),
+        "analyze_binary" => Some("analyze_binary"),
+        "explain_dependency" => Some("explain_dependency"),
         // ── Legacy aliases (backward-compat) ────────────────────
         "get_code_skeleton" => Some("hoist"),
         "lookup_symbol" => Some("lookup"),
@@ -555,6 +595,7 @@ fn resolve_tool_name(name: &str) -> Option<&'static str> {
         "architect_analyze" => Some("architect"),
         "oracle_fix_docs" => Some("oracle"),
         "semantic_similarity" => Some("similar"),
+        "decompile" | "neural_decompiler" => Some("analyze_binary"),
         _ => None,
     }
 }
@@ -614,7 +655,10 @@ fn dispatch_tool_inner(
         "oracle" => oracle::tool_oracle_fix_docs(ctx),
         "similar" => search::tool_semantic_similarity(args, ctx),
         "verify_path" => verify::tool_verify_path(args, ctx),
+        "analyze_binary" => decompile::tool_analyze_binary(args, ctx),
+        "explain_dependency" => decompile::tool_explain_dependency(args, ctx),
         _ => error_result(format!("Internal dispatch error: unknown canonical tool '{canonical}'")),
+
     }
 }
 

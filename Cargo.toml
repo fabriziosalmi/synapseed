@@ -13,6 +13,7 @@ members = [
   "crates/gym",
   "crates/janitor",
   "crates/architect",
+  "crates/decompiler",
   "bin/synapseed",
 ]
 resolver = "2"
@@ -104,6 +105,9 @@ petgraph = "0.6"
 fastembed = "5"
 ort = "2.0.0-rc.11"
 
+# Binary analysis (Neural Decompiler)
+goblin = "0.9"
+
 # Fast non-cryptographic hashing
 fxhash = "0.2"
 
@@ -121,6 +125,7 @@ synapseed-architect = {path = "crates/architect"}
 synapseed-chronos = {path = "crates/chronos"}
 synapseed-core = {path = "crates/core"}
 synapseed-cortex = {path = "crates/cortex"}
+synapseed-decompiler = {path = "crates/decompiler"}
 synapseed-gym = {path = "crates/gym"}
 synapseed-husk = {path = "crates/husk"}
 synapseed-janitor = {path = "crates/janitor"}

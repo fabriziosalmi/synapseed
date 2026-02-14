@@ -1,36 +1,37 @@
 [package]
-name = "synapseed-mcp"
-version.workspace = true
+description = "MCP (Model Context Protocol) server — the bridge between SYNAPSEED and LLMs"
 edition.workspace = true
 license.workspace = true
-description = "MCP (Model Context Protocol) server — the bridge between SYNAPSEED and LLMs"
+name = "synapseed-mcp"
+version.workspace = true
 
 [features]
 default = []
 embeddings = ["synapseed-search/embeddings"]
 
 [dependencies]
-synapseed-core = { workspace = true }
-synapseed-cortex = { workspace = true }
-synapseed-husk = { workspace = true }
-synapseed-root = { workspace = true }
-synapseed-chronos = { workspace = true }
-synapseed-search = { workspace = true }
-synapseed-shadow-check = { workspace = true }
-synapseed-whisper = { workspace = true }
-synapseed-telemetry-sink = { workspace = true }
-synapseed-gym = { workspace = true }
-synapseed-janitor = { workspace = true }
-synapseed-architect = { workspace = true }
-tokio = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-tracing = { workspace = true }
-chrono = { workspace = true }
-anyhow = { workspace = true }
-ignore = { workspace = true }
-parking_lot = { workspace = true }
+anyhow = {workspace = true}
+chrono = {workspace = true}
+ignore = {workspace = true}
+parking_lot = {workspace = true}
+serde = {workspace = true}
+serde_json = {workspace = true}
+synapseed-architect = {workspace = true}
+synapseed-chronos = {workspace = true}
+synapseed-core = {workspace = true}
+synapseed-cortex = {workspace = true}
+synapseed-decompiler = {workspace = true}
+synapseed-gym = {workspace = true}
+synapseed-husk = {workspace = true}
+synapseed-janitor = {workspace = true}
+synapseed-root = {workspace = true}
+synapseed-search = {workspace = true}
+synapseed-shadow-check = {workspace = true}
+synapseed-telemetry-sink = {workspace = true}
+synapseed-whisper = {workspace = true}
+tokio = {workspace = true}
+tracing = {workspace = true}
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
-tempfile = { workspace = true }
+tempfile = {workspace = true}
+tokio = {workspace = true, features = ["rt-multi-thread", "macros"]}

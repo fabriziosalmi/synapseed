@@ -1,0 +1,17 @@
+[package]
+description = "The Neural Decompiler — binary analysis, symbol extraction, string classification, call graph"
+edition.workspace = true
+license.workspace = true
+name = "synapseed-decompiler"
+version.workspace = true
+
+[dependencies]
+anyhow = {workspace = true}
+goblin = "0.9"
+serde = {workspace = true}
+serde_json = {workspace = true}
+synapseed-core = {workspace = true}
+tracing = {workspace = true}
+
+[dev-dependencies]
+tempfile = {workspace = true}
