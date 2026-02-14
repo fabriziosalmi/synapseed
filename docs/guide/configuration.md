@@ -76,23 +76,6 @@ security_patterns:
   categories: []  # empty = all active
 
 # Architect settings
-architect:
-  density_high_threshold: 0.5
-  density_low_threshold: 0.02
-  density_low_min_modules: 10
-  god_object_max_symbols: 50
-  god_object_max_lines: 1000
-  god_object_min_fan_in: 5
-  layers:
-    - name: core
-      rank: 0
-      modules: ["core"]
-    - name: domain
-      rank: 1
-      modules: ["cortex", "husk", "root", "chronos"]
-
-# Visualizer dashboard port
-visualizer_port: 3000
 ```
 
 ## Fields Reference
@@ -207,10 +190,6 @@ Settings for the architecture analysis engine.
 | `god_object_min_fan_in` | integer | `5` | Min fan-in to combine with size for god object detection |
 | `layers` | list | `[]` | Layer definitions for violation detection. Each entry has `name`, `rank`, and `modules`. |
 
-### `visualizer_port`
-
-Port number for the live visualizer dashboard. Defaults to `3000`.
-
 ## Environment Variables
 
 | Variable | Default | Description |
@@ -218,4 +197,3 @@ Port number for the live visualizer dashboard. Defaults to `3000`.
 | `RUST_LOG` | `info` | Log level filter (trace/debug/info/warn/error) |
 | `SYNAPSEED_LOG_FORMAT` | compact | Set to `json` for machine-readable logs |
 | `SYNAPSEED_SELF_TELEMETRY` | (unset) | Set to `1` to enable self-instrumentation |
-| `SYNAPSEED_VISUALIZER_PORT` | `3000` | Override the visualizer dashboard port |
