@@ -21,20 +21,21 @@ Analyze and describe the project architecture using SYNAPSEED's semantic underst
 
 ---
 
-## `visualize_architecture`
+## `analyze_architecture`
 
-Open the live dashboard and guide the user through the interactive visualization.
+Analyze project architecture health with structural metrics and recommendations.
 
 **Arguments:**
 | Name | Required | Description |
 | :--- | :--- | :--- |
-| `focus` | No | File, module, or symbol to highlight |
+| `refresh` | No | `true` to force fresh analysis, `false` (default) to use cache |
 
 **Workflow:**
-1. Read `synapseed://visualizer/url` for dashboard URL
-2. `hoist` to ensure graph data is ready
-3. Guide user to open the dashboard
-4. Explain graph features and color legend
+1. `architect` to get health analysis
+2. Read `synapseed://architect/health` for current state
+3. `consult` for architecture guidance from DNA
+4. Identify violations and coupling issues
+5. Provide actionable recommendations
 
 ---
 

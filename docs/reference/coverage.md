@@ -2,7 +2,7 @@
 
 ## Current Status
 
-📊 **267 tests passing** (up from 93 in v3.2.0)
+📊 **373 tests passing** (up from 267 in v4.14.0, 93 in v3.2.0)
 
 Coverage tracking is now enabled via GitHub Actions with `cargo-llvm-cov` and Codecov.
 
@@ -10,7 +10,7 @@ Coverage tracking is now enabled via GitHub Actions with `cargo-llvm-cov` and Co
 
 ## Philosophy
 
-Test count alone is deceptive — 267 tests include many smoke tests. **Line coverage** is the objective baseline.
+Test count alone is deceptive — 373 tests include many smoke tests. **Line coverage** is the objective baseline.
 
 Current strategy: **report-only** (no CI gate). Once baseline is established, we'll add gates incrementally.
 
@@ -61,7 +61,8 @@ Once the first coverage run completes, this table will be populated:
 | `synapseed-cortex` | ~1600 | 25 | TBD | P1 (indexing) |
 | `synapseed-search` | ~1400 | 16 | TBD | P2 |
 | `synapseed-whisper` | ~1100 | 22 | TBD | P2 |
-| `synapseed-visualizer` | ~1200 | 4 | TBD | P2 |
+| `synapseed-bench` | ~800 | 8 | TBD | P2 |
+| `synapseed-decompiler` | ~500 | 5 | TBD | P3 |
 | Others | ~6000 | 42 | TBD | P3-P4 |
 
 ---

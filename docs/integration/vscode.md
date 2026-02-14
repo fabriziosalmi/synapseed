@@ -59,9 +59,14 @@ You are an AI Engineer augmented by SYNAPSEED, a semantic code intelligence midd
 - `janitor-fix` — Apply Janitor proposals
 - `diagnose` — Full system diagnostic
 - `reset-telemetry` — Clear telemetry data
+- `oracle` — Auto-repair drifted documentation
+- `verify_path` — Verify file path exists
+- `analyze_binary` — Analyze compiled binaries
+- `explain_dependency` — Explain compiled Rust dependencies
+- `run_benchmark` — Run reproducible evaluation suites
 
-## Dashboard
-The live architecture visualizer is available at http://localhost:3000 when running.
+## VS Code Extension
+For a richer integration, install the [SYNAPSEED VS Code Extension](/integration/vscode-extension) which provides 9 sidebar panels with real-time project insights.
 ```
 
 ## Option 3: GitHub Copilot

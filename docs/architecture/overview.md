@@ -49,7 +49,7 @@ graph TD
 3. **Tool handler** invokes one or more subsystems (e.g., Cortex for indexing, Husk for scanning)
 4. **Subsystems** read/write to the shared `SynapseContext` and broadcast events
 5. **Response** is serialized back to the LLM via stdout
-6. **Side effects** (visualizer updates, telemetry) happen asynchronously via the event bus
+6. **Side effects** (telemetry collection) happen asynchronously via the event bus
 
 ## Crate Dependency Graph
 

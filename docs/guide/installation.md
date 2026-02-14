@@ -18,7 +18,7 @@ Verify installation:
 
 ```bash
 synapseed --version
-# synapseed 3.9.2
+# synapseed 4.15.0
 ```
 
 ## Release Build
@@ -37,11 +37,11 @@ cargo build
 cargo test
 ```
 
-The workspace contains 14 library crates and 1 binary crate. All tests run with:
+The workspace contains 15 library crates and 1 binary crate. All tests run with:
 
 ```bash
 cargo test
-# 267 tests across all crates
+# 373 tests across all crates
 ```
 
 ## Platform Support
@@ -65,12 +65,13 @@ synapseed/
 │   ├── husk/               # DLP, secret detection & code pattern scanning
 │   ├── root/               # Command sandbox & sentinel
 │   ├── chronos/            # Git history, temporal decay & convergence
-│   ├── search/             # Tantivy semantic search with temporal boost
+│   ├── search/             # Tantivy semantic search with embeddings
 │   ├── shadow-check/       # Background compiler
-│   ├── architect/          # Architecture analysis & density metrics
+│   ├── architect/          # Architecture analysis & health scoring
 │   ├── gym/                # Code evaluation sandbox & adversarial testing
 │   ├── janitor/            # Automated clippy & dependency cleanup
-│   ├── visualizer/         # Live dashboard (Axum + Cytoscape.js)
+│   ├── bench/              # Reproducible evaluation framework
+│   ├── decompiler/         # Binary analysis (ELF/Mach-O/PE)
 │   ├── whisper/            # Intent router
 │   ├── telemetry-sink/     # OTLP gRPC receiver
 │   └── mcp/                # MCP protocol bridge
