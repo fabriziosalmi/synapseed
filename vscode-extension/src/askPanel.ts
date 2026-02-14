@@ -1,13 +1,24 @@
 import * as vscode from 'vscode';
-import { runSynapseed } from './cli';
+import { runSynapseed, getProjectRoot } from './cli';
+
+interface ConversationEntry {
+    role: 'user' | 'assistant';
+    text: string;
+    durationMs?: number;
+    timestamp: number;
+}
 
 /**
  * Webview panel for SYNAPSEED "Ask" — renders markdown responses beautifully.
+ * v2: File drop zone, active file context, copy/export, improved markdown rendering.
  */
 export class AskPanel {
     private static instance: AskPanel | undefined;
     private readonly panel: vscode.WebviewPanel;
     private readonly extensionUri: vscode.Uri;
+    private conversation: ConversationEntry[] = [];
+    private activeFileContext: string | undefined;
+    private fileWatcher: vscode.Disposable | undefined;
 
     static show(extensionUri: vscode.Uri, query?: string): AskPanel {
         if (AskPanel.instance) {
@@ -20,12 +31,57 @@ export class AskPanel {
         return p;
     }
 
-    private constructor(extensionUri: vscode.Uri, initialQuery?: string) {
+    /** Show panel in a specific column. */
+    static showInColumn(extensionUri: vscode.Uri, column: vscode.ViewColumn, query?: string): AskPanel {
+        if (AskPanel.instance) {
+            AskPanel.instance.panel.reveal(column);
+            if (query) { AskPanel.instance.ask(query); }
+            return AskPanel.instance;
+        }
+        const p = new AskPanel(extensionUri, query, column);
+        AskPanel.instance = p;
+        return p;
+    }
+
+    /** Export conversation to markdown file. */
+    static async exportConversation(): Promise<void> {
+        if (!AskPanel.instance || AskPanel.instance.conversation.length === 0) {
+            vscode.window.showWarningMessage('No conversation to export');
+            return;
+        }
+        const lines = ['# SYNAPSEED Conversation', ''];
+        for (const entry of AskPanel.instance.conversation) {
+            const ts = new Date(entry.timestamp).toLocaleString();
+            if (entry.role === 'user') {
+                lines.push(`## 🟦 You — ${ts}`, '', entry.text, '');
+            } else {
+                const dur = entry.durationMs ? ` (${entry.durationMs}ms)` : '';
+                lines.push(`## ⚡ SYNAPSEED${dur} — ${ts}`, '', entry.text, '');
+            }
+        }
+        const uri = await vscode.window.showSaveDialog({
+            defaultUri: vscode.Uri.file('synapseed-conversation.md'),
+            filters: { Markdown: ['md'] },
+        });
+        if (uri) {
+            await vscode.workspace.fs.writeFile(uri, Buffer.from(lines.join('\n'), 'utf-8'));
+            vscode.window.showInformationMessage(`Conversation exported to ${uri.fsPath}`);
+        }
+    }
+
+    /** Clear conversation history. */
+    static clearConversation(): void {
+        if (!AskPanel.instance) { return; }
+        AskPanel.instance.conversation = [];
+        AskPanel.instance.panel.webview.postMessage({ type: 'clear' });
+    }
+
+    private constructor(extensionUri: vscode.Uri, initialQuery?: string, column?: vscode.ViewColumn) {
         this.extensionUri = extensionUri;
         this.panel = vscode.window.createWebviewPanel(
             'synapseed.ask',
             'SYNAPSEED Ask',
-            vscode.ViewColumn.Beside,
+            column ?? vscode.ViewColumn.Beside,
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,
@@ -35,25 +91,66 @@ export class AskPanel {
         this.panel.iconPath = new vscode.ThemeIcon('circuit-board');
         this.panel.webview.html = this.getHtml();
 
+        // Track active file for context
+        this.updateActiveFile();
+        this.fileWatcher = vscode.window.onDidChangeActiveTextEditor(() => this.updateActiveFile());
+
         this.panel.webview.onDidReceiveMessage(async (msg) => {
-            if (msg.type === 'ask') {
-                await this.ask(msg.query);
+            switch (msg.type) {
+                case 'ask':
+                    await this.ask(msg.query);
+                    break;
+                case 'askAboutFile':
+                    await this.ask(`analyze and explain ${msg.path}`);
+                    break;
+                case 'copy':
+                    await vscode.env.clipboard.writeText(msg.text);
+                    vscode.window.showInformationMessage('Copied to clipboard');
+                    break;
+                case 'export':
+                    await AskPanel.exportConversation();
+                    break;
+                case 'clear':
+                    AskPanel.clearConversation();
+                    break;
+                case 'openFile':
+                    try {
+                        const uri = vscode.Uri.file(msg.path);
+                        await vscode.commands.executeCommand('vscode.open', uri);
+                    } catch { /* ignore */ }
+                    break;
             }
         });
 
-        this.panel.onDidDispose(() => { AskPanel.instance = undefined; });
+        this.panel.onDidDispose(() => {
+            AskPanel.instance = undefined;
+            this.fileWatcher?.dispose();
+        });
 
         if (initialQuery) {
             setTimeout(() => this.ask(initialQuery), 300);
         }
     }
 
+    private updateActiveFile(): void {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) { return; }
+        const root = getProjectRoot() ?? '';
+        const relPath = editor.document.uri.fsPath.replace(root + '/', '');
+        if (relPath !== this.activeFileContext) {
+            this.activeFileContext = relPath;
+            this.panel.webview.postMessage({ type: 'activeFile', path: relPath });
+        }
+    }
+
     async ask(query: string): Promise<void> {
+        this.conversation.push({ role: 'user', text: query, timestamp: Date.now() });
         this.panel.webview.postMessage({ type: 'thinking', query });
 
         const result = await runSynapseed(['ask', query, '--raw'], { timeoutMs: 60_000 });
         const response = result.success ? result.stdout : `Error: ${result.stderr}`;
 
+        this.conversation.push({ role: 'assistant', text: response, durationMs: result.durationMs, timestamp: Date.now() });
         this.panel.webview.postMessage({
             type: 'response',
             query,
@@ -74,21 +171,47 @@ export class AskPanel {
         font-family: var(--vscode-font-family);
         color: var(--vscode-foreground);
         background: var(--vscode-editor-background);
-        margin: 0; padding: 16px;
+        margin: 0; padding: 0;
         line-height: 1.6;
+        display: flex; flex-direction: column; height: 100vh;
     }
     .header {
         display: flex; align-items: center; gap: 8px;
         border-bottom: 2px solid var(--vscode-focusBorder);
-        padding-bottom: 12px; margin-bottom: 16px;
+        padding: 12px 16px; flex-shrink: 0;
     }
     .header h1 {
-        margin: 0; font-size: 18px;
+        margin: 0; font-size: 18px; flex: 1;
         background: linear-gradient(135deg, #4fc3f7, #ab47bc);
         -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
+    .header-actions { display: flex; gap: 4px; }
+    .header-btn {
+        padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer;
+        background: var(--vscode-button-secondaryBackground);
+        color: var(--vscode-button-secondaryForeground);
+        font-size: 12px; opacity: 0.8; transition: opacity 0.15s;
+    }
+    .header-btn:hover { opacity: 1; }
+    .context-bar {
+        display: flex; align-items: center; gap: 8px;
+        padding: 6px 16px; font-size: 12px;
+        background: var(--vscode-textBlockQuote-background);
+        border-bottom: 1px solid var(--vscode-panel-border);
+        flex-shrink: 0;
+    }
+    .context-badge {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 2px 8px; border-radius: 10px; font-size: 11px;
+        background: var(--vscode-badge-background);
+        color: var(--vscode-badge-foreground);
+    }
+    .input-area {
+        padding: 12px 16px; flex-shrink: 0;
+        border-bottom: 1px solid var(--vscode-panel-border);
+    }
     .input-row {
-        display: flex; gap: 8px; margin-bottom: 16px;
+        display: flex; gap: 8px;
     }
     #queryInput {
         flex: 1; padding: 10px 14px;
