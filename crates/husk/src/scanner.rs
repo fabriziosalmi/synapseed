@@ -93,10 +93,10 @@ impl DlpScanner {
                 pattern: r"-----BEGIN (RSA |EC |DSA )?PRIVATE KEY-----".into(),
                 action: synapseed_core::policy::PolicyAction::Redact,
             },
-            // v4.17.1: URI-embedded credentials (postgres://user:pass@host, mongodb://, redis://, etc.)
+            // v4.17.2 (W9): URI-embedded credentials — generic protocol (catches postgres, mongodb, redis, amqp, etc.)
             DlpRule {
                 name: "uri_credentials".into(),
-                pattern: r"(?i)(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqp|ftp|ssh)://[^:/?#\s]+:[^@/?#\s]+@".into(),
+                pattern: r"(?i)[a-z][a-z0-9+.-]*://[^:/?#\s]+:[^@/?#\s]+@".into(),
                 action: synapseed_core::policy::PolicyAction::Redact,
             },
             // v4.17.1: JWT tokens (eyJ... base64 header)

@@ -23,14 +23,30 @@ pub(super) fn tool_get_diagnostics(
         .unwrap_or(MinSeverity::Warning);
 
     let snap = store.filtered_snapshot(min_severity);
-    let diagnostics = match file_filter {
+
+    // v4.17.2 (W5): Filter phantom diagnostics — paths containing .shadow, target/,
+    // or internal compiler artifacts. Only report diagnostics on user source files.
+    let is_user_file = |path: &str| -> bool {
+        !path.contains(".shadow")
+            && !path.starts_with("target/")
+            && !path.contains("/target/")
+            && !path.contains("stdlib-symbols")
+            && !path.starts_with('/')
+    };
+
+    let diagnostics: Vec<_> = match file_filter {
         Some(file) => snap
             .diagnostics
             .iter()
             .filter(|d| d.file_path == file || file.ends_with(&d.file_path))
+            .filter(|d| is_user_file(&d.file_path))
             .cloned()
             .collect(),
-        None => snap.diagnostics,
+        None => snap
+            .diagnostics
+            .into_iter()
+            .filter(|d| is_user_file(&d.file_path))
+            .collect(),
     };
 
     if diagnostics.is_empty() {

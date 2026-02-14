@@ -83,6 +83,11 @@ impl CodePatternScanner {
                 r#"`[^`]*\$\{[^}]*\}[^`]*`"#,
                 // v4.17.1: .arg() with format! or variable after sh -c (cross-line pattern)
                 r#"\.arg\s*\(\s*&?format!\s*\("#,
+                // v4.17.2 (W4/W10): Aggressive heuristic — .arg(&variable) / .args(&variable)
+                // Catches cross-line dynamic injection: let cmd = format!(...); Command::new("sh").arg(&cmd)
+                // Matches .arg(&var) but NOT .arg("literal"). May match .arg(&format!()) too,
+                // but that's already caught above (one finding per line per category).
+                r#"\.args?\s*\(\s*&[a-z_]\w*"#,
                 // v4.17.1: Python subprocess with f-string or format
                 r#"(?i)(?:subprocess\.(?:call|run|Popen)|os\.(?:system|popen))\s*\(\s*f?["']"#,
                 // v4.17.1: Python eval/exec with variable

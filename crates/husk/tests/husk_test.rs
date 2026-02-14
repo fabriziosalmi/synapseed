@@ -402,3 +402,65 @@ fn detect_python_eval_with_variable() {
         report.findings
     );
 }
+
+// ── v4.17.2 (W4/W10): Aggressive heuristic .arg(&var) ──────────────
+
+#[test]
+fn detect_command_injection_arg_ref_variable() {
+    let scanner = CodePatternScanner::new();
+    // Cross-line pattern: let cmd = format!("..."); Command::new("sh").arg(&cmd)
+    let code = r#"Command::new("sh").arg("-c").arg(&cmd)"#;
+    let report = scanner.scan(code);
+    assert!(
+        report.findings.iter().any(|f| f.category == "command_injection"),
+        "Dynamic .arg(&var) should trigger heuristic warning, findings: {:?}",
+        report.findings
+    );
+}
+
+#[test]
+fn detect_command_injection_args_ref_variable() {
+    let scanner = CodePatternScanner::new();
+    let code = r#"Command::new("ls").args(&user_args)"#;
+    let report = scanner.scan(code);
+    assert!(
+        report.findings.iter().any(|f| f.category == "command_injection"),
+        "Dynamic .args(&var) should trigger heuristic warning, findings: {:?}",
+        report.findings
+    );
+}
+
+#[test]
+fn no_false_positive_arg_string_literal() {
+    let scanner = CodePatternScanner::new();
+    // .arg("--flag") should NOT trigger — it's a safe literal
+    let code = r#"Command::new("ls").arg("--all").arg("-l")"#;
+    let report = scanner.scan(code);
+    assert!(
+        !report.findings.iter().any(|f| f.category == "command_injection"),
+        "Static .arg(\"literal\") should NOT trigger, findings: {:?}",
+        report.findings
+    );
+}
+
+// ── v4.17.2 (W9): Generic URI protocol detection ───────────────────
+
+#[test]
+fn detect_custom_protocol_uri_credentials() {
+    let guard = SecurityGuard::with_defaults();
+    // Protocols not in the old explicit list
+    let cases = [
+        ("http://admin:pass123@host.com", "http"),
+        ("https://user:secret@api.example.com", "https"),
+        ("amqps://rabbit:mq_pass@broker.io", "amqps"),
+        ("nats://user:pass@nats-server:4222", "nats"),
+        ("cockroachdb://root:pw@crdb:26257", "cockroachdb"),
+    ];
+    for (uri, protocol) in &cases {
+        let result = guard.check(uri);
+        assert!(
+            result.is_err(),
+            "{protocol}:// URI with credentials should be detected: {uri}"
+        );
+    }
+}
