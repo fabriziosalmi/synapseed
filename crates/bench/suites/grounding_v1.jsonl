@@ -1,0 +1,14 @@
+# SYNAPSEED Grounding Evaluation Suite v1
+# 10 questions from the MCP Grounding Experiment (experiments/mcp_grounding_experiment.md)
+# Format: JSONL — one JSON object per line
+# Ground truth verified against SYNAPSEED v4.15.0 codebase
+{"id":"q01_version","question":"What is the workspace version in Cargo.toml?","ground_truth":["4.15.0"],"expected_files":["Cargo.toml"],"expected_symbols":[],"difficulty":"easy","category":"factual"}
+{"id":"q02_tool_count","question":"How many canonical MCP tools are defined in the TOOL_NAMES constant?","ground_truth":["23","TOOL_NAMES"],"expected_files":["crates/mcp/src/tools/mod.rs"],"expected_symbols":["TOOL_NAMES"],"difficulty":"easy","category":"factual"}
+{"id":"q03_dlp_finding","question":"What is the name and file location of the DLP Finding struct in the husk crate?","ground_truth":["Finding","scanner"],"expected_files":["crates/husk/src/scanner.rs"],"expected_symbols":["Finding"],"difficulty":"medium","category":"structural"}
+{"id":"q04_shadow_check","question":"What cargo command and flags does the shadow-check runner use?","ground_truth":["cargo check","--quiet"],"expected_files":["crates/shadow-check/src"],"expected_symbols":[],"difficulty":"hard","category":"behavioral"}
+{"id":"q05_intent_enum","question":"What are the 5 intent categories in the whisper router Intent enum?","ground_truth":["BugFix","Security","Explain","Refactor","General"],"expected_files":["crates/whisper/src/router"],"expected_symbols":["Intent"],"difficulty":"medium","category":"structural"}
+{"id":"q06_plugin_trait","question":"What are the method signatures of the SynapsePlugin trait?","ground_truth":["name","on_init","on_event"],"expected_files":["crates/core/src"],"expected_symbols":["SynapsePlugin"],"difficulty":"medium","category":"structural"}
+{"id":"q07_code_patterns","question":"What security anti-pattern categories does the CodePatternScanner detect?","ground_truth":["sql","injection","command","path","traversal"],"expected_files":["crates/husk/src"],"expected_symbols":["CodePatternScanner"],"difficulty":"medium","category":"behavioral"}
+{"id":"q08_gym_sandbox","question":"How does the Gym sandbox prevent network access during code evaluation?","ground_truth":["offline","net"],"expected_files":["crates/gym/src"],"expected_symbols":[],"difficulty":"hard","category":"behavioral"}
+{"id":"q09_fuzzy_match","question":"How does the MCP server handle fuzzy tool name matching in handle_tool_call?","ground_truth":["Levenshtein","resolve_tool_name","TOOL_NAMES"],"expected_files":["crates/mcp/src/tools/mod.rs"],"expected_symbols":["resolve_tool_name","handle_tool_call"],"difficulty":"hard","category":"behavioral"}
+{"id":"q10_debounce","question":"What are the adaptive debounce parameters used in the shadow-check background loop?","ground_truth":["debounce","background"],"expected_files":["crates/shadow-check/src"],"expected_symbols":[],"difficulty":"hard","category":"behavioral"}

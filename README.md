@@ -129,7 +129,7 @@ Features: 9 sidebar panels (Status, Metrics, Diagnostics, Architecture, Git, Sec
 │  └─────────┘  └──────┘  └─────┘  └────────┘  └─────┘              │
 │                                                                      │
 └──────────────────────────────────────────────────────────────────────┘
-   14 crates · Plugin architecture · Priority-based init · HCI-tuned
+   17 crates · Plugin architecture · Priority-based init · HCI-tuned
 ```
 
 ```mermaid
@@ -168,11 +168,13 @@ graph LR
 | `synapseed-gym` | RL sandbox — safe code evaluation with compilation + test feedback |
 | `synapseed-janitor` | Autonomous maintenance — clippy + unused deps, validated proposals |
 | `synapseed-architect` | Dependency graph, coupling metrics, cycle detection, scoring (A-F) |
-| `synapseed-mcp` | MCP protocol handler — 21 tools, 10 resources, 6 prompts |
+| `synapseed-decompiler` | Neural Decompiler — ELF/Mach-O/PE binary analysis, symbol extraction, behavioral inference |
+| `synapseed-bench` | Benchmark engine — reproducible SCR evaluation with JSONL question suites |
+| `synapseed-mcp` | MCP protocol handler — 24 tools, 10 resources, 6 prompts |
 
 ---
 
-## MCP Tools (21)
+## MCP Tools (24)
 
 | Tool | Tier | CLI Alias | Description |
 | :--- | :--- | :--- | :--- |
@@ -197,6 +199,9 @@ graph LR
 | `oracle` | SPECIALIZED | `oracle_fix_docs` | Auto-repair drifted documentation (version, counts) |
 | `similar` | SPECIALIZED | `semantic_similarity` | Vector embedding similarity search |
 | `verify_path` | LOW-LEVEL | `verify_path` | Verify file path exists (prevents LLM hallucination) |
+| `analyze_binary` | SPECIALIZED | `neural_decompiler` | Analyze ELF/Mach-O/PE binaries (symbols, strings, call graph) |
+| `explain_dependency` | SPECIALIZED | — | Explain a compiled Rust dependency by binary analysis |
+| `run_benchmark` | SPECIALIZED | `benchmark` | Run reproducible SCR evaluation suite (F1, SID, hallucination rate) |
 
 ## MCP Resources (10)
 

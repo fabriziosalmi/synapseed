@@ -17,6 +17,7 @@ parking_lot = {workspace = true}
 serde = {workspace = true}
 serde_json = {workspace = true}
 synapseed-architect = {workspace = true}
+synapseed-bench = {workspace = true}
 synapseed-chronos = {workspace = true}
 synapseed-core = {workspace = true}
 synapseed-cortex = {workspace = true}

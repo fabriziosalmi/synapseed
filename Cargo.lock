@@ -3422,6 +3422,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "synapseed-bench"
+version = "4.15.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "synapseed-core",
+ "synapseed-whisper",
+ "tempfile",
+ "tracing",
+]
+
+[[package]]
 name = "synapseed-chronos"
 version = "4.15.0"
 dependencies = [
@@ -3575,6 +3588,7 @@ dependencies = [
  "serde",
  "serde_json",
  "synapseed-architect",
+ "synapseed-bench",
  "synapseed-chronos",
  "synapseed-core",
  "synapseed-cortex",

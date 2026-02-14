@@ -13,6 +13,7 @@
 //! - **LOW-LEVEL**: Granular access to subsystems
 
 mod architect;
+mod bench;
 mod decompile;
 mod diagnose;
 mod diagnostics;
@@ -62,7 +63,7 @@ fn rw(destructive: bool) -> Option<ToolAnnotations> {
 
 // ── Schema registry ─────────────────────────────────────────────────
 
-/// Return all 23 MCP tool definitions.
+/// Return all 24 MCP tool definitions.
 ///
 /// Tools: ask (primary entry point for natural-language queries), search, lookup,
 /// scan, check, hoist, blame, analyze, diagnostics, quickfix, diagnose, consult,
@@ -534,6 +535,34 @@ pub fn list_tools() -> Vec<ToolDefinition> {
             }),
             annotations: ro(),
         },
+
+        // ════════════════════════════════════════════════════════
+        // SPECIALIZED — Benchmark Engine (SCR evaluation)
+        // ════════════════════════════════════════════════════════
+        ToolDefinition {
+            name: "run_benchmark".into(),
+            description: "SPECIALIZED — Run a reproducible benchmark suite against the `ask` orchestrator. \
+                Loads a JSONL question suite (question + ground_truth + difficulty), invokes `ask` for each question \
+                via direct Rust API, scores responses, and returns a report with F1, SCR (Semantic Compression Ratio), \
+                SID correlation, precision, recall, and hallucination rate.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "suite_path": {
+                        "type": "string",
+                        "description": "Path to a JSONL question suite file (absolute, project-relative, or filename in crates/bench/suites/)"
+                    },
+                    "format": {
+                        "type": "string",
+                        "description": "Output format: 'summary' (default, markdown + JSON) or 'json' (raw JSON report)",
+                        "enum": ["summary", "json"],
+                        "default": "summary"
+                    }
+                },
+                "required": ["suite_path"]
+            }),
+            annotations: ro(),
+        },
     ]
 }
 
@@ -545,6 +574,7 @@ const TOOL_NAMES: &[&str] = &[
     "search", "diagnostics", "analyze", "quickfix", "ask", "intent",
     "train", "reset-telemetry", "janitor", "janitor-fix", "architect",
     "oracle", "similar", "verify_path", "analyze_binary", "explain_dependency",
+    "run_benchmark",
 ];
 
 /// Resolve a tool name: canonical names pass through, legacy names are mapped.
@@ -574,6 +604,7 @@ fn resolve_tool_name(name: &str) -> Option<&'static str> {
         "verify_path" => Some("verify_path"),
         "analyze_binary" => Some("analyze_binary"),
         "explain_dependency" => Some("explain_dependency"),
+        "run_benchmark" => Some("run_benchmark"),
         // ── Legacy aliases (backward-compat) ────────────────────
         "get_code_skeleton" => Some("hoist"),
         "lookup_symbol" => Some("lookup"),
@@ -596,6 +627,7 @@ fn resolve_tool_name(name: &str) -> Option<&'static str> {
         "oracle_fix_docs" => Some("oracle"),
         "semantic_similarity" => Some("similar"),
         "decompile" | "neural_decompiler" => Some("analyze_binary"),
+        "benchmark" | "bench" | "eval" | "evaluate" => Some("run_benchmark"),
         _ => None,
     }
 }
@@ -657,7 +689,9 @@ fn dispatch_tool_inner(
         "verify_path" => verify::tool_verify_path(args, ctx),
         "analyze_binary" => decompile::tool_analyze_binary(args, ctx),
         "explain_dependency" => decompile::tool_explain_dependency(args, ctx),
+        "run_benchmark" => bench::tool_run_benchmark(args, ctx),
         _ => error_result(format!("Internal dispatch error: unknown canonical tool '{canonical}'")),
+
 
     }
 }
