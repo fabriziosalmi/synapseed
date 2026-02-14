@@ -189,7 +189,6 @@ impl TokenStream for CodeTokenStream {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tantivy::tokenizer::Tokenizer as _;
 
     fn tokenize(text: &str) -> Vec<String> {
         let mut tokenizer = CodeTokenizer;

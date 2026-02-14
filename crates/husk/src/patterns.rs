@@ -81,6 +81,12 @@ impl CodePatternScanner {
                 r#"(?i)"sh"\s*,\s*"-c"\s*,\s*&?format!\s*\("#,
                 // Backtick command substitution with variable
                 r#"`[^`]*\$\{[^}]*\}[^`]*`"#,
+                // v4.17.1: .arg() with format! or variable after sh -c (cross-line pattern)
+                r#"\.arg\s*\(\s*&?format!\s*\("#,
+                // v4.17.1: Python subprocess with f-string or format
+                r#"(?i)(?:subprocess\.(?:call|run|Popen)|os\.(?:system|popen))\s*\(\s*f?["']"#,
+                // v4.17.1: Python eval/exec with variable
+                r#"(?i)(?:eval|exec)\s*\(\s*(?:f["']|\w+\s*\+)"#,
             ]),
             path_patterns: compile_patterns(&[
                 // Path/PathBuf join with unvalidated user input

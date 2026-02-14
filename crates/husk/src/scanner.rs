@@ -85,12 +85,30 @@ impl DlpScanner {
             },
             DlpRule {
                 name: "generic_secret".into(),
-                pattern: r#"(?i)(password|secret|token|api_key)\s*[:=]\s*["']?[^\s"']{8,}"#.into(),
+                pattern: r#"(?i)(password|secret|token|api_key|access_key|client_secret|auth_token|bearer|credentials|private_key|signing_key)\s*[:=]\s*["']?[^\s"']{8,}"#.into(),
                 action: synapseed_core::policy::PolicyAction::Redact,
             },
             DlpRule {
                 name: "private_key".into(),
                 pattern: r"-----BEGIN (RSA |EC |DSA )?PRIVATE KEY-----".into(),
+                action: synapseed_core::policy::PolicyAction::Redact,
+            },
+            // v4.17.1: URI-embedded credentials (postgres://user:pass@host, mongodb://, redis://, etc.)
+            DlpRule {
+                name: "uri_credentials".into(),
+                pattern: r"(?i)(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqp|ftp|ssh)://[^:/?#\s]+:[^@/?#\s]+@".into(),
+                action: synapseed_core::policy::PolicyAction::Redact,
+            },
+            // v4.17.1: JWT tokens (eyJ... base64 header)
+            DlpRule {
+                name: "jwt_token".into(),
+                pattern: r"eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}".into(),
+                action: synapseed_core::policy::PolicyAction::Redact,
+            },
+            // v4.17.1: Slack webhook URLs
+            DlpRule {
+                name: "slack_webhook".into(),
+                pattern: r"https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]+".into(),
                 action: synapseed_core::policy::PolicyAction::Redact,
             },
         ];

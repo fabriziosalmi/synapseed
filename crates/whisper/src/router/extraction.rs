@@ -220,6 +220,14 @@ pub(super) fn expand_synonyms(term: &str) -> Vec<String> {
         ("symbol", &["token", "identifier", "name"]),
         ("inject", &["injection", "provide", "supply"]),
         ("extract", &["extraction", "parse", "pull"]),
+        // v4.17.1: fix W1 — "how does search ranking work" must find score_results
+        ("ranking", &["score", "scoring", "rank", "weight", "boost", "sort"]),
+        ("score", &["ranking", "scoring", "weight", "boost"]),
+        ("weight", &["boost", "scoring", "factor", "coefficient"]),
+        ("boost", &["weight", "factor", "amplify"]),
+        ("plugin", &["extension", "module", "addon"]),
+        ("sandbox", &["isolate", "isolation", "jail", "container"]),
+        ("gym", &["sandbox", "evaluate", "train"]),
     ];
 
     for &(key, values) in SYNONYM_PAIRS {

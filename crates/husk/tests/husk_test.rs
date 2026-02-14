@@ -291,3 +291,114 @@ Command::new(&format!("rm {}", path));
         .count();
     assert!(high_count >= 1, "Should have at least 1 high-confidence finding");
 }
+
+// ── v4.17.1: URI Credential Detection ────────────────────────────────
+
+#[test]
+fn detect_postgres_uri_credentials() {
+    let guard = SecurityGuard::with_defaults();
+    let content = r#"DATABASE_URL = "postgresql://admin:s3cret_pass@db.example.com:5432/prod""#;
+    let result = guard.check(content);
+    assert!(result.is_err(), "PostgreSQL URI with embedded password should be detected");
+}
+
+#[test]
+fn detect_mongodb_uri_credentials() {
+    let guard = SecurityGuard::with_defaults();
+    let content = r#"MONGO_URL = "mongodb+srv://root:hunter2@cluster0.abc123.mongodb.net/test""#;
+    let result = guard.check(content);
+    assert!(result.is_err(), "MongoDB URI with embedded password should be detected");
+}
+
+#[test]
+fn detect_redis_uri_credentials() {
+    let guard = SecurityGuard::with_defaults();
+    let content = r#"REDIS_URL = "redis://default:mypassword@redis.example.com:6379""#;
+    let result = guard.check(content);
+    assert!(result.is_err(), "Redis URI with embedded password should be detected");
+}
+
+#[test]
+fn clean_uri_without_credentials_passes() {
+    let guard = SecurityGuard::with_defaults();
+    let content = r#"DATABASE_URL = "postgresql://db.example.com:5432/prod""#;
+    let result = guard.check(content);
+    assert!(result.is_ok(), "URI without credentials should pass DLP check");
+}
+
+#[test]
+fn detect_jwt_token() {
+    let guard = SecurityGuard::with_defaults();
+    // Valid JWT structure: header.payload.signature (all base64url)
+    let content = "token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U";
+    let result = guard.check(content);
+    assert!(result.is_err(), "JWT token should be detected");
+}
+
+#[test]
+fn detect_slack_webhook_url() {
+    let guard = SecurityGuard::with_defaults();
+    // Build URL at runtime to avoid triggering GitHub push protection
+    let url = format!(
+        "WEBHOOK = https://hooks.slack.com/services/{}/{}/{}",
+        "T00000000", "B00000000", "XXXXXXXXXXXXXXXXXXXXXXXX"
+    );
+    let result = guard.check(&url);
+    assert!(result.is_err(), "Slack webhook URL should be detected");
+}
+
+#[test]
+fn detect_expanded_generic_secret_keywords() {
+    let guard = SecurityGuard::with_defaults();
+
+    let cases = vec![
+        (r#"access_key = "AKIAIOSFODNN7testtest""#, "access_key"),
+        (r#"client_secret = "abcdefghij1234567890""#, "client_secret"),
+        (r#"auth_token = "tok_live_1234567890abcdef""#, "auth_token"),
+        (r#"bearer = "eyToken1234567890abcdef""#, "bearer"),
+        (r#"signing_key = "whsec_abcdefghijklmnop""#, "signing_key"),
+    ];
+
+    for (content, label) in cases {
+        let result = guard.check(content);
+        assert!(result.is_err(), "{} assignment should be detected as secret", label);
+    }
+}
+
+// ── v4.17.1: Command Injection .arg(format!()) ──────────────────────
+
+#[test]
+fn detect_command_injection_arg_format() {
+    let scanner = CodePatternScanner::new();
+    let code = r#"Command::new("sh").arg("-c").arg(&format!("ls {}", user_input));"#;
+    let report = scanner.scan(code);
+    assert!(
+        report.findings.iter().any(|f| f.category == "command_injection"),
+        "Command injection via .arg(format!()) should be detected, findings: {:?}",
+        report.findings
+    );
+}
+
+#[test]
+fn detect_python_subprocess_f_string() {
+    let scanner = CodePatternScanner::new();
+    let code = r#"subprocess.call(f"rm -rf {path}")"#;
+    let report = scanner.scan(code);
+    assert!(
+        report.findings.iter().any(|f| f.category == "command_injection"),
+        "Python subprocess f-string should be detected, findings: {:?}",
+        report.findings
+    );
+}
+
+#[test]
+fn detect_python_eval_with_variable() {
+    let scanner = CodePatternScanner::new();
+    let code = r#"eval(user_input + ".method()")"#;
+    let report = scanner.scan(code);
+    assert!(
+        report.findings.iter().any(|f| f.category == "command_injection"),
+        "Python eval with variable concatenation should be detected, findings: {:?}",
+        report.findings
+    );
+}

@@ -181,7 +181,7 @@ mod tests {
 
         // Score without ctx (hallucination check needs real fs)
         let facts_matched = 1usize;
-        let facts_total = 1usize;
+        let _facts_total = 1usize;
         let precision: f64 = 1.0;
         let recall: f64 = 1.0;
         let f1: f64 = 1.0;
