@@ -170,7 +170,7 @@ graph LR
 | `synapseed-architect` | Dependency graph, coupling metrics, cycle detection, scoring (A-F) |
 | `synapseed-decompiler` | Neural Decompiler — ELF/Mach-O/PE binary analysis, symbol extraction, behavioral inference |
 | `synapseed-bench` | Benchmark engine — reproducible SCR evaluation with JSONL question suites |
-| `synapseed-mcp` | MCP protocol handler — 24 tools, 10 resources, 6 prompts |
+| `synapseed-mcp` | MCP protocol handler — 24 tools, 11 resources, 6 prompts |
 
 ---
 
@@ -203,7 +203,7 @@ graph LR
 | `explain_dependency` | SPECIALIZED | — | Explain a compiled Rust dependency by binary analysis |
 | `run_benchmark` | SPECIALIZED | `benchmark` | Run reproducible SCR evaluation suite (F1, SID, hallucination rate) |
 
-## MCP Resources (9)
+## MCP Resources (11)
 
 | URI | Description |
 | :--- | :--- |
@@ -211,10 +211,12 @@ graph LR
 | `synapseed://dna` | Project DNA configuration |
 | `synapseed://security/policy` | Active security policy rules |
 | `synapseed://diagnostics/active` | Current compiler diagnostics |
+| `synapseed://visualizer/url` | Telemetry visualizer dashboard URL |
 | `synapseed://telemetry/hotspots` | Top-10 performance hotspots from OTLP spans |
 | `synapseed://janitor/proposals` | Janitor fix proposals |
 | `synapseed://architect/health` | Architecture health score and violations |
 | `synapseed://consistency` | Consistency Oracle report (drift detection) |
+| `synapseed://session/recorder` | Flight Recorder — session memory with working set and journey map |
 | `synapseed://context/active` | Dynamic project briefing (preload for instant situational awareness) |
 
 ## MCP Prompts (6)

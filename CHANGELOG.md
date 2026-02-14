@@ -1,5 +1,78 @@
 # Changelog
 
+## [4.18.0] — 2026-02-14
+
+### Il Registratore — Flight Recorder & Session Memory
+
+New **Flight Recorder** system provides dual-track session memory, capturing the full
+arc of a coding session — what happened, when, and why.
+
+#### Flight Recorder Core (`crates/core/src/recorder.rs`)
+- **Via 1 — Working Set**: Circular buffer of last 20 events with timestamps, kinds, and details.
+- **Via 2 — Journey Map**: Compressed timeline of context shifts with automatic activity
+  classification (Exploring / Coding / Debugging / Hardening / Mixed).
+- **Loop Detection**: Flags repeated tool→file patterns that suggest the LLM is stuck.
+- **Causal Links**: `dep_hints` from Architect's dependency graph enable cross-module
+  correlation of file changes.
+- 12 unit tests covering recording, phases, loops, idle timeout, markdown rendering, JSON serialization.
+
+#### System Wiring
+- **Tool Dispatch**: Every tool call recorded as `EventKind::ToolCall` with result preview.
+- **EventBus Subscriber**: Background task forwards `FileChanged`, `SymbolResolved`,
+  `DiagnosticUpdated` events to the recorder via `spawn_recorder_subscriber()`.
+- **MCP Resource**: New `synapseed://session/recorder` — JSON snapshot of session state.
+- **Context Injection**: `synapseed://context/active` now includes `flight_recorder`
+  summary (total events, phase count, current phase, loop alerts).
+- **Architect Dep Hints**: `DependencyGraph.dep_pairs()` feeds module dependency pairs
+  to the recorder for causal link detection.
+
+#### Bug Fixes (v4.17.0 hardening)
+- **Conservative Boosting**: `ask` query expansion now uses `original^3`, `synonym^0.5`
+  with max 2 synonyms — prevents synonym dilution (P1 from benchmark).
+- **Phantom Diagnostics**: Shadow compiler filters stale diagnostics for deleted files;
+  `Deleted` file events now trigger recheck.
+- **Ask Diagnostic Context**: Fixed field name mismatch (`file`→`file_path`, `line`→`line_start`)
+  and always merges global errors into scoped results.
+- **`.arg(&var)` Heuristic**: Husk DLP now skips common Rust builder-pattern calls
+  (`.arg()`, `.env()`, `.header()`, `.query()`) to avoid false positives.
+- **Generic URI Regex**: Broadened URI detection to catch non-http schemes.
+
+#### Benchmark Results (Qwen3 1.7B — Coding)
+| Metric | BLIND | SYNAPSEED | Delta |
+| :--- | :--- | :--- | :--- |
+| Easy | 0.80 | 0.90 | +0.10 |
+| Medium | 0.39 | 0.76 | +0.37 |
+| Hard | 0.16 | 0.73 | +0.57 |
+| **Mean** | **0.448** | **0.796** | **+0.348** |
+
+#### Counts
+- 24 tools, 11 resources, 6 prompts
+- 44 test suites, 0 failures
+
+## [4.17.0] — 2026-02-14
+
+### L'Intelligenza — DLP, Synonyms, Security & Benchmark Engine
+
+Self-improvement cycle driven by SYNAPSEED-on-SYNAPSEED analysis. 10 weaknesses
+identified, all fixed. Added benchmark engine and neural decompiler.
+
+#### Features
+- **Benchmark Engine** (`synapseed-bench`): Reproducible SCR evaluation with JSONL
+  question suites, F1/SID/hallucination scoring.
+- **Neural Decompiler** (`synapseed-decompiler`): ELF/Mach-O/PE binary analysis with
+  symbol extraction, strings, call graph, and behavioral inference.
+- **VS Code Extension v0.3.0**: Drag-and-drop panels, tabbed dashboard, enriched Ask panel.
+
+#### Counts
+- 24 tools, 10 resources, 6 prompts
+
+## [4.16.0] — 2026-02-14
+
+### Il Decompilatore — Binary Analysis & Benchmark Engine
+
+- **Neural Decompiler**: New `synapseed-decompiler` crate for ELF/Mach-O/PE analysis.
+- **Benchmark Engine**: New `synapseed-bench` crate for reproducible evaluation suites.
+
 ## [4.15.0] — 2026-02-14
 
 ### La Precisione — Search Dedup, Enum Expansion & VS Code Extension
