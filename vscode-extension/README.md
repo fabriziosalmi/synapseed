@@ -6,7 +6,7 @@ Real-time metrics, diagnostics, architecture health, and project insights from *
 
 ### Sidebar Panel
 
-The SYNAPSEED icon in the Activity Bar opens a dedicated panel with 8 views:
+The SYNAPSEED icon in the Activity Bar opens a dedicated panel with 9 views:
 
 | View | Data Source | Description |
 | :--- | :--- | :--- |
@@ -18,6 +18,7 @@ The SYNAPSEED icon in the Activity Bar opens a dedicated panel with 8 views:
 | **Security** | `synapseed scan` + `check` + `status` | DLP engine status, sentinel stats, blocks/denials |
 | **Consistency** | `synapseed diagnose` + `oracle` | Oracle score, documentation drift detection |
 | **Janitor Proposals** | `synapseed janitor` | Clippy warnings, unused deps, fix proposals |
+| **Telemetry** | `synapseed status` + OTLP | Performance hotspots, span metrics, heatmap |
 
 ### Commands
 

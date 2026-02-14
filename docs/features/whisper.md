@@ -141,6 +141,18 @@ When compiler diagnostics exist, the `smart_context` includes up to **10 actual 
 
 Search result scores propagate through `Target.score`, enabling rank-aware deduplication (Sort First, Cut Later with `HashSet`) and context ordering. Targets from non-search sources (AST, diagnostics) carry `score: None` and sort by source priority.
 
+### Enum & Constant Context Expansion
+
+When injecting raw source code, the line range is automatically expanded for certain symbol kinds:
+
+| Symbol Kind | Extra Lines | Rationale |
+| :--- | :--- | :--- |
+| `Enum` | +25 | Capture all enum variants |
+| `Constant` | +15 | Capture full constant definitions |
+| Others | 0 | Standard range |
+
+This ensures the LLM sees the complete definition — not just the type header — for enums with many variants or grouped constant blocks.
+
 ### Score-Ordered Raw Source Injection
 
 When injecting raw source code (Direct Symbol Injection), targets are sorted by composite search score **descending** before processing. This ensures the most relevant symbols always get budget priority. The injection pipeline uses three strategies:

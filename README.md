@@ -93,6 +93,18 @@ Add to `.vscode/mcp.json`:
 
 See the [full integration guides](docs/integration/) for system prompt templates and advanced configuration.
 
+### VS Code Extension
+
+Install the SYNAPSEED extension for real-time metrics, diagnostics, and architecture health directly in the VS Code sidebar.
+
+```bash
+cd vscode-extension
+npm install && npm run package
+code --install-extension synapseed-0.1.0.vsix
+```
+
+Features: 9 sidebar panels (Status, Metrics, Diagnostics, Architecture, Git, Security, Consistency, Janitor, Telemetry), auto-refresh on save, status bar integration. See the [extension README](vscode-extension/README.md) for details.
+
 ---
 
 ## Architecture

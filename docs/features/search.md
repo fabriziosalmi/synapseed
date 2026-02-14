@@ -47,6 +47,23 @@ Search uses a progressive three-tier cascade to maximize recall without sacrific
 
 Each tier only activates if the previous tier didn't return enough results.
 
+## Result Deduplication
+
+After scoring, results are deduplicated by `(symbol, file)` pair. When multiple search tiers (BM25, prefix, fuzzy) match the same symbol, only the highest-scored entry is retained. This prevents result lists cluttered with duplicates like `DlpScanner` ×2 or `MomentumEngine` ×3.
+
+## Metadata File Indexing
+
+SYNAPSEED indexes project metadata files as searchable pseudo-documents:
+
+| File | Pseudo-Symbol | Searchable Content |
+| :--- | :--- | :--- |
+| `Cargo.toml` | `workspace_config` | Workspace dependencies, features, build config |
+| `LICENSE` | `project_license` | License text and type |
+| `.cargo/config.toml` | `cargo_config` | Cargo build configuration |
+| `rust-toolchain.toml` | `rust_toolchain` | Rust toolchain version and components |
+
+This enables queries like "license", "Rust toolchain version", or "workspace dependencies" to return meaningful results.
+
 ## Scoring Model
 
 Search results are scored using an **additive normalized model** with 8 weighted features, all min-max normalized to [0, 1]:

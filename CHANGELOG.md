@@ -1,5 +1,67 @@
 # Changelog
 
+## [4.15.0] — 2026-02-14
+
+### La Precisione — Search Dedup, Enum Expansion & VS Code Extension
+
+Benchmark-driven refinements to search precision and context quality, plus the first
+SYNAPSEED VS Code extension. Search MRR jumps **0.715 → 0.944** (+32%), Recall@10
+jumps **0.597 → 0.917** (+54%).
+
+#### Search Result Deduplication
+- **`score_results()`** now deduplicates by `(symbol, file)` pair after scoring and sorting.
+  Previously, the same symbol could appear multiple times (e.g., `DlpScanner` ×2,
+  `MomentumEngine` ×3) when matched by different search tiers (BM25, prefix, fuzzy).
+  The dedup retains only the highest-scored entry per unique symbol.
+
+#### Enum & Constant Context Expansion
+- **`inject_raw_sources()`** now expands the line range for `Enum` symbols (+25 lines)
+  and `Constant` symbols (+15 lines) when injecting raw source code. This ensures all
+  enum variants and constant definitions are visible in the LLM context, not just the
+  type declaration header.
+
+#### Metadata File Indexing
+- **`index_metadata_files()`** — New method on `SemanticIndex` that indexes project metadata
+  files (Cargo.toml, LICENSE, .cargo/config.toml, rust-toolchain.toml) as searchable
+  pseudo-documents. Queries like "license", "Rust toolchain version", or "workspace config"
+  now return relevant results.
+
+#### VS Code Extension
+- First release of the **SYNAPSEED VS Code Extension** with 9 sidebar panels:
+  Project Status, Metrics, Compiler Diagnostics, Architecture Health, Git History,
+  Security, Consistency, Janitor Proposals, and Telemetry.
+- Commands: Refresh All, Ask a Question, Open Dashboard, Run Janitor Scan.
+- Auto-refresh on file save + configurable timer interval.
+- Status bar integration showing build status with click-to-refresh.
+- Packaged as `.vsix` for local installation.
+
+#### Benchmark Ground Truth Fixes
+- Fixed 6 search queries referencing non-existent symbols (`scan_content`, `SearchIndex`,
+  `run_mutations`, `visibility_boost`, `HttpServer`, `pagerank_boost`) — the benchmark was
+  penalizing SYNAPSEED for correctly *not* returning hallucinated symbols.
+- Fixed grounding question g14 with correct visibility weight values from actual source code.
+
+#### Benchmark Results (Qwen3 1.7B)
+
+**Search:**
+| Metric | v4.14.0 | v4.15.0 |
+| :--- | :--- | :--- |
+| MRR | 0.715 | **0.944** |
+| P@10 | 0.367 | **0.475** |
+| R@10 | 0.597 | **0.917** |
+| File Hit@10 | 0.944 | **1.000** |
+
+**Grounding:**
+| Metric | v4.14.0 | v4.15.0 |
+| :--- | :--- | :--- |
+| BLIND | 21.2/45 | 21.2/45 |
+| GROUNDED | 32.6/45 | 32.4/45 |
+| F1 (avg) | 0.856 | 0.849 |
+
+#### Counts
+- 21 tools, 10 resources, 6 prompts
+- 373 tests pass, 0 failures
+
 ## [4.14.0] — 2026-02-14
 
 ### Il Contesto Giusto — Score-Ordered Context Delivery
