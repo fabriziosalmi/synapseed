@@ -203,12 +203,12 @@ fn test_tool_call_diagnose() {
 // ══════════════════════════════════════════════════════════════
 
 #[test]
-fn test_list_tools_returns_all_21_tools() {
+fn test_list_tools_returns_all_24_tools() {
     let tools = tools::list_tools();
     assert_eq!(
         tools.len(),
-        21,
-        "Expected 21 tools, got {}",
+        24,
+        "Expected 24 tools, got {}",
         tools.len()
     );
 }
@@ -221,7 +221,8 @@ fn test_list_tools_contains_expected_names() {
         "hoist", "lookup", "scan", "check", "blame", "diagnose", "consult",
         "search", "diagnostics", "analyze", "quickfix", "ask", "intent",
         "train", "reset-telemetry", "janitor", "janitor-fix", "architect",
-        "oracle", "similar",
+        "oracle", "similar", "analyze_binary", "explain_dependency",
+        "run_benchmark",
     ];
     for name in &expected {
         assert!(

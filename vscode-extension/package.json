@@ -2,7 +2,7 @@
     "name": "synapseed",
     "displayName": "SYNAPSEED",
     "description": "Semantic AI middleware for code intelligence — AST analysis, security scanning, architecture health, git history, and more. Directly in VS Code.",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "publisher": "fabriziosalmi",
     "license": "Apache-2.0",
     "repository": {
@@ -54,7 +54,8 @@
                 },
                 {
                     "id": "synapseed.metrics",
-                    "name": "Metrics"
+                    "name": "Metrics",
+                    "visibility": "visible"
                 },
                 {
                     "id": "synapseed.diagnostics",
@@ -154,8 +155,20 @@
                 "category": "SYNAPSEED"
             },
             {
+                "command": "synapseed.openAskPanel",
+                "title": "Open Ask Panel",
+                "icon": "$(comment-discussion)",
+                "category": "SYNAPSEED"
+            },
+            {
                 "command": "synapseed.askAboutSymbol",
                 "title": "Ask About Symbol",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.askAboutActiveFile",
+                "title": "Ask About Active File",
+                "icon": "$(file-code)",
                 "category": "SYNAPSEED"
             },
             {
@@ -216,6 +229,40 @@
                 "title": "Initialize Project",
                 "icon": "$(rocket)",
                 "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.exportConversation",
+                "title": "Export Conversation",
+                "icon": "$(export)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.clearConversation",
+                "title": "Clear Conversation",
+                "icon": "$(clear-all)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.moveAskBeside",
+                "title": "Move Ask Panel: Beside Editor",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.moveAskCenter",
+                "title": "Move Ask Panel: Center",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.focusSidebar",
+                "title": "Focus Sidebar",
+                "icon": "$(layout-sidebar-left)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.cyclePanels",
+                "title": "Switch Panel...",
+                "icon": "$(window)",
+                "category": "SYNAPSEED"
             }
         ],
         "keybindings": [
@@ -252,6 +299,18 @@
                 "command": "synapseed.refresh",
                 "key": "ctrl+shift+r",
                 "mac": "cmd+shift+r"
+            },
+            {
+                "command": "synapseed.cyclePanels",
+                "key": "ctrl+shift+p",
+                "mac": "cmd+shift+p",
+                "when": "false"
+            },
+            {
+                "command": "synapseed.askAboutActiveFile",
+                "key": "ctrl+shift+.",
+                "mac": "cmd+shift+.",
+                "when": "editorTextFocus"
             }
         ],
         "menus": {
@@ -329,6 +388,11 @@
                     "command": "synapseed.blameCurrentFile",
                     "group": "navigation",
                     "when": "resourceLangId == rust"
+                },
+                {
+                    "command": "synapseed.askAboutActiveFile",
+                    "group": "navigation@2",
+                    "when": "resourceLangId =~ /rust|python|typescript/"
                 }
             ],
             "explorer/context": [
@@ -336,6 +400,10 @@
                     "command": "synapseed.analyzeFile",
                     "group": "synapseed@1",
                     "when": "resourceLangId == rust"
+                },
+                {
+                    "command": "synapseed.askAboutActiveFile",
+                    "group": "synapseed@2"
                 }
             ]
         },

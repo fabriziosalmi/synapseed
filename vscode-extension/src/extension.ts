@@ -6,6 +6,7 @@ import { SynapseedCodeLensProvider } from './codelens';
 import { SynapseedFileDecorator } from './fileDecorator';
 import { AskPanel } from './askPanel';
 import { DashboardPanel } from './dashboard';
+import { createDragDropController } from './dragDrop';
 import { StatusProvider } from './providers/statusProvider';
 import { MetricsProvider } from './providers/metricsProvider';
 import { DiagnosticsProvider } from './providers/diagnosticsProvider';
@@ -54,18 +55,28 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.registerFileDecorationProvider(fileDecorator),
     );
 
-    // ── Tree Views ───────────────────────────────────────────────────
-    context.subscriptions.push(
-        vscode.window.registerTreeDataProvider('synapseed.status', statusProvider),
-        vscode.window.registerTreeDataProvider('synapseed.metrics', metricsProvider),
-        vscode.window.registerTreeDataProvider('synapseed.diagnostics', diagnosticsProvider),
-        vscode.window.registerTreeDataProvider('synapseed.architecture', architectureProvider),
-        vscode.window.registerTreeDataProvider('synapseed.git', gitProvider),
-        vscode.window.registerTreeDataProvider('synapseed.security', securityProvider),
-        vscode.window.registerTreeDataProvider('synapseed.consistency', consistencyProvider),
-        vscode.window.registerTreeDataProvider('synapseed.janitor', janitorProvider),
-        vscode.window.registerTreeDataProvider('synapseed.telemetry', telemetryProvider),
-    );
+    // ── Tree Views (with drag-and-drop support) ────────────────────────
+    const dndController = createDragDropController();
+    const treeViewDefs: [string, vscode.TreeDataProvider<any>][] = [
+        ['synapseed.status', statusProvider],
+        ['synapseed.metrics', metricsProvider],
+        ['synapseed.diagnostics', diagnosticsProvider],
+        ['synapseed.architecture', architectureProvider],
+        ['synapseed.git', gitProvider],
+        ['synapseed.security', securityProvider],
+        ['synapseed.consistency', consistencyProvider],
+        ['synapseed.janitor', janitorProvider],
+        ['synapseed.telemetry', telemetryProvider],
+    ];
+    for (const [id, provider] of treeViewDefs) {
+        const tv = vscode.window.createTreeView(id, {
+            treeDataProvider: provider,
+            dragAndDropController: dndController,
+            canSelectMany: true,
+            showCollapseAll: true,
+        });
+        context.subscriptions.push(tv);
+    }
 
     // ── Commands ─────────────────────────────────────────────────────
     const commands: [string, (...args: any[]) => any][] = [
@@ -97,6 +108,54 @@ export function activate(context: vscode.ExtensionContext) {
                 placeHolder: 'e.g., why is the login broken?',
             });
             if (query) { AskPanel.show(context.extensionUri, query); }
+        }],
+
+        // Ask — show panel without query
+        ['synapseed.openAskPanel', () => {
+            AskPanel.show(context.extensionUri);
+        }],
+
+        // Ask — about active file
+        ['synapseed.askAboutActiveFile', async () => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) {
+                vscode.window.showWarningMessage('No active file');
+                return;
+            }
+            const root = getProjectRoot() ?? '';
+            const relPath = editor.document.uri.fsPath.replace(root + '/', '');
+            AskPanel.show(context.extensionUri, `analyze and explain ${relPath}`);
+        }],
+
+        // Export conversation
+        ['synapseed.exportConversation', () => AskPanel.exportConversation()],
+
+        // Clear conversation
+        ['synapseed.clearConversation', () => AskPanel.clearConversation()],
+
+        // Panel layout: move Ask panel to different columns
+        ['synapseed.moveAskBeside', () => AskPanel.showInColumn(context.extensionUri, vscode.ViewColumn.Beside)],
+        ['synapseed.moveAskCenter', () => AskPanel.showInColumn(context.extensionUri, vscode.ViewColumn.One)],
+
+        // Focus sidebar
+        ['synapseed.focusSidebar', () => vscode.commands.executeCommand('synapseed.status.focus')],
+
+        // Quick switch: cycle between open SYNAPSEED panels
+        ['synapseed.cyclePanels', async () => {
+            const items: vscode.QuickPickItem[] = [
+                { label: '$(dashboard) Dashboard', description: 'Architecture overview', detail: 'synapseed.openDashboard' },
+                { label: '$(comment-discussion) Ask Panel', description: 'Chat with SYNAPSEED', detail: 'synapseed.openAskPanel' },
+                { label: '$(list-tree) Sidebar', description: 'Tree views', detail: 'synapseed.focusSidebar' },
+                { label: '$(search) Search Code', description: 'Semantic search', detail: 'synapseed.searchCode' },
+                { label: '$(git-commit) Git Blame', description: 'Current file blame', detail: 'synapseed.blameCurrentFile' },
+            ];
+            const pick = await vscode.window.showQuickPick(items, {
+                placeHolder: 'Switch to SYNAPSEED panel...',
+                matchOnDescription: true,
+            });
+            if (pick?.detail) {
+                vscode.commands.executeCommand(pick.detail);
+            }
         }],
 
         // Ask — context menu on symbol

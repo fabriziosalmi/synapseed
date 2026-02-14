@@ -231,14 +231,29 @@ export class AskPanel {
         background: var(--vscode-button-background);
         color: var(--vscode-button-foreground);
         font-size: 14px; cursor: pointer; font-weight: 600;
-        transition: opacity 0.15s;
+        transition: opacity 0.15s; white-space: nowrap;
     }
     .send-btn:hover { opacity: 0.85; }
     .send-btn:disabled { opacity: 0.4; cursor: wait; }
-    .conversation { max-width: 100%; }
+    .drop-zone {
+        margin: 8px 0 0; padding: 12px; text-align: center;
+        border: 2px dashed var(--vscode-panel-border); border-radius: 8px;
+        color: var(--vscode-descriptionForeground); font-size: 12px;
+        transition: border-color 0.2s, background 0.2s;
+        display: none;
+    }
+    .drop-zone.visible { display: block; }
+    .drop-zone.active {
+        border-color: var(--vscode-focusBorder);
+        background: rgba(79,195,247,0.06);
+    }
+    .conversation {
+        flex: 1; overflow-y: auto; padding: 16px;
+    }
     .msg {
         margin-bottom: 16px; padding: 12px 16px;
         border-radius: 8px; animation: fadeIn 0.3s ease;
+        position: relative; group: relative;
     }
     .msg.user {
         background: var(--vscode-textBlockQuote-background);
@@ -249,12 +264,23 @@ export class AskPanel {
         background: var(--vscode-editor-background);
         border: 1px solid var(--vscode-panel-border);
     }
-    .msg.assistant .label { color: #ab47bc; font-weight: 600; font-size: 12px; margin-bottom: 4px; }
+    .msg.assistant .label {
+        display: flex; align-items: center; justify-content: space-between;
+        color: #ab47bc; font-weight: 600; font-size: 12px; margin-bottom: 4px;
+    }
     .msg .content { white-space: pre-wrap; word-break: break-word; }
-    .msg .meta { font-size: 11px; opacity: 0.5; margin-top: 6px; }
+    .msg .meta { font-size: 11px; opacity: 0.5; margin-top: 6px; display: flex; gap: 12px; align-items: center; }
+    .copy-btn {
+        padding: 2px 8px; border: none; border-radius: 4px; cursor: pointer;
+        background: var(--vscode-button-secondaryBackground);
+        color: var(--vscode-button-secondaryForeground);
+        font-size: 11px; opacity: 0; transition: opacity 0.15s;
+    }
+    .msg:hover .copy-btn { opacity: 0.7; }
+    .copy-btn:hover { opacity: 1 !important; }
     .thinking {
         display: flex; align-items: center; gap: 8px;
-        padding: 12px; color: var(--vscode-descriptionForeground);
+        padding: 12px 16px; color: var(--vscode-descriptionForeground);
     }
     .thinking .dots span {
         animation: blink 1.4s infinite both;
@@ -266,7 +292,17 @@ export class AskPanel {
         background: var(--vscode-textCodeBlock-background);
         padding: 12px; border-radius: 6px; overflow-x: auto;
         font-family: var(--vscode-editor-font-family); font-size: 13px;
+        position: relative;
     }
+    pre .copy-code-btn {
+        position: absolute; top: 4px; right: 4px;
+        padding: 2px 6px; border: none; border-radius: 3px; cursor: pointer;
+        background: var(--vscode-button-secondaryBackground);
+        color: var(--vscode-button-secondaryForeground);
+        font-size: 10px; opacity: 0; transition: opacity 0.15s;
+    }
+    pre:hover .copy-code-btn { opacity: 0.7; }
+    pre .copy-code-btn:hover { opacity: 1; }
     code { font-family: var(--vscode-editor-font-family); font-size: 13px; }
     .empty-state {
         text-align: center; padding: 60px 20px;
@@ -286,6 +322,22 @@ export class AskPanel {
         cursor: pointer; transition: opacity 0.15s;
     }
     .hint-chip:hover { opacity: 0.7; }
+    h3 { margin: 16px 0 8px; font-size: 14px; font-weight: 600; }
+    ul, ol { margin: 4px 0; padding-left: 20px; }
+    li { margin: 2px 0; }
+    blockquote {
+        border-left: 3px solid var(--vscode-focusBorder);
+        margin: 8px 0; padding: 4px 12px;
+        background: var(--vscode-textBlockQuote-background);
+    }
+    table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 13px; }
+    th, td { padding: 6px 10px; border: 1px solid var(--vscode-panel-border); text-align: left; }
+    th { background: var(--vscode-textBlockQuote-background); font-weight: 600; font-size: 12px; }
+    .file-link {
+        color: var(--vscode-textLink-foreground); cursor: pointer;
+        text-decoration: underline; text-decoration-style: dotted;
+    }
+    .file-link:hover { text-decoration-style: solid; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
     @keyframes blink { 0%, 80%, 100% { opacity: 0.2; } 40% { opacity: 1; } }
 </style>
@@ -293,10 +345,23 @@ export class AskPanel {
 <body>
     <div class="header">
         <h1>⚡ SYNAPSEED Ask</h1>
+        <div class="header-actions">
+            <button class="header-btn" onclick="vscode.postMessage({type:'export'})" title="Export conversation">📋 Export</button>
+            <button class="header-btn" onclick="vscode.postMessage({type:'clear'})" title="Clear conversation">🗑 Clear</button>
+        </div>
     </div>
-    <div class="input-row">
-        <input id="queryInput" type="text" placeholder="Ask about your codebase..." autofocus />
-        <button class="send-btn" id="sendBtn" onclick="send()">Ask</button>
+    <div class="context-bar" id="contextBar" style="display:none">
+        <span style="opacity:0.6">Context:</span>
+        <span class="context-badge" id="activeFileBadge"></span>
+    </div>
+    <div class="input-area">
+        <div class="input-row">
+            <input id="queryInput" type="text" placeholder="Ask about your codebase... (drop files here)" autofocus />
+            <button class="send-btn" id="sendBtn" onclick="send()">Ask</button>
+        </div>
+        <div class="drop-zone" id="dropZone">
+            📁 Drop a file to ask about it
+        </div>
     </div>
     <div class="conversation" id="conversation">
         <div class="empty-state" id="emptyState">
@@ -308,6 +373,8 @@ export class AskPanel {
                 <span class="hint-chip" onclick="askHint(this)">explain the plugin system</span>
                 <span class="hint-chip" onclick="askHint(this)">run a security audit</span>
                 <span class="hint-chip" onclick="askHint(this)">what changed recently?</span>
+                <span class="hint-chip" onclick="askHint(this)">show architecture health</span>
+                <span class="hint-chip" onclick="askHint(this)">find security vulnerabilities</span>
             </div>
         </div>
     </div>
@@ -317,8 +384,37 @@ export class AskPanel {
         const input = document.getElementById('queryInput');
         const sendBtn = document.getElementById('sendBtn');
         const emptyState = document.getElementById('emptyState');
+        const dropZone = document.getElementById('dropZone');
+        const contextBar = document.getElementById('contextBar');
+        const activeFileBadge = document.getElementById('activeFileBadge');
+        let rawResponses = [];
 
-        input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+        // Keyboard shortcut: Enter to send, Ctrl+L to clear, Escape to blur
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+            if (e.key === 'Escape') { input.blur(); }
+        });
+        document.addEventListener('keydown', e => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'l') { e.preventDefault(); vscode.postMessage({type:'clear'}); }
+            if (e.key === '/' && document.activeElement !== input) { e.preventDefault(); input.focus(); }
+        });
+
+        // File drop
+        document.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('visible','active'); });
+        document.addEventListener('dragleave', e => {
+            if (!e.relatedTarget || e.relatedTarget === document.documentElement) {
+                dropZone.classList.remove('visible','active');
+            }
+        });
+        document.addEventListener('drop', e => {
+            e.preventDefault();
+            dropZone.classList.remove('visible','active');
+            const text = e.dataTransfer.getData('text/plain');
+            if (text) {
+                input.value = 'explain ' + text;
+                send();
+            }
+        });
 
         function askHint(el) { input.value = el.textContent; send(); }
 
@@ -329,20 +425,46 @@ export class AskPanel {
             input.value = '';
         }
 
+        function copyText(text) {
+            vscode.postMessage({ type: 'copy', text: text });
+        }
+
         window.addEventListener('message', e => {
             const msg = e.data;
-            if (msg.type === 'thinking') {
-                emptyState?.remove();
-                sendBtn.disabled = true;
-                addUserMsg(msg.query);
-                addThinking();
-            } else if (msg.type === 'response') {
-                removeThinking();
-                sendBtn.disabled = false;
-                addAssistantMsg(msg.response, msg.durationMs);
-                input.focus();
+            switch (msg.type) {
+                case 'thinking':
+                    emptyState?.remove();
+                    sendBtn.disabled = true;
+                    addUserMsg(msg.query);
+                    addThinking();
+                    break;
+                case 'response':
+                    removeThinking();
+                    sendBtn.disabled = false;
+                    rawResponses.push(msg.response);
+                    addAssistantMsg(msg.response, msg.durationMs);
+                    input.focus();
+                    break;
+                case 'activeFile':
+                    contextBar.style.display = 'flex';
+                    activeFileBadge.textContent = '📄 ' + msg.path;
+                    break;
+                case 'clear':
+                    conv.innerHTML = '';
+                    rawResponses = [];
+                    conv.appendChild(createEmptyState());
+                    break;
             }
         });
+
+        function createEmptyState() {
+            const el = document.createElement('div');
+            el.className = 'empty-state';
+            el.id = 'emptyState';
+            el.innerHTML = '<div class="icon">🧠</div><h2>Ask anything about your codebase</h2>'
+                + '<p>SYNAPSEED orchestrates AST analysis, search, git history, diagnostics, and security scanning.</p>';
+            return el;
+        }
 
         function addUserMsg(q) {
             const el = document.createElement('div');
@@ -366,20 +488,49 @@ export class AskPanel {
         }
 
         function addAssistantMsg(text, ms) {
+            const rawText = text;
             const el = document.createElement('div');
             el.className = 'msg assistant';
-            el.innerHTML = '<div class="label">SYNAPSEED</div><div class="content">' + formatResponse(text) + '</div>'
-                + '<div class="meta">' + (ms ? ms + 'ms' : '') + '</div>';
+            const labelHtml = '<div class="label"><span>SYNAPSEED</span>'
+                + '<button class="copy-btn" onclick="copyText(this.closest(\\'.msg\\').querySelector(\\'.content\\').innerText)">Copy</button></div>';
+            el.innerHTML = labelHtml + '<div class="content">' + formatResponse(text) + '</div>'
+                + '<div class="meta"><span>' + (ms ? ms + 'ms' : '') + '</span></div>';
             conv.appendChild(el);
+            // Add copy buttons to code blocks
+            el.querySelectorAll('pre').forEach(pre => {
+                const btn = document.createElement('button');
+                btn.className = 'copy-code-btn';
+                btn.textContent = 'Copy';
+                btn.onclick = () => copyText(pre.innerText);
+                pre.appendChild(btn);
+            });
             el.scrollIntoView({ behavior: 'smooth' });
         }
 
         function formatResponse(text) {
-            // Basic code block formatting
             text = esc(text);
-            text = text.replace(/\`\`\`(\\w*)?\\n([\\s\\S]*?)\`\`\`/g, '<pre><code>$2</code></pre>');
+            // Code blocks with language hint
+            text = text.replace(/\`\`\`(\\w*)\\n([\\s\\S]*?)\`\`\`/g, function(m, lang, code) {
+                return '<pre data-lang="' + lang + '"><code>' + code + '</code></pre>';
+            });
+            // Inline code
             text = text.replace(/\`([^\`]+)\`/g, '<code>$1</code>');
+            // Bold & italic
             text = text.replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>');
+            text = text.replace(/\\*(.+?)\\*/g, '<em>$1</em>');
+            // Headers
+            text = text.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+            text = text.replace(/^## (.+)$/gm, '<h3 style="font-size:15px">$1</h3>');
+            // Lists
+            text = text.replace(/^- (.+)$/gm, '<li>$1</li>');
+            text = text.replace(/(<li>.*<\\/li>\\n?)+/g, '<ul>$&</ul>');
+            // Blockquotes
+            text = text.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+            // File paths — make clickable
+            text = text.replace(/((?:src|crates|bin|tests)\\/[\\w\\/.\\-]+\\.\\w+)(?::(\\d+))?/g, function(m, path, line) {
+                const display = line ? path + ':' + line : path;
+                return '<span class="file-link" onclick="vscode.postMessage({type:\\'openFile\\',path:\\'' + path + '\\'})\">' + display + '</span>';
+            });
             return text;
         }
 
