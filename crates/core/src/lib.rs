@@ -14,6 +14,7 @@
 //! - `state` — Project state detection
 //! - `telemetry` — Structured logging and metrics setup
 //! - `event` — Domain events for plugin communication
+//! - `recorder` — Flight Recorder: dual-track session memory (working set + journey map)
 
 pub mod context;
 pub mod error;
@@ -23,6 +24,7 @@ pub mod momentum;
 pub mod oracle;
 pub mod plugin;
 pub mod policy;
+pub mod recorder;
 pub mod session;
 pub mod state;
 pub mod symbol;
