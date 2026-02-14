@@ -16,7 +16,7 @@ impl AstParser {
     pub fn new() -> Result<Self> {
         let mut parsers = std::collections::HashMap::new();
 
-        for lang in [Language::Rust, Language::Python, Language::JavaScript] {
+        for lang in [Language::Rust, Language::Python, Language::JavaScript, Language::TypeScript] {
             let mut parser = tree_sitter::Parser::new();
             parser
                 .set_language(&lang.ts_language()?)
@@ -150,11 +150,15 @@ impl AstParser {
                 "import_statement" | "import_from_statement" => Some(SymbolKind::Import),
                 _ => None,
             },
-            Language::JavaScript => match kind {
+            Language::JavaScript | Language::TypeScript => match kind {
                 "function_declaration" | "arrow_function" => Some(SymbolKind::Function),
                 "class_declaration" => Some(SymbolKind::Class),
                 "import_statement" => Some(SymbolKind::Import),
                 "lexical_declaration" => Some(SymbolKind::Variable),
+                // TypeScript-specific via JS grammar parse:
+                "interface_declaration" => Some(SymbolKind::Interface),
+                "type_alias_declaration" => Some(SymbolKind::Struct),
+                "enum_declaration" => Some(SymbolKind::Enum),
                 _ => None,
             },
             Language::Unknown => None, // handled by text_only_parse
@@ -230,7 +234,7 @@ impl AstParser {
 
     fn extract_name(node: tree_sitter::Node, source: &str, lang: Language) -> Option<String> {
         let name_field = match lang {
-            Language::Rust | Language::Python | Language::JavaScript => "name",
+            Language::Rust | Language::Python | Language::JavaScript | Language::TypeScript => "name",
             Language::Unknown => return None,
         };
 
@@ -310,7 +314,7 @@ impl AstParser {
                     Visibility::Public
                 })
             }
-            Language::JavaScript => {
+            Language::JavaScript | Language::TypeScript => {
                 // If the parent is an export_statement, it's public
                 if let Some(parent) = node.parent() {
                     if parent.kind() == "export_statement" {

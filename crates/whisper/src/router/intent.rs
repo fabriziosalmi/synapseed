@@ -1,77 +1,64 @@
-//! Intent classification — deterministic keyword heuristics.
+//! Intent classification — weighted keyword heuristics (v5.0.0).
 //!
 //! Maps a natural-language query to an `Intent` enum variant by counting
-//! keyword matches across bug/security/explain/refactor categories.
-//! Supports both English and Italian keywords.
+//! **weighted** keyword matches across bug/security/explain/refactor categories.
+//! High-signal keywords (e.g., "crash", "panic") carry more weight than
+//! low-signal ones (e.g., "fix", "error"). Supports English and Italian.
 
 use super::Intent;
 
-const BUG_KEYWORDS: &[&str] = &[
-    "fix", "error", "broken", "bug", "crash", "fail", "wrong", "issue", "rott", "compile", "panic",
-    "cannot", "errore", "rotto", "problema",
+/// Weighted keyword: (pattern, weight). Higher weight = stronger signal.
+const BUG_KEYWORDS: &[(&str, u32)] = &[
+    ("crash", 3), ("panic", 3), ("segfault", 3), ("abort", 3),
+    ("bug", 2), ("broken", 2), ("fail", 2), ("wrong", 2), ("cannot", 2),
+    ("compile", 2), ("rott", 2), ("traceback", 2), ("exception", 2),
+    ("fix", 1), ("error", 1), ("issue", 1),
+    // Italian
+    ("errore", 2), ("rotto", 2), ("problema", 1), ("fallisce", 2), ("non funziona", 3),
 ];
 
-const SECURITY_KEYWORDS: &[&str] = &[
-    "security",
-    "audit",
-    "secret",
-    "password",
-    "vuln",
-    "leak",
-    "token",
-    "key",
-    "cve",
-    "xss",
-    "injection",
-    "sicurezza",
-    "segreto",
+const SECURITY_KEYWORDS: &[(&str, u32)] = &[
+    ("cve", 3), ("injection", 3), ("xss", 3), ("rce", 3), ("ssrf", 3),
+    ("vulnerability", 3), ("exploit", 3),
+    ("security", 2), ("audit", 2), ("secret", 2), ("password", 2), ("leak", 2),
+    ("token", 1), ("key", 1), ("vuln", 2),
+    // Italian
+    ("sicurezza", 2), ("segreto", 2), ("vulnerabilità", 3),
 ];
 
-const EXPLAIN_KEYWORDS: &[&str] = &[
-    "explain",
-    "what is",
-    "how does",
-    "why",
-    "understand",
-    "describe",
-    "what does",
-    "cos'è",
-    "perché",
-    "come funziona",
-    "spiega",
+const EXPLAIN_KEYWORDS: &[(&str, u32)] = &[
+    ("explain", 2), ("what is", 2), ("how does", 2), ("why", 1),
+    ("understand", 2), ("describe", 2), ("what does", 2), ("walk through", 2),
+    ("overview", 2), ("architecture", 2),
+    // Italian
+    ("cos'è", 2), ("perché", 1), ("come funziona", 2), ("spiega", 2),
+    ("descrivi", 2), ("mostrami", 2),
 ];
 
-const REFACTOR_KEYWORDS: &[&str] = &[
-    "refactor",
-    "clean",
-    "improve",
-    "optimize",
-    "restructure",
-    "simplify",
-    "extract",
-    "rename",
-    "move",
-    "migliora",
-    "pulisci",
+const REFACTOR_KEYWORDS: &[(&str, u32)] = &[
+    ("refactor", 2), ("optimize", 2), ("restructure", 2), ("simplify", 2),
+    ("clean", 1), ("improve", 1), ("extract", 1), ("rename", 1), ("move", 1),
+    ("performance", 2), ("speed up", 2), ("faster", 2), ("slow", 2),
+    // Italian
+    ("migliora", 2), ("pulisci", 1), ("ottimizza", 2), ("velocizza", 2),
+    ("velocità", 2), ("intelligenza", 2), ("più veloce", 2), ("lento", 2),
 ];
+
+/// Score a category by summing weights of matched keywords.
+fn score_category(lower: &str, keywords: &[(&str, u32)]) -> u32 {
+    keywords.iter()
+        .filter(|(k, _)| lower.contains(*k))
+        .map(|(_, w)| *w)
+        .sum()
+}
 
 pub(super) fn classify_intent(query: &str) -> Intent {
     let lower = query.to_lowercase();
 
-    // Score each intent by keyword matches (first match wins for ties)
-    let bug_score = BUG_KEYWORDS.iter().filter(|k| lower.contains(**k)).count();
-    let sec_score = SECURITY_KEYWORDS
-        .iter()
-        .filter(|k| lower.contains(**k))
-        .count();
-    let exp_score = EXPLAIN_KEYWORDS
-        .iter()
-        .filter(|k| lower.contains(**k))
-        .count();
-    let ref_score = REFACTOR_KEYWORDS
-        .iter()
-        .filter(|k| lower.contains(**k))
-        .count();
+    let bug_score = score_category(&lower, BUG_KEYWORDS);
+    let sec_score = score_category(&lower, SECURITY_KEYWORDS);
+    let exp_score = score_category(&lower, EXPLAIN_KEYWORDS);
+    let ref_score = score_category(&lower, REFACTOR_KEYWORDS);
 
     let max = bug_score.max(sec_score).max(exp_score).max(ref_score);
 
@@ -93,23 +80,14 @@ pub(super) fn classify_intent(query: &str) -> Intent {
 
 /// Return all non-zero intent scores sorted by score descending (v4.12.0).
 /// The first entry is the winner; subsequent entries carry secondary signals
-/// (e.g., "fix the security bug" → [("bug_fix", 2), ("security", 1)]).
+/// (e.g., "fix the security bug" → [("bug_fix", 5), ("security", 2)]).
 pub(super) fn classify_intent_scores(query: &str) -> Vec<(String, usize)> {
     let lower = query.to_lowercase();
 
-    let bug_score = BUG_KEYWORDS.iter().filter(|k| lower.contains(**k)).count();
-    let sec_score = SECURITY_KEYWORDS
-        .iter()
-        .filter(|k| lower.contains(**k))
-        .count();
-    let exp_score = EXPLAIN_KEYWORDS
-        .iter()
-        .filter(|k| lower.contains(**k))
-        .count();
-    let ref_score = REFACTOR_KEYWORDS
-        .iter()
-        .filter(|k| lower.contains(**k))
-        .count();
+    let bug_score = score_category(&lower, BUG_KEYWORDS) as usize;
+    let sec_score = score_category(&lower, SECURITY_KEYWORDS) as usize;
+    let exp_score = score_category(&lower, EXPLAIN_KEYWORDS) as usize;
+    let ref_score = score_category(&lower, REFACTOR_KEYWORDS) as usize;
 
     let mut scores: Vec<(String, usize)> = vec![
         ("bug_fix".to_string(), bug_score),

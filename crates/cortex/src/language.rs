@@ -6,6 +6,11 @@ pub(crate) enum Language {
     Rust,
     Python,
     JavaScript,
+    /// TypeScript/TSX: parsed via the JavaScript grammar (v5.0.0).
+    /// tree-sitter-javascript handles ~90% of TS constructs (functions, classes,
+    /// imports, arrow functions). Type annotations are skipped but symbol
+    /// extraction still works for most real-world TS/TSX code.
+    TypeScript,
     /// Fallback for files with recognized source extensions but no tree-sitter grammar.
     /// These are still indexed (line count, TODO/FIXME extraction) but without AST parsing.
     Unknown,
@@ -22,8 +27,9 @@ impl Language {
             "rs" => Some(Self::Rust),
             "py" | "pyi" => Some(Self::Python),
             "js" | "jsx" | "mjs" => Some(Self::JavaScript),
+            // TypeScript: AST via JavaScript grammar (v5.0.0)
+            "ts" | "tsx" | "mts" | "cts" => Some(Self::TypeScript),
             // Recognized source — text-only fallback
-            "ts" | "tsx" | "mts" | "cts" => Some(Self::Unknown),
             "go" => Some(Self::Unknown),
             "java" | "kt" | "kts" => Some(Self::Unknown),
             "c" | "h" | "cpp" | "cc" | "cxx" | "hpp" | "hxx" => Some(Self::Unknown),
@@ -55,11 +61,12 @@ impl Language {
 
     /// Get the tree-sitter language for this variant.
     /// Returns an error for `Unknown` since it has no grammar.
+    /// TypeScript uses the JavaScript grammar as a pragmatic approximation.
     pub(crate) fn ts_language(&self) -> Result<tree_sitter::Language> {
         let lang = match self {
             Self::Rust => tree_sitter_rust::LANGUAGE,
             Self::Python => tree_sitter_python::LANGUAGE,
-            Self::JavaScript => tree_sitter_javascript::LANGUAGE,
+            Self::JavaScript | Self::TypeScript => tree_sitter_javascript::LANGUAGE,
             Self::Unknown => {
                 return Err(SynapseedError::Internal(
                     "No tree-sitter grammar for unknown language".into(),
@@ -74,6 +81,7 @@ impl Language {
             Self::Rust => "rust",
             Self::Python => "python",
             Self::JavaScript => "javascript",
+            Self::TypeScript => "typescript",
             Self::Unknown => "unknown",
         }
     }
@@ -93,6 +101,7 @@ impl std::str::FromStr for Language {
             "rust" | "rs" => Ok(Self::Rust),
             "python" | "py" => Ok(Self::Python),
             "javascript" | "js" => Ok(Self::JavaScript),
+            "typescript" | "ts" | "tsx" => Ok(Self::TypeScript),
             "unknown" => Ok(Self::Unknown),
             other => Err(SynapseedError::Internal(format!(
                 "Unsupported language: {other}"

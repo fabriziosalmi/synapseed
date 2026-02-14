@@ -67,6 +67,7 @@ pub(super) static STOP_WORDS: LazyLock<HashSet<&'static str>> = LazyLock::new(||
 /// "Come funziona il chunked transfer encoding in requests?" → "chunked transfer encoding requests"
 ///
 /// CamelCase Splitting (v4.1.0): "MomentumEngine" → "MomentumEngine Momentum Engine momentum engine".
+/// snake_case Splitting (v5.0.0): "build_smart_context" → "build_smart_context build smart context".
 /// This maximizes BM25 signal for compound identifiers that `en_stem` treats as
 /// a single opaque token ("momentumengin"). Both original-case and lowercase
 /// components are emitted for unambiguous matching.
@@ -77,12 +78,25 @@ pub(super) fn clean_query_for_search(query: &str) -> String {
         .filter(|w| w.len() >= 2 && !STOP_WORDS.contains(&w.to_lowercase().as_str()))
         .collect();
 
-    // CamelCase splitting (v4.1.0): extract components from compound identifiers.
+    // CamelCase splitting (v4.1.0) + snake_case splitting (v5.0.0):
     // "MomentumEngine" → ["MomentumEngine", "Momentum", "Engine", "momentum", "engine"]
-    // "build_smart_context" → ["build_smart_context"] (snake_case stays intact)
+    // "build_smart_context" → ["build_smart_context", "build", "smart", "context"]
     let mut expanded = Vec::new();
     for term in &terms {
         expanded.push(term.to_string());
+
+        // snake_case expansion (v5.0.0): split on underscores
+        if term.contains('_') {
+            for part in term.split('_') {
+                if part.len() >= 3 && !expanded.iter().any(|e| e.eq_ignore_ascii_case(part))
+                    && !STOP_WORDS.contains(&part.to_lowercase().as_str())
+                {
+                    expanded.push(part.to_string());
+                }
+            }
+        }
+
+        // CamelCase expansion: split compound identifiers
         for part in split_camel_case(term) {
             if part.len() >= 3 && !expanded.iter().any(|e| e.eq_ignore_ascii_case(&part)) {
                 let lower = part.to_lowercase();
@@ -178,7 +192,7 @@ pub(super) fn expand_synonyms(term: &str) -> Vec<String> {
         synonyms.push(format!("{root}te")); // "authentication" → "authenticate"
     }
 
-    // Domain-specific synonyms (bidirectional)
+    // Domain-specific synonyms (bidirectional, v5.0.0: expanded)
     static SYNONYM_PAIRS: &[(&str, &[&str])] = &[
         ("encode", &["decode", "codec", "encoding"]),
         ("decode", &["encode", "codec", "decoding"]),
@@ -191,6 +205,21 @@ pub(super) fn expand_synonyms(term: &str) -> Vec<String> {
         ("serialize", &["deserialize", "marshal", "unmarshal"]),
         ("connect", &["connection", "socket", "transport"]),
         ("transfer", &["transport", "stream"]),
+        // v5.0.0: new pairs for better recall
+        ("index", &["search", "query", "lookup"]),
+        ("search", &["index", "query", "find"]),
+        ("test", &["spec", "assert", "expect"]),
+        ("config", &["configuration", "settings", "options"]),
+        ("build", &["compile", "make", "assemble"]),
+        ("error", &["exception", "failure", "fault"]),
+        ("cache", &["memoize", "store", "buffer"]),
+        ("async", &["await", "future", "promise"]),
+        ("graph", &["tree", "node", "edge"]),
+        ("schema", &["model", "definition", "structure"]),
+        ("context", &["ctx", "scope", "environment"]),
+        ("symbol", &["token", "identifier", "name"]),
+        ("inject", &["injection", "provide", "supply"]),
+        ("extract", &["extraction", "parse", "pull"]),
     ];
 
     for &(key, values) in SYNONYM_PAIRS {
@@ -342,14 +371,16 @@ pub(super) fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> 
         let graph = ctx.get_extension::<CodeGraph>();
 
         // Pass 4: Implementation Twin — derive source paths from test paths
-        let test_targets: Vec<Target> = targets
+        // Collect indices of test targets to avoid cloning (v5.0.0 speed opt).
+        let test_indices: Vec<usize> = targets
             .iter()
-            .filter(|t| t.file_path.as_deref().is_some_and(is_test_path))
-            .cloned()
+            .enumerate()
+            .filter(|(_, t)| t.file_path.as_deref().is_some_and(is_test_path))
+            .map(|(i, _)| i)
             .collect();
 
-        for target in &test_targets {
-            let fp = match &target.file_path {
+        for &idx in &test_indices {
+            let fp = match &targets[idx].file_path {
                 Some(p) => p.clone(),
                 None => continue,
             };
@@ -381,16 +412,17 @@ pub(super) fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> 
 
         // Pass 5: Call Graph Lite — extract identifiers from test bodies
         if let Some(ref g) = graph {
-            for target in &test_targets {
-                let fp = match &target.file_path {
+            for &idx in &test_indices {
+                let fp = match &targets[idx].file_path {
                     Some(p) => p,
                     None => continue,
                 };
+                let target_name = targets[idx].name.clone();
                 let abs_path = ctx.project_root().join(fp);
                 if let Ok(content) = std::fs::read_to_string(&abs_path) {
-                    let identifiers = extract_call_identifiers(&content, &target.name);
+                    let identifiers = extract_call_identifiers(&content, &target_name);
                     debug!(
-                        test_fn = %target.name, ids = ?identifiers,
+                        test_fn = %target_name, ids = ?identifiers,
                         "Whisper: Call Graph Lite extracted identifiers"
                     );
                     for ident in identifiers {

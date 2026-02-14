@@ -130,6 +130,16 @@ impl CodeGraph {
             paths.truncate(max);
         }
 
+        // Thread-local parser reuse (v5.0.0 — "Il Riciclatore"):
+        // AstParser::new() initializes 3 tree-sitter grammars (~2ms each).
+        // Previously we created a NEW parser per file in par_iter — O(n) grammar inits.
+        // Now each rayon thread initializes ONE parser and reuses it across all
+        // files assigned to that thread: O(num_threads) grammar inits instead of O(files).
+        use std::cell::RefCell;
+        thread_local! {
+            static THREAD_PARSER: RefCell<Option<AstParser>> = const { RefCell::new(None) };
+        }
+
         paths.par_iter().for_each(|path| {
             // Size guard: skip files larger than MAX_FILE_SIZE
             match std::fs::metadata(path) {
@@ -154,26 +164,32 @@ impl CodeGraph {
                 Err(_) => return, // skip binary/unreadable files
             };
 
-            let mut parser = match AstParser::new() {
-                Ok(p) => p,
-                Err(e) => {
-                    debug!(error = %e, "Failed to create parser in worker thread");
-                    return;
+            THREAD_PARSER.with(|cell| {
+                let mut borrow = cell.borrow_mut();
+                if borrow.is_none() {
+                    *borrow = match AstParser::new() {
+                        Ok(p) => Some(p),
+                        Err(e) => {
+                            debug!(error = %e, "Failed to create parser in worker thread");
+                            return;
+                        }
+                    };
                 }
-            };
+                let parser = borrow.as_mut().unwrap();
 
-            let parse_start = Instant::now();
-            if let Err(e) = self.index_file(&mut parser, path, &source) {
-                debug!(path = %path.display(), error = %e, "Skipping file");
-            }
-            let elapsed = parse_start.elapsed();
-            if elapsed > PARSE_TIMEOUT {
-                warn!(
-                    path = %path.display(),
-                    ms = elapsed.as_millis(),
-                    "Parser exceeded timeout threshold"
-                );
-            }
+                let parse_start = Instant::now();
+                if let Err(e) = self.index_file(parser, path, &source) {
+                    debug!(path = %path.display(), error = %e, "Skipping file");
+                }
+                let elapsed = parse_start.elapsed();
+                if elapsed > PARSE_TIMEOUT {
+                    warn!(
+                        path = %path.display(),
+                        ms = elapsed.as_millis(),
+                        "Parser exceeded timeout threshold"
+                    );
+                }
+            });
         });
 
         info!(

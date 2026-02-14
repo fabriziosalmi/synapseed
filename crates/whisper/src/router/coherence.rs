@@ -23,17 +23,18 @@ use tracing::debug;
 
 use super::Target;
 
-/// Extract module prefix from a relative file path.
+/// Extract module prefix from a relative file path (v5.0.0: smarter depth).
 ///
-/// `"crates/whisper/src/router/mod.rs"` → `"crates/whisper"`
-/// `"src/main.rs"` → `"src"`
+/// For crate-like paths (3+ components), uses top 2 dirs: `"crates/whisper/src/router/mod.rs"` → `"crates/whisper"`
+/// For shallow paths (1-2 components), uses the parent dir: `"src/main.rs"` → `"src"`
 /// `""` → `""`
 fn module_prefix(path: &str) -> String {
     let parts: Vec<&str> = path.split('/').collect();
-    if parts.len() >= 2 {
-        format!("{}/{}", parts[0], parts[1])
-    } else {
-        parts.first().unwrap_or(&"").to_string()
+    match parts.len() {
+        0 => String::new(),
+        1 => parts[0].to_string(),
+        2 => parts[0].to_string(), // "src/main.rs" → "src"
+        _ => format!("{}/{}", parts[0], parts[1]), // "crates/whisper/src/..." → "crates/whisper"
     }
 }
 
@@ -89,8 +90,19 @@ pub(super) fn coherence_gate(targets: &mut Vec<Target>, tier: ModelTier) {
         }
     }
 
-    // Sort clusters by size (largest first) — biggest cluster = most relevant
-    clusters.sort_by(|a, b| b.1.len().cmp(&a.1.len()));
+    // Sort clusters by (max_score DESC, size DESC) — score-aware ranking (v5.0.0).
+    // A cluster with one high-score symbol beats a cluster with many low-score symbols.
+    // This prevents the coherence gate from discarding the most relevant symbol
+    // just because it's in a smaller module cluster.
+    clusters.sort_by(|a, b| {
+        let max_a = a.1.iter().filter_map(|t| t.score).fold(0.0_f32, f32::max);
+        let max_b = b.1.iter().filter_map(|t| t.score).fold(0.0_f32, f32::max);
+        let score_cmp = max_b.total_cmp(&max_a);
+        if score_cmp != std::cmp::Ordering::Equal {
+            return score_cmp;
+        }
+        b.1.len().cmp(&a.1.len())
+    });
 
     // Keep top-K clusters, rebuild targets
     for (_prefix, cluster_targets) in clusters.into_iter().take(max_clusters) {
@@ -125,7 +137,7 @@ mod tests {
     fn test_module_prefix_extraction() {
         assert_eq!(module_prefix("crates/whisper/src/router/mod.rs"), "crates/whisper");
         assert_eq!(module_prefix("crates/core/src/lib.rs"), "crates/core");
-        assert_eq!(module_prefix("src/main.rs"), "src/main.rs");
+        assert_eq!(module_prefix("src/main.rs"), "src");
         assert_eq!(module_prefix("lib.rs"), "lib.rs");
         assert_eq!(module_prefix(""), "");
     }

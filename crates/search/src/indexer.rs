@@ -380,13 +380,12 @@ impl SemanticIndex {
         if results.len() < limit / 2 {
             let prefix_results = self.prefix_search(&searcher, query_str, retrieval_limit);
             if !prefix_results.is_empty() {
-                let existing: std::collections::HashSet<String> = results
+                let existing: std::collections::HashSet<(String, String, u64)> = results
                     .iter()
-                    .map(|r| format!("{}:{}:{}", r.file, r.symbol, r.line_start))
+                    .map(|r| (r.file.clone(), r.symbol.clone(), r.line_start))
                     .collect();
                 for r in prefix_results {
-                    let key = format!("{}:{}:{}", r.file, r.symbol, r.line_start);
-                    if !existing.contains(&key) {
+                    if !existing.contains(&(r.file.clone(), r.symbol.clone(), r.line_start)) {
                         results.push(r);
                     }
                 }
@@ -398,13 +397,12 @@ impl SemanticIndex {
         if results.len() < limit / 2 {
             let fuzzy_results = self.fuzzy_search(&searcher, query_str, retrieval_limit);
             if !fuzzy_results.is_empty() {
-                let existing: std::collections::HashSet<String> = results
+                let existing: std::collections::HashSet<(String, String, u64)> = results
                     .iter()
-                    .map(|r| format!("{}:{}:{}", r.file, r.symbol, r.line_start))
+                    .map(|r| (r.file.clone(), r.symbol.clone(), r.line_start))
                     .collect();
                 for r in fuzzy_results {
-                    let key = format!("{}:{}:{}", r.file, r.symbol, r.line_start);
-                    if !existing.contains(&key) {
+                    if !existing.contains(&(r.file.clone(), r.symbol.clone(), r.line_start)) {
                         results.push(r);
                     }
                 }
@@ -416,7 +414,11 @@ impl SemanticIndex {
         results
     }
 
-    /// Score candidates with additive normalized features.
+    /// Score candidates with additive normalized features (v5.0.0).
+    ///
+    /// Improvements:
+    /// - Pre-computed query terms outside the candidate loop (speed)
+    /// - Exact name match bonus: +0.25 when a query term exactly matches symbol name (intelligence)
     fn score_results(
         &self,
         searcher: &tantivy::Searcher,
@@ -441,11 +443,20 @@ impl SemanticIndex {
             kind_boost: f32,
             pagerank: f32,
             visibility: f32,
+            exact_match: f32,
             result: SearchResult,
         }
 
         let pr_scores = self.pagerank_scores.read();
         let mut candidates: Vec<Candidate> = Vec::with_capacity(top_docs.len());
+
+        // Pre-compute query terms once outside the loop (v5.0.0 speed optimization).
+        // Previously computed per-candidate, causing O(n * terms) lowercase allocations.
+        let query_terms_lower: Vec<String> = query_str
+            .split_whitespace()
+            .filter(|t| t.len() >= 3)
+            .map(|t| t.to_ascii_lowercase())
+            .collect();
 
         for &(bm25_score, doc_address) in top_docs {
             let doc: TantivyDocument = match searcher.doc(doc_address) {
@@ -482,22 +493,30 @@ impl SemanticIndex {
             };
 
             let path_lower = file_path.to_ascii_lowercase();
-            let query_terms: Vec<&str> = query_str
-                .split_whitespace()
-                .filter(|t| t.len() >= 3)
-                .collect();
-            let path_match = if query_terms.is_empty() {
+            let path_match = if query_terms_lower.is_empty() {
                 0.0
             } else {
-                query_terms
+                query_terms_lower
                     .iter()
-                    .filter(|t| path_lower.contains(&t.to_ascii_lowercase()))
+                    .filter(|t| path_lower.contains(&**t))
                     .count() as f32
-                    / query_terms.len() as f32
+                    / query_terms_lower.len() as f32
             };
 
             let symbol_name = get_text(self.fields.symbol_name);
             let specificity = ((symbol_name.len() as f32 - 4.0) / 12.0).clamp(0.0, 1.0);
+
+            // Exact Name Match bonus (v5.0.0 — "Il Nome Esatto"):
+            // When a query term exactly matches the symbol name (case-insensitive),
+            // boost heavily. "ask" → should rank `ask` above `ask_with_options`.
+            let sym_lower = symbol_name.to_ascii_lowercase();
+            let exact_match = if query_terms_lower.iter().any(|t| *t == sym_lower) {
+                1.0
+            } else if query_terms_lower.iter().any(|t| sym_lower.starts_with(t.as_str())) {
+                0.3 // Prefix match: weaker signal but still useful
+            } else {
+                0.0
+            };
 
             let kind_value = get_text(self.fields.kind);
             let kind_boost = match kind_value.as_str() {
@@ -541,6 +560,7 @@ impl SemanticIndex {
                 kind_boost,
                 pagerank,
                 visibility,
+                exact_match,
                 result: SearchResult {
                     score: 0.0,
                     file: file_path,
@@ -567,15 +587,17 @@ impl SemanticIndex {
             .fold(f32::NEG_INFINITY, f32::max);
         let bm25_range = (max_bm25 - min_bm25).max(0.001);
 
-        // Additive scoring weights — all features in [0, 1], weights sum to 1.0
-        const W_BM25: f32 = 0.45;
-        const W_SOURCE: f32 = 0.15;
-        const W_PATH: f32 = 0.10;
+        // Additive scoring weights (v5.0.0: rebalanced with exact_match)
+        // All features in [0, 1]. Base weights sum to 1.0, exact_match is additive bonus.
+        const W_BM25: f32 = 0.40;
+        const W_SOURCE: f32 = 0.12;
+        const W_PATH: f32 = 0.08;
         const W_PAGERANK: f32 = 0.10;
         const W_VISIBILITY: f32 = 0.05;
         const W_KIND: f32 = 0.05;
         const W_SPECIFICITY: f32 = 0.05;
         const W_TEMPORAL: f32 = 0.05;
+        const W_EXACT: f32 = 0.10;
 
         let mut results: Vec<SearchResult> = candidates
             .into_iter()
@@ -588,7 +610,8 @@ impl SemanticIndex {
                     + W_VISIBILITY * c.visibility
                     + W_KIND * c.kind_boost
                     + W_SPECIFICITY * c.specificity
-                    + W_TEMPORAL * c.temporal;
+                    + W_TEMPORAL * c.temporal
+                    + W_EXACT * c.exact_match;
                 c.result
             })
             .collect();
@@ -918,7 +941,7 @@ pub fn authenticate_user(credentials: &Credentials) -> Result<Token> {
 
     #[test]
     fn test_additive_weights_sum_to_one() {
-        let sum = 0.45_f32 + 0.15 + 0.10 + 0.10 + 0.05 + 0.05 + 0.05 + 0.05;
+        let sum = 0.40_f32 + 0.12 + 0.08 + 0.10 + 0.05 + 0.05 + 0.05 + 0.05 + 0.10;
         assert!((sum - 1.0).abs() < 0.01);
     }
 }
