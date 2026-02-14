@@ -25,7 +25,7 @@ export default withMermaid(defineConfig({
       { text: 'Features', link: '/features/cortex' },
       { text: 'Reference', link: '/reference/cli' },
       {
-        text: 'v4.14.0',
+        text: 'v4.15.0',
         items: [
           { text: 'Changelog', link: 'https://github.com/fabriziosalmi/synapseed/releases' },
           { text: 'Contributing', link: 'https://github.com/fabriziosalmi/synapseed' },
@@ -71,9 +71,18 @@ export default withMermaid(defineConfig({
           items: [
             { text: 'Search — Semantic Index', link: '/features/search' },
             { text: 'Shadow — Live Compiler', link: '/features/shadow-check' },
-            { text: 'Visualizer — Live Dashboard', link: '/features/visualizer' },
             { text: 'Whisper — Intent Router', link: '/features/whisper' },
             { text: 'Telemetry — OTLP Receiver', link: '/features/telemetry' },
+          ],
+        },
+        {
+          text: 'Specialized',
+          items: [
+            { text: 'Gym — Code Sandbox', link: '/features/gym' },
+            { text: 'Janitor — Auto Maintenance', link: '/features/janitor' },
+            { text: 'Architect — Health Analysis', link: '/features/architect' },
+            { text: 'Bench — Evaluation Suite', link: '/features/bench' },
+            { text: 'Decompiler — Binary Analysis', link: '/features/decompiler' },
           ],
         },
       ],
@@ -100,6 +109,7 @@ export default withMermaid(defineConfig({
             { text: 'Claude Desktop', link: '/integration/claude-desktop' },
             { text: 'Claude Code', link: '/integration/claude-code' },
             { text: 'VS Code / Cursor', link: '/integration/vscode' },
+            { text: 'VS Code Extension', link: '/integration/vscode-extension' },
             { text: 'Self-Telemetry', link: '/integration/self-telemetry' },
           ],
         },

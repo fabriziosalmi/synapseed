@@ -4,7 +4,7 @@ layout: home
 hero:
   name: SYNAPSEED
   text: The Thinking Layer Between You and the LLM
-  tagline: High-Performance Semantic AI Middleware — AST intelligence, DLP security, and live visualization in a single Rust binary.
+  tagline: High-Performance Semantic AI Middleware — AST intelligence, DLP security, and architectural analysis in a single Rust binary.
   actions:
     - theme: brand
       text: Get Started
@@ -30,10 +30,10 @@ features:
     title: Git Time-Travel
     details: Churn analysis, co-change patterns, and semantic commit classification. Understand why code looks the way it does.
     link: /features/chronos
-  - icon: "\U0001F441\uFE0F"
-    title: Live Architecture Dashboard
-    details: Interactive Cytoscape.js graph with WebSocket-driven real-time updates. Check your [Architecture Health](/features/architect).
-    link: /features/visualizer
+  - icon: "🏗️"
+    title: Architecture Health
+    details: Dependency graph analysis, coupling metrics, and cycle detection with graded health scores (A-F).
+    link: /features/architect
   - icon: "\U0001F525"
     title: OTLP Telemetry Heatmap
     details: Ingest OpenTelemetry traces, map spans to source symbols, and visualize runtime hotspots directly on the code graph.
@@ -49,10 +49,10 @@ features:
   - icon: "\u26A1"
     title: Zero-Latency Local Execution
     details: Pure Rust, no network calls, no cloud dependencies. Sub-10ms response times for most operations.
-  - icon: "\U0001F3CB\uFE0F"
-    title: The Gym
-    details: Isolated RL sandbox for safe code evaluation, [benchmarking](/features/bench), and adversarial testing.
-    link: /features/gym
+  - icon: "🧪"
+    title: Benchmark Engine
+    details: Reproducible SCR evaluation with JSONL question suites. Track search MRR, precision, and recall metrics.
+    link: /features/bench
   - icon: "\U0001F9F9"
     title: The Janitor
     details: Autonomous code maintenance. Finds unused deps and fixes clippy warnings.
