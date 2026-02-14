@@ -108,19 +108,47 @@ pub(super) fn clean_query_for_search(query: &str) -> String {
         }
     }
 
-    // Synonym expansion (v3.9.4): add morphological variants to improve BM25 recall.
-    // "chunked" → also match "chunk", "encoding" → "encode decode", etc.
+    // Synonym expansion (v3.9.4 → v4.17.2: Conservative Boosting).
+    // Original terms get ^3 boost, synonyms get ^0.5 to avoid BM25 signal dilution.
+    // Max 2 synonyms per original term to prevent over-expansion (P1 fix).
     let base_count = expanded.len();
+    let mut synonyms_for_query: Vec<String> = Vec::new();
     for i in 0..base_count {
         let lower = expanded[i].to_lowercase();
-        for synonym in expand_synonyms(&lower) {
-            if !expanded.iter().any(|e| e.to_lowercase() == synonym) {
-                expanded.push(synonym);
+        let syns = expand_synonyms(&lower);
+        let mut added = 0;
+        for synonym in syns {
+            if added >= 2 {
+                break; // Cap at 2 synonyms per original term
+            }
+            if !expanded.iter().any(|e| e.to_lowercase() == synonym)
+                && !synonyms_for_query.iter().any(|s| s == &synonym)
+            {
+                synonyms_for_query.push(synonym);
+                added += 1;
             }
         }
     }
 
-    expanded.join(" ")
+    // Build boosted Tantivy query: originals^3 + synonyms^0.5
+    let mut boosted_parts: Vec<String> = Vec::new();
+    for term in &expanded {
+        // Escape special chars that Tantivy QueryParser interprets
+        let clean = term.replace(':', " ").replace('(', " ").replace(')', " ");
+        let clean = clean.trim();
+        if !clean.is_empty() {
+            boosted_parts.push(format!("{clean}^3"));
+        }
+    }
+    for syn in &synonyms_for_query {
+        let clean = syn.replace(':', " ").replace('(', " ").replace(')', " ");
+        let clean = clean.trim();
+        if !clean.is_empty() {
+            boosted_parts.push(format!("{clean}^0.5"));
+        }
+    }
+
+    boosted_parts.join(" ")
 }
 
 /// Split a CamelCase identifier into its constituent words.
@@ -206,8 +234,8 @@ pub(super) fn expand_synonyms(term: &str) -> Vec<String> {
         ("connect", &["connection", "socket", "transport"]),
         ("transfer", &["transport", "stream"]),
         // v5.0.0: new pairs for better recall
-        ("index", &["search", "query", "lookup"]),
-        ("search", &["index", "query", "find"]),
+        ("index", &["search", "query"]),
+        ("search", &["index", "find"]),
         ("test", &["spec", "assert", "expect"]),
         ("config", &["configuration", "settings", "options"]),
         ("build", &["compile", "make", "assemble"]),
@@ -220,11 +248,12 @@ pub(super) fn expand_synonyms(term: &str) -> Vec<String> {
         ("symbol", &["token", "identifier", "name"]),
         ("inject", &["injection", "provide", "supply"]),
         ("extract", &["extraction", "parse", "pull"]),
-        // v4.17.1: fix W1 — "how does search ranking work" must find score_results
-        ("ranking", &["score", "scoring", "rank", "weight", "boost", "sort"]),
-        ("score", &["ranking", "scoring", "weight", "boost"]),
-        ("weight", &["boost", "scoring", "factor", "coefficient"]),
-        ("boost", &["weight", "factor", "amplify"]),
+        // v4.17.2 (P1 fix): trimmed to top-2 strongest synonyms per term.
+        // Over-expansion causes BM25 signal dilution (mark_applied beating score_results).
+        ("ranking", &["score", "rank"]),
+        ("score", &["scoring", "ranking"]),
+        ("weight", &["boost", "factor"]),
+        ("boost", &["weight", "factor"]),
         ("plugin", &["extension", "module", "addon"]),
         ("sandbox", &["isolate", "isolation", "jail", "container"]),
         ("gym", &["sandbox", "evaluate", "train"]),
@@ -805,11 +834,13 @@ mod tests {
     #[test]
     fn test_clean_query_italian_stops_removed() {
         let cleaned = clean_query_for_search("Come funziona il chunked transfer encoding in requests?");
-        // Core terms preserved
-        assert!(cleaned.starts_with("chunked transfer encoding requests"));
-        // Synonym expansion adds related terms
-        assert!(cleaned.contains("chunk")); // from "chunked"
-        assert!(cleaned.contains("stream")); // synonym of chunk
+        // Core terms preserved with ^3 boost (v4.17.2 Conservative Boosting)
+        assert!(cleaned.contains("chunked^3"));
+        assert!(cleaned.contains("transfer^3"));
+        assert!(cleaned.contains("encoding^3"));
+        assert!(cleaned.contains("requests^3"));
+        // Synonym expansion adds related terms with ^0.5 boost
+        assert!(cleaned.contains("chunk^")); // from "chunked"
     }
 
     #[test]
@@ -837,18 +868,22 @@ mod tests {
     #[test]
     fn test_clean_query_english_stops_removed() {
         let cleaned = clean_query_for_search("How does the authentication flow work in this project?");
-        // Core terms preserved (synonyms may be appended)
-        assert!(cleaned.starts_with("authentication flow project"));
+        // Core terms preserved with ^3 boost (v4.17.2)
+        assert!(cleaned.contains("authentication^3"));
+        assert!(cleaned.contains("flow^3"));
+        assert!(cleaned.contains("project^3"));
         // "authentication" → synonym expansion via "tion" suffix stripping + auth synonyms
-        assert!(cleaned.contains("authenticate"));
+        assert!(cleaned.contains("authenticate^"));
     }
 
     #[test]
     fn test_clean_query_preserves_technical_terms() {
         let cleaned = clean_query_for_search("explain tokio::spawn and async runtime");
-        assert!(cleaned.contains("tokio::spawn"));
-        assert!(cleaned.contains("async"));
-        assert!(cleaned.contains("runtime"));
+        // v4.17.2: colons get escaped to spaces, but terms are preserved with boost
+        assert!(cleaned.contains("tokio"));
+        assert!(cleaned.contains("spawn"));
+        assert!(cleaned.contains("async^3"));
+        assert!(cleaned.contains("runtime^3"));
     }
 
     #[test]
