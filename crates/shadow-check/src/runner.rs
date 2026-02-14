@@ -181,6 +181,10 @@ impl DiagnosticStore {
             all_diags.append(&mut diags);
         }
 
+        // v4.17.1 (W5): Filter out diagnostics for files that no longer exist.
+        // Cargo's incremental cache can emit stale diagnostics for deleted files.
+        all_diags.retain(|d| project_root.join(&d.file_path).exists());
+
         let errors = all_diags
             .iter()
             .filter(|d| d.level == DiagnosticLevel::Error)

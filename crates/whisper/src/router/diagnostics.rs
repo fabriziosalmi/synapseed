@@ -25,10 +25,23 @@ pub(super) fn gather_diagnostics(
         .filter_map(|t| t.file_path.as_deref())
         .collect();
 
+    // v4.17.1 (W7): Always include global errors alongside target-scoped.
+    // A query like "why is X broken?" needs all errors, not just those
+    // in the target file — the root cause may be in a dependency.
+    let snapshot = store.snapshot();
     let diagnostics = if file_paths.is_empty() {
-        store.snapshot().diagnostics
+        snapshot.diagnostics
     } else {
-        file_paths.iter().flat_map(|f| store.for_file(f)).collect()
+        let mut scoped: Vec<_> = file_paths.iter().flat_map(|f| store.for_file(f)).collect();
+        // Merge global errors not already in the scoped set
+        for d in &snapshot.diagnostics {
+            if d.level == DiagnosticLevel::Error
+                && !scoped.iter().any(|s| s.file_path == d.file_path && s.line_start == d.line_start)
+            {
+                scoped.push(d.clone());
+            }
+        }
+        scoped
     };
 
     let error_count = diagnostics

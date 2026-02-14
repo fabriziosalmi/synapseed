@@ -424,6 +424,7 @@ fn build_atomic_context(
     query: &str,
     intent_label: &str,
     code_context: &Option<CodeContext>,
+    diagnostics: &Option<DiagnosticsContext>,
     raw_injection: bool,
     raw_sources: &[RawSource],
     project_root: &str,
@@ -439,6 +440,24 @@ fn build_atomic_context(
         "ENVIRONMENT: This is a {lang} project. Files are located in {project_root}."
     ));
     parts.push(format!("TASK: {query} ({intent_label})"));
+
+    // v4.17.1 (W7): Show compiler errors to atomic-tier models too
+    if let Some(diag) = diagnostics {
+        if diag.error_count > 0 || diag.warning_count > 0 {
+            parts.push(format!(
+                "COMPILER: {} error(s), {} warning(s)",
+                diag.error_count, diag.warning_count
+            ));
+            for item in diag.items.iter().take(5) {
+                let file = item.get("file_path").and_then(|v| v.as_str()).unwrap_or("?");
+                let line = item.get("line_start").and_then(|v| v.as_u64()).unwrap_or(0);
+                let msg = item.get("message").and_then(|v| v.as_str()).unwrap_or("");
+                if !msg.is_empty() {
+                    parts.push(format!("  error: {file}:{line}: {msg}"));
+                }
+            }
+        }
+    }
     parts.push(String::new());
 
     // Human-readable symbol summary
@@ -536,6 +555,7 @@ pub(super) fn build_smart_context(input: SmartContextInput) -> String {
             query,
             intent_label,
             code_context,
+            diagnostics,
             raw_injection,
             raw_sources,
             project_root,
@@ -600,8 +620,10 @@ pub(super) fn build_smart_context(input: SmartContextInput) -> String {
                 // v4.12.0: Show actual diagnostic items so the LLM can see which errors exist.
                 // Cap at 10 items to avoid overwhelming the context window.
                 for item in diag.items.iter().take(10) {
-                    let file = item.get("file").and_then(|v| v.as_str()).unwrap_or("?");
-                    let line = item.get("line").and_then(|v| v.as_u64()).unwrap_or(0);
+                    // v4.17.1 (W7): Use correct Diagnostic struct field names:
+                    // file_path (not "file"), line_start (not "line")
+                    let file = item.get("file_path").and_then(|v| v.as_str()).unwrap_or("?");
+                    let line = item.get("line_start").and_then(|v| v.as_u64()).unwrap_or(0);
                     let level = item.get("level").and_then(|v| v.as_str()).unwrap_or("error");
                     let msg = item.get("message").and_then(|v| v.as_str()).unwrap_or("");
                     if !msg.is_empty() {
