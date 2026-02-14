@@ -1,12 +1,33 @@
-# Visualizer — Live Dashboard
+# Visualizer — Archived
 
-The **Visualizer** serves an interactive web dashboard that renders your codebase as a live graph. Files are containers, symbols are nodes, and everything updates in real-time.
+::: warning FEATURE ARCHIVED
+The live visualization dashboard was **removed in v4.1.0** to reduce dependencies and simplify the codebase. The concepts described below remain architecturally relevant for understanding how SYNAPSEED can integrate with external visualization tools.
+:::
 
-## Dashboard
+## Previous Implementation
 
-Open `http://localhost:3000` when SYNAPSEED is running in serve mode.
+The **Visualizer** previously served an interactive web dashboard that rendered your codebase as a live graph. Files were containers, symbols were nodes, and everything updated in real-time.
 
-### Features
+## Alternative: VS Code Extension
+
+For real-time project insights, use the [SYNAPSEED VS Code Extension](/integration/vscode-extension) which provides:
+- **9 sidebar panels**: Status, Metrics, Diagnostics, Architecture Health, Git History, Security, Consistency, Janitor, Telemetry
+- **Live updates**: Auto-refresh on file save
+- **Commands**: Ask questions, run janitor scans, refresh all data
+- **Status bar integration**: Build status with click-to-refresh
+
+## Alternative: External Visualization Tools
+
+SYNAPSEED's data can be consumed by external visualization tools through:
+- **MCP Resources**: `synapseed://status`, `synapseed://architect/health`, `synapseed://telemetry/hotspots`
+- **CLI Commands**: `synapseed architect --refresh`, `synapseed status`, `synapseed diagnose`
+- **JSON Output**: All commands support `--format json` for programmatic consumption
+
+---
+
+## Historical Dashboard Features
+
+The original dashboard (v1.0-v4.0) included:
 
 - **Interactive graph** — Zoom, pan, and click on nodes
 - **Symbol coloring** — Nodes colored by type (functions, structs, enums, etc.)

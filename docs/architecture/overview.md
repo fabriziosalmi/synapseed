@@ -21,6 +21,8 @@ graph TD
         Tools --> Architect[Architect — Structural Health]
         Tools --> Gym[Gym — Code Sandbox]
         Tools --> Janitor[Janitor — Maintenance]
+        Tools --> Bench[Bench — Evaluation]
+        Tools --> Decompiler[Decompiler — Binary Analysis]
 
         Cortex --> Core[Core — Event Bus]
         Husk --> Core
@@ -33,11 +35,10 @@ graph TD
         Architect --> Core
         Gym --> Core
         Janitor --> Core
-
-        Core --> Visualizer[Visualizer — Dashboard]
+        Bench --> Core
+        Decompiler --> Core
     end
 
-    Browser[Browser] <-->|WebSocket| Visualizer
     App[Instrumented App] -->|gRPC :4317| Telemetry
 ```
 
@@ -48,7 +49,7 @@ graph TD
 3. **Tool handler** invokes one or more subsystems (e.g., Cortex for indexing, Husk for scanning)
 4. **Subsystems** read/write to the shared `SynapseContext` and broadcast events
 5. **Response** is serialized back to the LLM via stdout
-6. **Side effects** (visualizer updates, telemetry) happen asynchronously via the event bus
+6. **Side effects** (telemetry collection) happen asynchronously via the event bus
 
 ## Crate Dependency Graph
 
@@ -65,9 +66,10 @@ synapseed-cli (binary)
 │   ├── synapseed-architect → synapseed-core, synapseed-cortex
 │   ├── synapseed-gym → synapseed-core
 │   ├── synapseed-janitor → synapseed-core
+│   ├── synapseed-bench → synapseed-core, synapseed-whisper
+│   ├── synapseed-decompiler → synapseed-core
 │   ├── synapseed-whisper → synapseed-core, synapseed-cortex, ...
 │   └── synapseed-telemetry-sink → synapseed-core, synapseed-cortex
-├── synapseed-visualizer → synapseed-core, synapseed-cortex, synapseed-telemetry-sink
 └── (all individual crates for CLI commands)
 ```
 

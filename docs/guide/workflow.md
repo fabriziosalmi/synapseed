@@ -8,19 +8,18 @@ designed to be copy-pasted into your AI coding session.
 
 ---
 
-## Baseline (as of v3.9.2)
+## Baseline (as of v4.15.0)
 
 | Metric | Value |
 |--------|-------|
-| Architecture Score | **100/100 (Grade A)** |
-| Modules | 172 |
-| Symbols | 1746 |
-| Tests | 267 passing, 0 failing |
-| MCP Surface | 22 tools, 9 resources, 6 prompts |
+| Architecture Score | **97/100 (Grade A)** |
+| Modules | 131 |
+| Tests | 373 passing, 0 failing |
+| MCP Surface | 24 tools, 9 resources, 6 prompts |
 
 ---
 
-## The 22 MCP Tools — Organized by Role
+## The 24 MCP Tools — Organized by Role
 
 ### Tier 1: Orchestration (start here)
 
@@ -57,11 +56,14 @@ designed to be copy-pasted into your AI coding session.
 | `janitor-fix` | Apply a Janitor proposal. **Always dry-run first** (`confirm: false`), then `confirm: true`. Auto-reverts on compile failure. | ~2s |
 | `quickfix` | Apply rustc's `MachineApplicable` suggestions. Call `diagnostics` first to find error codes. | ~1s |
 
-### Tier 5: Sandbox & Telemetry
+### Tier 5: Sandbox, Evaluation & Analysis
 
 | Tool | When to Use | Latency |
 |------|------------|---------|
 | `train` | Evaluate Rust code in isolated sandbox — compile, test, benchmark, fuzz, adversarial mutation testing. Use `adversarial: true` for mutation score. | 5-60s |
+| `run_benchmark` | Execute reproducible SCR evaluation suite with F1, precision, recall metrics. | 10-60s |
+| `analyze_binary` | Analyze compiled binaries (ELF/Mach-O/PE) for behavioral understanding. | ~1s |
+| `explain_dependency` | Understand what a compiled Rust dependency actually does. | ~500ms |
 | `reset-telemetry` | Clear OTLP spans/metrics for a fresh observation window. | <10ms |
 | `diagnose` | Full project diagnostic: state, build system, git, metrics, plugins. | ~200ms |
 | `consult` | Query the DNA policy — preferred libs, naming, workspace strategy. | <10ms |
@@ -111,9 +113,9 @@ architect(refresh: true)
 ```
 
 Check:
-- Score must not drop below current baseline (100)
+- Score must not drop below baseline (97)
 - No new violations
-- `max_coupling` must stay <= 2
+- `max_coupling` stays reasonable
 
 ### Step 3: Debt Pass (5-10 min)
 
@@ -143,10 +145,10 @@ analyze(file: "<hotspot file>")     // check risk indicator
 scan("<any new config content>")   // DLP check
 ```
 
-Files to always check before commit (current hotspots):
-- `crates/whisper/src/router/mod.rs` — complexity 19, co-change hub
-- `crates/mcp/src/tools/mod.rs` — 22-tool dispatch, high fan-out
-- `crates/visualizer/assets/graph.js` — 81 symbols (god object remediation in progress)
+Files to always check before commit:
+- Critical subsystem files with high complexity
+- Files with significant co-change patterns
+- Public API boundaries
 
 ### Step 5: Commit (2 min)
 
@@ -233,11 +235,11 @@ ask("run a full security audit across all source files")
 
 After each Quantum Loop iteration, record:
 
-1. **Architecture Score** — must be monotonically non-decreasing
-2. **Warning Count** — target: 0 (currently 0 in Rust, pre-existing in husk/search)
-3. **Test Count** — currently 267, should grow with each feature
-4. **Violation Count** — currently 1, track toward 0
-5. **Hotspot Risk** — monitor top 3 files by `analyze` risk indicator
+1. **Architecture Score** — target: A grade (90+)
+2. **Warning Count** — target: 0
+3. **Test Count** — should grow with each feature
+4. **Violation Count** — track toward 0
+5. **Search Metrics** — MRR, Recall@10, File Hit@10
 
 ---
 

@@ -1,6 +1,10 @@
 # MCP Tools
 
-SYNAPSEED exposes 21 tools via the Model Context Protocol. Tools are callable actions that the LLM can invoke.
+SYNAPSEED exposes 24 tools via the Model Context Protocol. Tools are callable actions that the LLM can invoke.
+
+::: tip PRIMARY TOOL
+**Start with `ask`** — The intent router orchestrates all subsystems and provides the best response for any query. Only use low-level tools when you need direct access to specific subsystems.
+:::
 
 ## `hoist`
 

@@ -17,7 +17,7 @@ Most AI coding agents treat your codebase as a pile of text files, using `grep` 
 | None (Leaked secrets) | **DLP Fail-Closed** — Real-time redaction |
 | Zero context (Stateless) | **Git Time-Travel** — History & intent analysis |
 | Suggests `rm -rf /` | **Sentinel Sandbox** — Policy enforcement |
-| No visibility | **Live Graph Visualization** — WebSocket updates |
+| No visibility | **Architecture Health** — Dependency graph & metrics |
 | High latency (Network) | **Zero-Copy / Direct Rust** — <10ms response |
 
 ## How It Works
@@ -35,7 +35,8 @@ Developer ←→ LLM (Claude/Copilot) ←→ MCP Protocol ←→ SYNAPSEED
                                                          ├── Architect (Structural Health)
                                                          ├── Gym (Code Sandbox + Adversarial)
                                                          ├── Janitor (Automated Maintenance)
-                                                         ├── Visualizer (Dashboard)
+                                                         ├── Bench (Evaluation Suite)
+                                                         ├── Decompiler (Binary Analysis)
                                                          ├── Whisper (Intent Router)
                                                          └── Telemetry (OTLP Receiver)
 ```

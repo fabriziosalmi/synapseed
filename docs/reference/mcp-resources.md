@@ -1,6 +1,6 @@
 # MCP Resources
 
-SYNAPSEED exposes 10 read-only resources. Resources provide context data that the LLM can inspect without side effects.
+SYNAPSEED exposes 9 read-only resources. Resources provide context data that the LLM can inspect without side effects.
 
 ## `synapseed://status`
 
@@ -85,27 +85,6 @@ Live compiler diagnostics from the background shadow compiler.
 ```
 
 Returns `{"status": "inactive"}` if the shadow compiler is not running.
-
----
-
-## `synapseed://visualizer/url`
-
-**Name:** Visualizer Dashboard URL
-
-URL and feature list for the live architecture dashboard.
-
-```json
-{
-  "url": "http://localhost:3000",
-  "description": "Live architecture dashboard",
-  "features": [
-    "Interactive code graph",
-    "Real-time WebSocket updates",
-    "Pulse animation on modifications",
-    "Activity log"
-  ]
-}
-```
 
 ---
 
