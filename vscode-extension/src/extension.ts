@@ -1,5 +1,11 @@
 import * as vscode from 'vscode';
-import { runSynapseed } from './cli';
+import { runSynapseed, getProjectRoot } from './cli';
+import { globalCache } from './cache';
+import { DiagnosticBridge } from './diagnosticBridge';
+import { SynapseedCodeLensProvider } from './codelens';
+import { SynapseedFileDecorator } from './fileDecorator';
+import { AskPanel } from './askPanel';
+import { DashboardPanel } from './dashboard';
 import { StatusProvider } from './providers/statusProvider';
 import { MetricsProvider } from './providers/metricsProvider';
 import { DiagnosticsProvider } from './providers/diagnosticsProvider';
@@ -11,12 +17,14 @@ import { JanitorProvider } from './providers/janitorProvider';
 import { TelemetryProvider } from './providers/telemetryProvider';
 
 let autoRefreshTimer: NodeJS.Timeout | undefined;
-let statusBar: vscode.StatusBarItem;
+let statusBarGrade: vscode.StatusBarItem;
+let statusBarDiag: vscode.StatusBarItem;
+let statusBarSecurity: vscode.StatusBarItem;
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('SYNAPSEED extension activating...');
 
-    // ── Create providers ────────────────────────────────────────────
+    // ── Providers ────────────────────────────────────────────────────
     const statusProvider = new StatusProvider();
     const metricsProvider = new MetricsProvider();
     const diagnosticsProvider = new DiagnosticsProvider();
@@ -27,7 +35,26 @@ export function activate(context: vscode.ExtensionContext) {
     const janitorProvider = new JanitorProvider();
     const telemetryProvider = new TelemetryProvider();
 
-    // ── Register tree views ─────────────────────────────────────────
+    // ── Diagnostic Bridge (native Problems panel) ────────────────────
+    const diagBridge = new DiagnosticBridge();
+    context.subscriptions.push(diagBridge);
+
+    // ── CodeLens ─────────────────────────────────────────────────────
+    const codeLensProvider = new SynapseedCodeLensProvider();
+    context.subscriptions.push(
+        vscode.languages.registerCodeLensProvider(
+            [{ language: 'rust' }, { language: 'python' }, { language: 'typescript' }],
+            codeLensProvider,
+        ),
+    );
+
+    // ── File Decorations ─────────────────────────────────────────────
+    const fileDecorator = new SynapseedFileDecorator();
+    context.subscriptions.push(
+        vscode.window.registerFileDecorationProvider(fileDecorator),
+    );
+
+    // ── Tree Views ───────────────────────────────────────────────────
     context.subscriptions.push(
         vscode.window.registerTreeDataProvider('synapseed.status', statusProvider),
         vscode.window.registerTreeDataProvider('synapseed.metrics', metricsProvider),
@@ -40,79 +67,211 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.registerTreeDataProvider('synapseed.telemetry', telemetryProvider),
     );
 
-    // ── Register commands ───────────────────────────────────────────
-    context.subscriptions.push(
-        vscode.commands.registerCommand('synapseed.refresh', () => {
-            refreshAll();
-        }),
-        vscode.commands.registerCommand('synapseed.refreshStatus', () => {
-            statusProvider.refresh();
-            metricsProvider.refresh();
-        }),
-        vscode.commands.registerCommand('synapseed.refreshDiagnostics', () => {
-            diagnosticsProvider.refresh();
-        }),
-        vscode.commands.registerCommand('synapseed.refreshArchitecture', () => {
-            architectureProvider.refresh();
-        }),
-        vscode.commands.registerCommand('synapseed.refreshGit', () => {
-            gitProvider.refresh();
-        }),
-        vscode.commands.registerCommand('synapseed.runJanitor', () => {
-            janitorProvider.refresh();
-        }),
-        vscode.commands.registerCommand('synapseed.refreshTelemetry', () => {
-            telemetryProvider.refresh();
-        }),
-        vscode.commands.registerCommand('synapseed.resetTelemetry', async () => {
+    // ── Commands ─────────────────────────────────────────────────────
+    const commands: [string, (...args: any[]) => any][] = [
+        // Refresh commands
+        ['synapseed.refresh', () => refreshAll()],
+        ['synapseed.refreshStatus', () => { statusProvider.refresh(); metricsProvider.refresh(); }],
+        ['synapseed.refreshDiagnostics', () => { diagnosticsProvider.refresh(); diagBridge.refresh(); }],
+        ['synapseed.refreshArchitecture', () => architectureProvider.refresh()],
+        ['synapseed.refreshGit', () => gitProvider.refresh()],
+        ['synapseed.refreshSecurity', () => securityProvider.refresh()],
+        ['synapseed.refreshConsistency', () => consistencyProvider.refresh()],
+        ['synapseed.runJanitor', () => janitorProvider.refresh()],
+        ['synapseed.refreshTelemetry', () => telemetryProvider.refresh()],
+
+        // Reset
+        ['synapseed.resetTelemetry', async () => {
             const result = await runSynapseed(['mcp', 'call', 'reset-telemetry', '{}']);
-            if (result.stdout) {
-                vscode.window.showInformationMessage(`SYNAPSEED: ${result.stdout}`);
-            }
+            if (result.stdout) { vscode.window.showInformationMessage(`SYNAPSEED: ${result.stdout}`); }
             telemetryProvider.refresh();
-        }),
-        vscode.commands.registerCommand('synapseed.openDashboard', async () => {
-            const panel = vscode.window.createWebviewPanel(
-                'synapseedDashboard',
-                'SYNAPSEED Dashboard',
-                vscode.ViewColumn.One,
-                { enableScripts: true },
-            );
-            panel.webview.html = await buildDashboardHtml();
-        }),
-        vscode.commands.registerCommand('synapseed.askQuestion', async () => {
+        }],
+
+        // Dashboard
+        ['synapseed.openDashboard', () => DashboardPanel.show(context.extensionUri)],
+
+        // Ask — from command palette
+        ['synapseed.askQuestion', async () => {
             const query = await vscode.window.showInputBox({
-                prompt: 'Ask SYNAPSEED a question about your codebase',
+                prompt: 'Ask SYNAPSEED about your codebase',
                 placeHolder: 'e.g., why is the login broken?',
             });
-            if (query) {
-                await askSynapseed(query);
+            if (query) { AskPanel.show(context.extensionUri, query); }
+        }],
+
+        // Ask — context menu on symbol
+        ['synapseed.askAboutSymbol', async (symbolName: string, file: string, line: number) => {
+            const query = `explain ${symbolName} in ${file} around line ${line}`;
+            AskPanel.show(context.extensionUri, query);
+        }],
+
+        // Analyze file (for codelens)
+        ['synapseed.analyzeFile', async (relPath: string) => {
+            const query = `analyze the history and churn of ${relPath}`;
+            AskPanel.show(context.extensionUri, query);
+        }],
+
+        // Lookup symbol (Ctrl+Shift+L)
+        ['synapseed.lookupSymbol', async () => {
+            const name = await vscode.window.showInputBox({
+                prompt: 'Symbol name to look up',
+                placeHolder: 'e.g., SemanticIndex',
+            });
+            if (!name) { return; }
+
+            const result = await vscode.window.withProgress(
+                { location: vscode.ProgressLocation.Notification, title: `Looking up ${name}...` },
+                () => runSynapseed(['lookup', name]),
+            );
+            if (result.stdout) {
+                const output = vscode.window.createOutputChannel('SYNAPSEED Lookup');
+                output.clear();
+                output.appendLine(`Symbol: ${name}\n`);
+                output.appendLine(result.stdout);
+                output.show();
             }
-        }),
-    );
+        }],
 
-    // ── Status bar item ─────────────────────────────────────────────
-    statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
-    statusBar.text = '$(circuit-board) SYNAPSEED';
-    statusBar.tooltip = 'Click to refresh all SYNAPSEED panels';
-    statusBar.command = 'synapseed.refresh';
-    statusBar.show();
-    context.subscriptions.push(statusBar);
+        // Search (Ctrl+Shift+S)
+        ['synapseed.searchCode', async () => {
+            const query = await vscode.window.showInputBox({
+                prompt: 'Search for code by concept',
+                placeHolder: 'e.g., authentication login',
+            });
+            if (!query) { return; }
 
-    // ── Auto-refresh on file save ───────────────────────────────────
+            const result = await vscode.window.withProgress(
+                { location: vscode.ProgressLocation.Notification, title: `Searching: ${query}...` },
+                () => runSynapseed(['search', query]),
+            );
+            if (result.stdout) {
+                const output = vscode.window.createOutputChannel('SYNAPSEED Search');
+                output.clear();
+                output.appendLine(`Query: ${query}\n`);
+                output.appendLine(result.stdout);
+                output.show();
+            }
+        }],
+
+        // Scan selection for secrets
+        ['synapseed.scanSelection', async () => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) { return; }
+            const selection = editor.document.getText(editor.selection);
+            if (!selection) {
+                vscode.window.showWarningMessage('Select text to scan');
+                return;
+            }
+
+            const result = await runSynapseed(['scan', '--content', selection]);
+            const isClean = result.stdout?.includes('CLEAN');
+            if (isClean) {
+                vscode.window.showInformationMessage('$(pass) SYNAPSEED: Selection is clean — no secrets detected');
+            } else {
+                vscode.window.showWarningMessage(`$(shield) SYNAPSEED DLP Alert: ${result.stdout?.substring(0, 200)}`);
+            }
+        }],
+
+        // Check command
+        ['synapseed.checkCommand', async () => {
+            const cmd = await vscode.window.showInputBox({
+                prompt: 'Shell command to evaluate',
+                placeHolder: 'e.g., rm -rf /tmp/build',
+            });
+            if (!cmd) { return; }
+
+            const result = await runSynapseed(['check', cmd]);
+            const allowed = result.stdout?.includes('ALLOWED');
+            if (allowed) {
+                vscode.window.showInformationMessage(`$(pass) Command ALLOWED: ${cmd}`);
+            } else {
+                vscode.window.showWarningMessage(`$(shield) Command DENIED: ${cmd}\n${result.stdout ?? ''}`);
+            }
+        }],
+
+        // Quick blame (Ctrl+Shift+B)
+        ['synapseed.blameCurrentFile', async () => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) { return; }
+            const root = getProjectRoot() ?? '';
+            const relPath = editor.document.uri.fsPath.replace(root + '/', '');
+            const line = editor.selection.active.line + 1;
+            const startLine = Math.max(1, line - 5);
+            const endLine = line + 5;
+
+            const result = await vscode.window.withProgress(
+                { location: vscode.ProgressLocation.Notification, title: `Git blame: ${relPath}:${line}` },
+                () => runSynapseed(['blame', relPath, '-s', String(startLine), '-e', String(endLine)]),
+            );
+
+            if (result.stdout) {
+                const output = vscode.window.createOutputChannel('SYNAPSEED Blame');
+                output.clear();
+                output.appendLine(`File: ${relPath}  Lines: ${startLine}-${endLine}\n`);
+                output.appendLine(result.stdout);
+                output.show(true);
+            }
+        }],
+
+        // Invalidate cache
+        ['synapseed.clearCache', () => {
+            globalCache.invalidate();
+            vscode.window.showInformationMessage('SYNAPSEED: Cache cleared');
+            refreshAll();
+        }],
+
+        // Init project
+        ['synapseed.initProject', async () => {
+            const result = await vscode.window.withProgress(
+                { location: vscode.ProgressLocation.Notification, title: 'Initializing SYNAPSEED...' },
+                () => runSynapseed(['init'], { timeoutMs: 60_000 }),
+            );
+            if (result.success) {
+                vscode.window.showInformationMessage('SYNAPSEED initialized! Refreshing...');
+                refreshAll();
+            } else {
+                vscode.window.showErrorMessage(`Init failed: ${result.stderr}`);
+            }
+        }],
+    ];
+
+    for (const [id, handler] of commands) {
+        context.subscriptions.push(vscode.commands.registerCommand(id, handler));
+    }
+
+    // ── Status Bar (3 segments) ──────────────────────────────────────
+    statusBarGrade = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 52);
+    statusBarGrade.command = 'synapseed.openDashboard';
+    statusBarGrade.tooltip = 'Architecture Grade — Click to open dashboard';
+    context.subscriptions.push(statusBarGrade);
+
+    statusBarDiag = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 51);
+    statusBarDiag.command = 'synapseed.refreshDiagnostics';
+    statusBarDiag.tooltip = 'Build Status — Click to refresh diagnostics';
+    context.subscriptions.push(statusBarDiag);
+
+    statusBarSecurity = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
+    statusBarSecurity.command = 'synapseed.refreshSecurity';
+    statusBarSecurity.tooltip = 'Security Status — Click to refresh';
+    context.subscriptions.push(statusBarSecurity);
+
+    statusBarGrade.show();
+    statusBarDiag.show();
+    statusBarSecurity.show();
+
+    // ── File Save → Refresh ──────────────────────────────────────────
     context.subscriptions.push(
-        vscode.workspace.onDidSaveTextDocument((doc) => {
-            const config = vscode.workspace.getConfiguration('synapseed');
-            if (config.get<boolean>('refreshOnSave', true)) {
-                // Only refresh diagnostics on save (lightweight)
+        vscode.workspace.onDidSaveTextDocument(() => {
+            if (vscode.workspace.getConfiguration('synapseed').get<boolean>('refreshOnSave', true)) {
+                globalCache.invalidate();
                 diagnosticsProvider.refresh();
-                // Update status bar
+                diagBridge.refresh();
                 updateStatusBar();
             }
         }),
     );
 
-    // ── Auto-refresh timer ──────────────────────────────────────────
+    // ── Auto-Refresh Timer ───────────────────────────────────────────
     setupAutoRefresh();
     context.subscriptions.push(
         vscode.workspace.onDidChangeConfiguration((e) => {
@@ -122,10 +281,13 @@ export function activate(context: vscode.ExtensionContext) {
         }),
     );
 
-    // ── Initial load ────────────────────────────────────────────────
+    // ── Initial Load ─────────────────────────────────────────────────
     refreshAll();
+    console.log('SYNAPSEED extension activated.');
 
+    // ── Inner Functions ──────────────────────────────────────────────
     function refreshAll() {
+        globalCache.invalidate();
         statusProvider.refresh();
         metricsProvider.refresh();
         diagnosticsProvider.refresh();
@@ -134,23 +296,21 @@ export function activate(context: vscode.ExtensionContext) {
         securityProvider.refresh();
         consistencyProvider.refresh();
         telemetryProvider.refresh();
-        // Don't auto-refresh janitor — it's slow
+        diagBridge.refresh();
+        codeLensProvider.refresh();
+        fileDecorator.refresh();
         updateStatusBar();
     }
 
     function setupAutoRefresh() {
-        if (autoRefreshTimer) {
-            clearInterval(autoRefreshTimer);
-            autoRefreshTimer = undefined;
-        }
-        const interval = vscode.workspace.getConfiguration('synapseed')
-            .get<number>('autoRefreshInterval', 30);
+        if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = undefined; }
+        const interval = vscode.workspace.getConfiguration('synapseed').get<number>('autoRefreshInterval', 30);
         if (interval > 0) {
             autoRefreshTimer = setInterval(() => {
-                // Lightweight refresh — just diagnostics and metrics
                 diagnosticsProvider.refresh();
                 metricsProvider.refresh();
                 telemetryProvider.refresh();
+                diagBridge.refresh();
                 updateStatusBar();
             }, interval * 1000);
         }
@@ -158,126 +318,38 @@ export function activate(context: vscode.ExtensionContext) {
 
     async function updateStatusBar() {
         try {
-            const result = await runSynapseed(['diagnostics']);
-            if (result.stdout?.startsWith('CLEAN')) {
-                statusBar.text = '$(pass) SYNAPSEED';
-                statusBar.backgroundColor = undefined;
-            } else if (result.stdout?.includes('error')) {
-                statusBar.text = '$(error) SYNAPSEED';
-                statusBar.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+            // Grade
+            const archResult = await runSynapseed(['architect'], { cache: true, cacheTtlMs: 60_000 });
+            const gradeMatch = archResult.stdout?.match(/Grade:\s*(\w+)/);
+            if (gradeMatch) {
+                const g = gradeMatch[1];
+                const emoji = g === 'A' ? '🟢' : g === 'B' ? '🔵' : g === 'C' ? '🟡' : '🔴';
+                statusBarGrade.text = `${emoji} ${g}`;
             } else {
-                statusBar.text = '$(circuit-board) SYNAPSEED';
-                statusBar.backgroundColor = undefined;
+                statusBarGrade.text = '$(circuit-board) SYN';
             }
+
+            // Diagnostics
+            const diagResult = await runSynapseed(['diagnostics'], { cache: true, cacheTtlMs: 10_000 });
+            if (diagResult.stdout?.startsWith('CLEAN')) {
+                statusBarDiag.text = '$(pass) Build';
+                statusBarDiag.backgroundColor = undefined;
+            } else if (diagResult.stdout?.includes('error')) {
+                statusBarDiag.text = '$(error) Build';
+                statusBarDiag.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+            } else {
+                statusBarDiag.text = '$(circle-large-outline) Build';
+                statusBarDiag.backgroundColor = undefined;
+            }
+
+            // Security
+            statusBarSecurity.text = '$(shield) DLP';
         } catch {
-            statusBar.text = '$(warning) SYNAPSEED';
+            statusBarGrade.text = '$(warning) SYN';
         }
     }
-
-    console.log('SYNAPSEED extension activated.');
-}
-
-async function askSynapseed(query: string): Promise<void> {
-    const outputChannel = vscode.window.createOutputChannel('SYNAPSEED Ask');
-    outputChannel.show();
-    outputChannel.appendLine(`> ${query}\n`);
-    outputChannel.appendLine('Thinking...\n');
-
-    const result = await runSynapseed(['ask', query, '--raw']);
-    outputChannel.clear();
-    outputChannel.appendLine(`> ${query}\n`);
-    if (result.stdout) {
-        outputChannel.appendLine(result.stdout);
-    } else {
-        outputChannel.appendLine(`Error: ${result.stderr}`);
-    }
-}
-
-async function buildDashboardHtml(): Promise<string> {
-    // Gather all data
-    const [statusResult, diagResult, archResult] = await Promise.all([
-        runSynapseed(['status']),
-        runSynapseed(['diagnostics']),
-        runSynapseed(['architect']),
-    ]);
-
-    const archJson = archResult.stdout?.match(/(\{[\s\S]*\})/)?.[1] ?? '{}';
-
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <style>
-        body {
-            font-family: var(--vscode-font-family, 'Segoe UI', sans-serif);
-            color: var(--vscode-foreground);
-            background: var(--vscode-editor-background);
-            padding: 20px;
-            line-height: 1.6;
-        }
-        h1 { color: var(--vscode-editor-foreground); border-bottom: 1px solid var(--vscode-panel-border); padding-bottom: 8px; }
-        h2 { color: var(--vscode-editor-foreground); margin-top: 24px; }
-        .card {
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 6px;
-            padding: 16px;
-            margin: 12px 0;
-            background: var(--vscode-editor-background);
-        }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
-        .metric { text-align: center; }
-        .metric .value { font-size: 2em; font-weight: bold; color: var(--vscode-charts-green); }
-        .metric .label { font-size: 0.9em; opacity: 0.7; }
-        .grade { font-size: 4em; font-weight: bold; }
-        .grade.A { color: var(--vscode-charts-green); }
-        .grade.B { color: var(--vscode-charts-blue); }
-        .grade.C { color: var(--vscode-charts-yellow); }
-        .grade.D, .grade.F { color: var(--vscode-charts-red); }
-        pre {
-            background: var(--vscode-textCodeBlock-background);
-            padding: 12px;
-            border-radius: 4px;
-            overflow-x: auto;
-            font-size: 0.85em;
-        }
-    </style>
-</head>
-<body>
-    <h1>SYNAPSEED Dashboard</h1>
-
-    <div class="grid">
-        <div class="card metric">
-            <div class="label">Architecture</div>
-            <div class="grade ${archJson.includes('"grade"') ? JSON.parse(archJson).grade : 'A'}">${archJson.includes('"grade"') ? JSON.parse(archJson).grade : '?'}</div>
-        </div>
-        <div class="card metric">
-            <div class="label">Diagnostics</div>
-            <div class="value">${diagResult.stdout?.startsWith('CLEAN') ? '✓' : '!'}</div>
-        </div>
-    </div>
-
-    <h2>Status</h2>
-    <div class="card"><pre>${escapeHtml(statusResult.stdout || 'N/A')}</pre></div>
-
-    <h2>Diagnostics</h2>
-    <div class="card"><pre>${escapeHtml(diagResult.stdout || 'N/A')}</pre></div>
-
-    <h2>Architecture</h2>
-    <div class="card"><pre>${escapeHtml(archResult.stdout || 'N/A')}</pre></div>
-</body>
-</html>`;
-}
-
-function escapeHtml(text: string): string {
-    return text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
 }
 
 export function deactivate() {
-    if (autoRefreshTimer) {
-        clearInterval(autoRefreshTimer);
-    }
+    if (autoRefreshTimer) { clearInterval(autoRefreshTimer); }
 }

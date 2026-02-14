@@ -1,31 +1,36 @@
 import * as vscode from 'vscode';
 import { runSynapseed } from '../cli';
-import { SynapseedItem, kvItem, sectionItem, emptyItem, errorItem } from '../items';
+import { SynapseedItem, kvItem, sectionItem, emptyItem, errorItem, loadingItem } from '../items';
 
-/**
- * OTEL Telemetry view — shows runtime hotspots received via the OTLP gRPC receiver.
- * Data source: `synapseed mcp read synapseed://telemetry/hotspots`
- */
+interface TelemetryHotspot {
+    key: string;
+    call_count: number;
+    avg_duration_ms: number;
+    max_duration_ms: number;
+    p95_duration_ms: number;
+    last_seen: string;
+}
+
+interface TelemetryData {
+    total_spans: number;
+    unique_locations: number;
+    buffer_usage: string;
+    hotspots: TelemetryHotspot[];
+}
+
 export class TelemetryProvider implements vscode.TreeDataProvider<SynapseedItem> {
     private _onDidChange = new vscode.EventEmitter<SynapseedItem | undefined>();
     readonly onDidChangeTreeData = this._onDidChange.event;
-
     private items: SynapseedItem[] = [];
     private loading = false;
 
-    refresh(): void {
-        this._onDidChange.fire(undefined);
-    }
+    refresh(): void { this._onDidChange.fire(undefined); }
 
-    getTreeItem(element: SynapseedItem): vscode.TreeItem {
-        return element;
-    }
+    getTreeItem(el: SynapseedItem): vscode.TreeItem { return el; }
 
-    getChildren(element?: SynapseedItem): SynapseedItem[] {
-        if (element?.children) {
-            return element.children;
-        }
-        if (!element) {
+    getChildren(el?: SynapseedItem): SynapseedItem[] {
+        if (el?.children) { return el.children; }
+        if (!el) {
             if (!this.loading) {
                 this.loading = true;
                 this.loadData().then(() => { this.loading = false; });
@@ -37,19 +42,17 @@ export class TelemetryProvider implements vscode.TreeDataProvider<SynapseedItem>
 
     private async loadData(): Promise<void> {
         try {
-            // Read the hotspots resource via MCP
             const result = await runSynapseed(
                 ['mcp', 'read', 'synapseed://telemetry/hotspots'],
-                15000,
+                { timeoutMs: 15_000 },
             );
 
-            if (!result.stdout || result.stdout.trim().length === 0) {
+            if (!result.stdout?.trim()) {
                 this.items = [emptyItem('No telemetry data yet')];
                 this._onDidChange.fire(undefined);
                 return;
             }
 
-            // Parse JSON from output
             const jsonMatch = result.stdout.match(/(\{[\s\S]*\})/);
             if (!jsonMatch) {
                 this.items = [emptyItem('No telemetry data yet')];
@@ -57,9 +60,9 @@ export class TelemetryProvider implements vscode.TreeDataProvider<SynapseedItem>
                 return;
             }
 
-            const data = JSON.parse(jsonMatch[1]) as TelemetryHotspots;
+            const data: TelemetryData = JSON.parse(jsonMatch[1]);
 
-            // ── Store Stats ──────────────────────────────────────
+            // Store stats
             const statsItems: SynapseedItem[] = [
                 kvItem('Total Spans', String(data.total_spans ?? 0), 'pulse'),
                 kvItem('Unique Locations', String(data.unique_locations ?? 0), 'symbol-method'),
@@ -67,12 +70,11 @@ export class TelemetryProvider implements vscode.TreeDataProvider<SynapseedItem>
             ];
             const statsSection = sectionItem('Store Stats', statsItems, 'graph');
 
-            // ── Hotspots ─────────────────────────────────────────
+            // Hotspots with rich tooltips
             const hotspotItems: SynapseedItem[] = (data.hotspots ?? []).map((h, i) => {
                 const [filePath, symbol] = (h.key ?? '').split(':');
-                const durationColor = h.avg_duration_ms > 200 ? 'error'
-                    : h.avg_duration_ms > 50 ? 'warning'
-                        : 'pass';
+                const durationIcon = h.avg_duration_ms > 200 ? 'flame' :
+                    h.avg_duration_ms > 50 ? 'warning' : 'pass';
 
                 const children: SynapseedItem[] = [
                     kvItem('Calls', String(h.call_count), 'history'),
@@ -82,15 +84,24 @@ export class TelemetryProvider implements vscode.TreeDataProvider<SynapseedItem>
                     kvItem('Last Seen', h.last_seen ?? 'N/A', 'calendar'),
                 ];
 
-                const item = new SynapseedItem(
-                    `#${i + 1} ${symbol || h.key}`,
-                    `${h.avg_duration_ms.toFixed(1)}ms avg · ${h.call_count} calls`,
-                    vscode.TreeItemCollapsibleState.Collapsed,
-                    children,
-                    durationColor,
-                );
+                const tooltip = new vscode.MarkdownString([
+                    `## #${i + 1} ${symbol || h.key}`,
+                    `| Metric | Value |`,
+                    `|--------|-------|`,
+                    `| Calls | ${h.call_count} |`,
+                    `| Avg | ${h.avg_duration_ms.toFixed(1)}ms |`,
+                    `| Max | ${h.max_duration_ms.toFixed(1)}ms |`,
+                    `| P95 | ${h.p95_duration_ms.toFixed(1)}ms |`,
+                ].join('\n'));
 
-                // Click to navigate to file
+                const item = new SynapseedItem(`#${i + 1} ${symbol || h.key}`, {
+                    description: `${h.avg_duration_ms.toFixed(1)}ms avg · ${h.call_count} calls`,
+                    icon: durationIcon,
+                    state: vscode.TreeItemCollapsibleState.Collapsed,
+                    children,
+                    tooltip,
+                });
+
                 if (filePath) {
                     item.command = {
                         command: 'vscode.open',
@@ -106,30 +117,12 @@ export class TelemetryProvider implements vscode.TreeDataProvider<SynapseedItem>
                 ? sectionItem('Hotspots (by avg duration)', hotspotItems, 'flame')
                 : emptyItem('No hotspots detected');
 
-            // ── OTLP Receiver ────────────────────────────────────
             const receiverItem = kvItem('OTLP Receiver', '127.0.0.1:4317', 'broadcast');
 
             this.items = [statsSection, hotspotsSection, receiverItem];
         } catch (err: any) {
-            this.items = [errorItem(err.message ?? 'Failed to load telemetry')];
+            this.items = [errorItem(err.message ?? 'Failed')];
         }
-
         this._onDidChange.fire(undefined);
     }
-}
-
-interface TelemetryHotspot {
-    key: string;
-    call_count: number;
-    avg_duration_ms: number;
-    max_duration_ms: number;
-    p95_duration_ms: number;
-    last_seen: string;
-}
-
-interface TelemetryHotspots {
-    total_spans: number;
-    unique_locations: number;
-    buffer_usage: string;
-    hotspots: TelemetryHotspot[];
 }

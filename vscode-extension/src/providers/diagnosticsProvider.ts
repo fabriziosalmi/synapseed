@@ -1,22 +1,16 @@
 import * as vscode from 'vscode';
-import { runSynapseed } from '../cli';
-import { SynapseedItem, kvItem, sectionItem, errorItem, emptyItem } from '../items';
+import { runSynapseed, getProjectRoot } from '../cli';
+import { SynapseedItem, kvItem, sectionItem, errorItem, emptyItem, loadingItem, fileItem } from '../items';
 
-/**
- * Compiler Diagnostics view — errors/warnings from shadow compiler.
- */
 export class DiagnosticsProvider implements vscode.TreeDataProvider<SynapseedItem> {
     private _onDidChange = new vscode.EventEmitter<SynapseedItem | undefined>();
     readonly onDidChangeTreeData = this._onDidChange.event;
-
     private items: SynapseedItem[] = [emptyItem('Click refresh to load')];
 
-    refresh(): void {
-        this.loadData();
-    }
+    refresh(): void { this.loadData(); }
 
     private async loadData(): Promise<void> {
-        this.items = [new SynapseedItem('Loading...', undefined, vscode.TreeItemCollapsibleState.None, undefined, 'loading~spin')];
+        this.items = [loadingItem()];
         this._onDidChange.fire(undefined);
 
         try {
@@ -28,92 +22,68 @@ export class DiagnosticsProvider implements vscode.TreeDataProvider<SynapseedIte
             }
 
             const text = result.stdout;
-
-            // CLEAN: No diagnostics
             if (text.startsWith('CLEAN')) {
+                const took = text.match(/took (\d+ms)/)?.[1] ?? '';
                 this.items = [
-                    new SynapseedItem('No Issues', 'Build is clean', vscode.TreeItemCollapsibleState.None, undefined, 'pass'),
-                    kvItem('Last Check', text.match(/took (\d+ms)/)?.[1] ?? 'unknown', 'clock'),
+                    new SynapseedItem('Build Clean', {
+                        description: '0 errors, 0 warnings',
+                        icon: 'pass-filled',
+                        tooltip: new vscode.MarkdownString('✅ **No compiler issues detected**'),
+                    }),
+                    kvItem('Last Check', took, 'clock'),
                 ];
                 this._onDidChange.fire(undefined);
                 return;
             }
 
-            // Parse diagnostics output — typically JSON after text header
-            const items: SynapseedItem[] = [];
-            const lines = text.split('\n');
+            const root = getProjectRoot() ?? '';
             const errors: SynapseedItem[] = [];
             const warnings: SynapseedItem[] = [];
 
-            for (const line of lines) {
-                const trimmed = line.trim();
-                if (!trimmed) { continue; }
+            for (const line of text.split('\n')) {
+                const t = line.trim();
+                if (!t) { continue; }
 
-                // Try to detect error/warning lines
-                // Format: ERROR: path:line:col — message
-                // or: warning[code]: message -> path:line
-                if (trimmed.toLowerCase().startsWith('error')) {
-                    const item = new SynapseedItem(trimmed, undefined, vscode.TreeItemCollapsibleState.None, undefined, 'error');
-                    // Try to extract file location for click-to-navigate
-                    const fileMatch = trimmed.match(/(?:-->|→|at)\s+([^\s:]+):(\d+)/);
-                    if (fileMatch) {
-                        const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-                        if (root) {
-                            const uri = vscode.Uri.file(`${root}/${fileMatch[1]}`);
-                            item.command = {
-                                command: 'vscode.open',
-                                arguments: [uri, { selection: new vscode.Range(parseInt(fileMatch[2]) - 1, 0, parseInt(fileMatch[2]) - 1, 0) }],
-                                title: 'Open File',
-                            };
-                        }
-                    }
-                    errors.push(item);
-                } else if (trimmed.toLowerCase().startsWith('warning')) {
-                    const item = new SynapseedItem(trimmed, undefined, vscode.TreeItemCollapsibleState.None, undefined, 'warning');
-                    const fileMatch = trimmed.match(/(?:-->|→|at)\s+([^\s:]+):(\d+)/);
-                    if (fileMatch) {
-                        const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-                        if (root) {
-                            const uri = vscode.Uri.file(`${root}/${fileMatch[1]}`);
-                            item.command = {
-                                command: 'vscode.open',
-                                arguments: [uri, { selection: new vscode.Range(parseInt(fileMatch[2]) - 1, 0, parseInt(fileMatch[2]) - 1, 0) }],
-                                title: 'Open File',
-                            };
-                        }
-                    }
-                    warnings.push(item);
+                const isError = t.toLowerCase().startsWith('error');
+                const isWarn = t.toLowerCase().startsWith('warning');
+                if (!isError && !isWarn) { continue; }
+
+                const fm = t.match(/(?:-->|→|at)\s+([^\s:]+):(\d+)(?::(\d+))?/);
+                const item = new SynapseedItem(t.substring(0, 120), {
+                    icon: isError ? 'error' : 'warning',
+                    tooltip: new vscode.MarkdownString(`\`\`\`\n${t}\n\`\`\``),
+                    contextValue: 'synapseed.diagnostic',
+                });
+
+                if (fm) {
+                    const fullPath = fm[1].startsWith('/') ? fm[1] : `${root}/${fm[1]}`;
+                    const lineNum = parseInt(fm[2]) - 1;
+                    const col = parseInt(fm[3] ?? '1') - 1;
+                    item.command = {
+                        command: 'vscode.open',
+                        title: 'Go to Error',
+                        arguments: [vscode.Uri.file(fullPath), { selection: new vscode.Range(lineNum, col, lineNum, col + 20) }],
+                    };
+                    item.description = `${fm[1]}:${fm[2]}`;
                 }
+
+                (isError ? errors : warnings).push(item);
             }
 
-            if (errors.length > 0) {
-                items.push(sectionItem(`Errors`, errors, 'error'));
-            }
-            if (warnings.length > 0) {
-                items.push(sectionItem(`Warnings`, warnings, 'warning'));
-            }
-
-            if (items.length === 0) {
-                // Fallback: show raw output
-                items.push(kvItem('Output', text.substring(0, 100), 'info'));
-            }
+            const items: SynapseedItem[] = [];
+            if (errors.length > 0) { items.push(sectionItem(`Errors`, errors, 'error')); }
+            if (warnings.length > 0) { items.push(sectionItem(`Warnings`, warnings, 'warning', true)); }
+            if (items.length === 0) { items.push(kvItem('Output', text.substring(0, 100), 'info')); }
 
             this.items = items;
         } catch (e: any) {
             this.items = [errorItem(e.message)];
         }
-
         this._onDidChange.fire(undefined);
     }
 
-    getTreeItem(element: SynapseedItem): vscode.TreeItem {
-        return element;
-    }
-
-    getChildren(element?: SynapseedItem): SynapseedItem[] {
-        if (element?.children) {
-            return element.children;
-        }
-        return element ? [] : this.items;
+    getTreeItem(el: SynapseedItem): vscode.TreeItem { return el; }
+    getChildren(el?: SynapseedItem): SynapseedItem[] {
+        return el?.children ?? (el ? [] : this.items);
     }
 }

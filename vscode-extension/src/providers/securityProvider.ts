@@ -1,79 +1,78 @@
 import * as vscode from 'vscode';
 import { runSynapseed } from '../cli';
-import { SynapseedItem, kvItem, errorItem, emptyItem } from '../items';
+import { SynapseedItem, kvItem, sectionItem, errorItem, emptyItem, loadingItem, statusItem } from '../items';
 
-/**
- * Security view — DLP scan status, command sentinel stats.
- */
 export class SecurityProvider implements vscode.TreeDataProvider<SynapseedItem> {
     private _onDidChange = new vscode.EventEmitter<SynapseedItem | undefined>();
     readonly onDidChangeTreeData = this._onDidChange.event;
-
     private items: SynapseedItem[] = [emptyItem('Click refresh to load')];
 
-    refresh(): void {
-        this.loadData();
-    }
+    refresh(): void { this.loadData(); }
 
     private async loadData(): Promise<void> {
-        this.items = [new SynapseedItem('Loading...', undefined, vscode.TreeItemCollapsibleState.None, undefined, 'loading~spin')];
+        this.items = [loadingItem()];
         this._onDidChange.fire(undefined);
 
         try {
             const items: SynapseedItem[] = [];
 
-            // Run a test DLP scan to verify the system works
-            const scanResult = await runSynapseed(['scan', '--content', 'test scan']);
-            if (scanResult.stdout) {
-                const isClean = scanResult.stdout.includes('CLEAN');
-                items.push(kvItem('DLP Engine', isClean ? 'Active' : 'Alert', isClean ? 'pass' : 'warning'));
+            const [scanRes, checkRes, statusRes] = await Promise.all([
+                runSynapseed(['scan', '--content', 'test health check'], { cache: true, cacheTtlMs: 30_000 }),
+                runSynapseed(['check', 'cargo test'], { cache: true, cacheTtlMs: 30_000 }),
+                runSynapseed(['status'], { cache: true, cacheTtlMs: 10_000 }),
+            ]);
+
+            // Engine status
+            if (scanRes.stdout) {
+                const ok = scanRes.stdout.includes('CLEAN');
+                items.push(statusItem('DLP Engine', ok, 'Active & Scanning', 'Alert'));
+            }
+            if (checkRes.stdout) {
+                const ok = checkRes.stdout.includes('ALLOWED');
+                items.push(statusItem('Command Sentinel', ok, 'Active & Guarding', 'Restricted'));
             }
 
-            // Check command sentinel
-            const checkResult = await runSynapseed(['check', 'cargo test']);
-            if (checkResult.stdout) {
-                const isAllowed = checkResult.stdout.includes('ALLOWED');
-                items.push(kvItem('Command Sentinel', isAllowed ? 'Active' : 'Restricted', 'shield'));
-            }
-
-            // Get security stats from status
-            const statusResult = await runSynapseed(['status']);
-            if (statusResult.stdout) {
-                const dlpScans = statusResult.stdout.match(/DLP Scans:\s+(\d+)/);
-                const dlpBlocks = statusResult.stdout.match(/DLP Blocks:\s+(\d+)/);
-                const cmdAllowed = statusResult.stdout.match(/Commands Allowed:\s+(\d+)/);
-                const cmdDenied = statusResult.stdout.match(/Commands Denied:\s+(\d+)/);
-                const errorsPrevent = statusResult.stdout.match(/Errors Prevented:\s+(\d+)/);
-
-                if (dlpScans) { items.push(kvItem('DLP Scans', dlpScans[1], 'search')); }
-                if (dlpBlocks) {
-                    const blocks = parseInt(dlpBlocks[1]);
-                    items.push(kvItem('DLP Blocks', dlpBlocks[1], blocks > 0 ? 'error' : 'pass'));
+            // Stats
+            if (statusRes.stdout) {
+                const patterns: Array<[string, string, string]> = [
+                    ['DLP Scans', 'search', /DLP Scans:\s+(\d+)/.source],
+                    ['DLP Blocks', 'shield', /DLP Blocks:\s+(\d+)/.source],
+                    ['Commands Allowed', 'pass', /Commands Allowed:\s+(\d+)/.source],
+                    ['Commands Denied', 'error', /Commands Denied:\s+(\d+)/.source],
+                    ['Errors Prevented', 'shield', /Errors Prevented:\s+(\d+)/.source],
+                ];
+                for (const [name, icon, pat] of patterns) {
+                    const m = statusRes.stdout.match(new RegExp(pat));
+                    if (m) {
+                        const isAlert = (name.includes('Block') || name.includes('Denied')) && parseInt(m[1]) > 0;
+                        items.push(kvItem(name, m[1], isAlert ? 'warning' : icon));
+                    }
                 }
-                if (cmdAllowed) { items.push(kvItem('Commands Allowed', cmdAllowed[1], 'pass')); }
-                if (cmdDenied) {
-                    const denied = parseInt(cmdDenied[1]);
-                    items.push(kvItem('Commands Denied', cmdDenied[1], denied > 0 ? 'warning' : 'pass'));
-                }
-                if (errorsPrevent) { items.push(kvItem('Errors Prevented', errorsPrevent[1], 'shield')); }
             }
+
+            // Security summary tooltip
+            const summary = new vscode.MarkdownString([
+                '## Security Summary',
+                '- **DLP Shield**: Aho-Corasick + regex pattern matching',
+                '- **Command Sentinel**: Deny-first policy evaluation',
+                '- **Network**: 127.0.0.1 only, zero outbound',
+                '- **Process**: Read-only AST, no subprocess spawning',
+            ].join('\n'));
+            items.push(new SynapseedItem('Defense-in-Depth', {
+                description: 'fail-closed model',
+                icon: 'lock',
+                tooltip: summary,
+            }));
 
             this.items = items.length > 0 ? items : [emptyItem('No security data')];
         } catch (e: any) {
             this.items = [errorItem(e.message)];
         }
-
         this._onDidChange.fire(undefined);
     }
 
-    getTreeItem(element: SynapseedItem): vscode.TreeItem {
-        return element;
-    }
-
-    getChildren(element?: SynapseedItem): SynapseedItem[] {
-        if (element?.children) {
-            return element.children;
-        }
-        return element ? [] : this.items;
+    getTreeItem(el: SynapseedItem): vscode.TreeItem { return el; }
+    getChildren(el?: SynapseedItem): SynapseedItem[] {
+        return el?.children ?? (el ? [] : this.items);
     }
 }

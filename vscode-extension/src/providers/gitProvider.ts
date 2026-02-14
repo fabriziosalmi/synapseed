@@ -1,32 +1,29 @@
 import * as vscode from 'vscode';
 import { runSynapseed, parseTextOutput } from '../cli';
-import { SynapseedItem, kvItem, sectionItem, errorItem, emptyItem } from '../items';
+import { SynapseedItem, kvItem, sectionItem, errorItem, emptyItem, loadingItem } from '../items';
 
-/**
- * Git History view — branch, recent commits, intent summary.
- */
 export class GitProvider implements vscode.TreeDataProvider<SynapseedItem> {
     private _onDidChange = new vscode.EventEmitter<SynapseedItem | undefined>();
     readonly onDidChangeTreeData = this._onDidChange.event;
-
     private items: SynapseedItem[] = [emptyItem('Click refresh to load')];
 
-    refresh(): void {
-        this.loadData();
-    }
+    refresh(): void { this.loadData(); }
 
     private async loadData(): Promise<void> {
-        this.items = [new SynapseedItem('Loading...', undefined, vscode.TreeItemCollapsibleState.None, undefined, 'loading~spin')];
+        this.items = [loadingItem()];
         this._onDidChange.fire(undefined);
 
         try {
             const items: SynapseedItem[] = [];
 
-            // Get diagnose for git info
-            const result = await runSynapseed(['diagnose']);
-            if (result.stdout) {
-                const sections = parseTextOutput(result.stdout);
-                const git = sections.get('Git');
+            const [diagRes, intentRes] = await Promise.all([
+                runSynapseed(['diagnose'], { cache: true, cacheTtlMs: 15_000 }),
+                runSynapseed(['intent', '--limit', '10'], { cache: true, cacheTtlMs: 30_000 }),
+            ]);
+
+            if (diagRes.stdout) {
+                const sec = parseTextOutput(diagRes.stdout);
+                const git = sec.get('Git');
                 if (git) {
                     const branch = git.get('Branch');
                     const head = git.get('HEAD');
@@ -34,51 +31,49 @@ export class GitProvider implements vscode.TreeDataProvider<SynapseedItem> {
                     const dirty = git.get('Dirty');
 
                     if (branch) { items.push(kvItem('Branch', branch, 'git-branch')); }
-                    if (head) { items.push(kvItem('HEAD', head, 'git-commit')); }
+                    if (head) {
+                        const short = head.substring(0, 8);
+                        items.push(kvItem('HEAD', short, 'git-commit', `Full: ${head}`));
+                    }
                     if (commits) { items.push(kvItem('Total Commits', commits, 'history')); }
                     if (dirty) {
-                        const icon = dirty === 'false' ? 'pass' : 'warning';
-                        items.push(kvItem('Dirty', dirty, icon));
+                        items.push(kvItem('Working Tree', dirty === 'false' ? 'Clean' : 'Dirty', dirty === 'false' ? 'pass-filled' : 'warning'));
                     }
 
                     // Recent commits
-                    const recentItems: SynapseedItem[] = [];
+                    const commitItems: SynapseedItem[] = [];
                     for (const [key, val] of git) {
-                        if (key.startsWith('_item_')) {
-                            // "dedcc873 | Fabrizio Salmi | v4.14.0 — ..."
-                            const parts = val.split('|').map((p: string) => p.trim());
-                            if (parts.length >= 3) {
-                                const hash = parts[0];
-                                const message = parts.slice(2).join(' | ');
-                                recentItems.push(kvItem(hash, message, 'git-commit'));
-                            } else {
-                                recentItems.push(kvItem(val, '', 'git-commit'));
-                            }
+                        if (!key.startsWith('_item_')) { continue; }
+                        const parts = val.split('|').map((p: string) => p.trim());
+                        if (parts.length >= 3) {
+                            const hash = parts[0].substring(0, 8);
+                            const author = parts[1];
+                            const message = parts.slice(2).join(' | ');
+                            const tt = new vscode.MarkdownString(`**${hash}** by ${author}\n\n${message}`);
+                            commitItems.push(new SynapseedItem(hash, {
+                                description: message.substring(0, 60),
+                                icon: 'git-commit',
+                                tooltip: tt,
+                            }));
                         }
                     }
-                    if (recentItems.length > 0) {
-                        items.push(sectionItem('Recent Commits', recentItems, 'history'));
+                    if (commitItems.length > 0) {
+                        items.push(sectionItem('Recent Commits', commitItems, 'history', true));
                     }
                 }
             }
 
-            // Get intent summary
-            const intentResult = await runSynapseed(['intent', '--limit', '10']);
-            if (intentResult.stdout && !intentResult.stdout.includes('error')) {
-                const intentLines = intentResult.stdout.split('\n').filter((l: string) => l.trim());
+            // Intent summary
+            if (intentRes.stdout && !intentRes.stdout.includes('error')) {
                 const intentItems: SynapseedItem[] = [];
-                for (const line of intentLines.slice(0, 15)) {
-                    const trimmed = line.trim();
-                    if (trimmed && !trimmed.startsWith('===') && !trimmed.startsWith('---')) {
-                        // Category lines like "fix: 5 commits" or commit lines
-                        const catMatch = trimmed.match(/^(\w+):\s+(\d+)\s+commit/i);
-                        if (catMatch) {
-                            const icon = catMatch[1] === 'fix' ? 'wrench' :
-                                catMatch[1] === 'feature' ? 'add' :
-                                    catMatch[1] === 'refactor' ? 'edit' :
-                                        catMatch[1] === 'security' ? 'shield' : 'tag';
-                            intentItems.push(kvItem(catMatch[1], `${catMatch[2]} commits`, icon));
-                        }
+                for (const line of intentRes.stdout.split('\n')) {
+                    const m = line.trim().match(/^(\w+):\s+(\d+)\s+commit/i);
+                    if (m) {
+                        const icons: Record<string, string> = {
+                            fix: 'wrench', feature: 'add', refactor: 'edit',
+                            security: 'shield', docs: 'book', chore: 'gear',
+                        };
+                        intentItems.push(kvItem(m[1], `${m[2]} commits`, icons[m[1]] ?? 'tag'));
                     }
                 }
                 if (intentItems.length > 0) {
@@ -90,18 +85,11 @@ export class GitProvider implements vscode.TreeDataProvider<SynapseedItem> {
         } catch (e: any) {
             this.items = [errorItem(e.message)];
         }
-
         this._onDidChange.fire(undefined);
     }
 
-    getTreeItem(element: SynapseedItem): vscode.TreeItem {
-        return element;
-    }
-
-    getChildren(element?: SynapseedItem): SynapseedItem[] {
-        if (element?.children) {
-            return element.children;
-        }
-        return element ? [] : this.items;
+    getTreeItem(el: SynapseedItem): vscode.TreeItem { return el; }
+    getChildren(el?: SynapseedItem): SynapseedItem[] {
+        return el?.children ?? (el ? [] : this.items);
     }
 }
