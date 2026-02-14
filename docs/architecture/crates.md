@@ -1,6 +1,6 @@
 # Crate Map
 
-SYNAPSEED is a Cargo workspace with 14 library crates and 1 binary crate.
+SYNAPSEED is a Cargo workspace with 15 library crates and 1 binary crate.
 
 ## Overview
 
@@ -11,13 +11,14 @@ SYNAPSEED is a Cargo workspace with 14 library crates and 1 binary crate.
 | `synapseed-husk` | DLP, secret detection & code pattern scanning | 10 | aho-corasick, regex |
 | `synapseed-root` | Command sandbox & sentinel | 20 | regex, synapseed-husk |
 | `synapseed-chronos` | Git history, temporal decay & convergence | 100 | git2 (libgit2) |
-| `synapseed-search` | Tantivy semantic search with temporal boost | 160 | tantivy, synapseed-cortex |
+| `synapseed-search` | Tantivy semantic search with embeddings | 160 | tantivy, fastembed |
 | `synapseed-shadow-check` | Background compiler | 150 | tokio (process) |
-| `synapseed-architect` | Architecture analysis & density metrics | — | petgraph, synapseed-cortex |
+| `synapseed-architect` | Architecture analysis & health scoring | — | petgraph, synapseed-cortex |
 | `synapseed-gym` | Code evaluation sandbox & adversarial testing | — | tempfile, synapseed-core |
 | `synapseed-janitor` | Automated clippy & dependency cleanup | — | synapseed-core |
-| `synapseed-visualizer` | Live dashboard | 250 | axum, rust-embed, notify |
-| `synapseed-whisper` | Intent router | 999 | all subsystems |
+| `synapseed-bench` | Reproducible evaluation framework | — | synapseed-whisper |
+| `synapseed-decompiler` | Binary analysis (ELF/Mach-O/PE) | — | goblin |
+| `synapseed-whisper` | Intent router & orchestration | 999 | all subsystems |
 | `synapseed-telemetry-sink` | OTLP gRPC receiver | 200 | tonic, prost, opentelemetry-proto |
 | `synapseed-mcp` | MCP protocol bridge | — | all subsystems |
 | `synapseed-cli` | Binary entry point | — | all crates, clap |
@@ -60,9 +61,6 @@ Spawns `cargo check --message-format=json` in the background. Parses compiler ou
 
 ## Infrastructure Layer
 
-### Visualizer
-Axum HTTP server serving an embedded Cytoscape.js dashboard. WebSocket connection for live file-change updates and telemetry heatmap rendering.
-
 ### Telemetry Sink
 gRPC server (tonic) implementing the OTLP TraceService. Receives spans, resolves `code.file.path` + `code.line.number` to source symbols, stores in a ring buffer (1000 spans).
 
@@ -77,6 +75,12 @@ Isolated Rust code evaluation sandbox. Compiles, tests, and benchmarks code in a
 ### Janitor
 Automated maintenance: runs clippy scans and unused dependency detection. Generates fix proposals with UUIDs, supports dry-run preview, and auto-reverts on compilation failure.
 
+### Bench
+Reproducible evaluation framework for measuring semantic understanding. Runs question suites (JSONL format), calculates F1 scores, SCR (Semantic Compression Ratio), SID (Semantic Information Density), and hallucination rates. Compares grounded vs. blind responses to quantify the value of SYNAPSEED context.
+
+### Decompiler
+Binary analysis module for understanding compiled code. Supports ELF (Linux), Mach-O (macOS), and PE (Windows) formats. Extracts symbols, classifies strings (URLs, SQL, file paths), builds call graphs, and performs behavioral inference using heuristics. Uses the `goblin` crate for executable parsing.
+
 ## Orchestration Layer
 
 ### Whisper
@@ -85,4 +89,4 @@ Intent Router that classifies natural-language queries and orchestrates multiple
 ## Bridge Layer
 
 ### MCP
-JSON-RPC 2.0 server over stdin/stdout. Exposes 21 tools, 10 resources, and 6 prompt templates. Handles initialization handshake with client fingerprinting (auto-detects model tier), momentum tracking, method routing, and error responses.
+JSON-RPC 2.0 server over stdin/stdout. Exposes 24 tools, 9 resources, and 6 prompt templates. Handles initialization handshake with client fingerprinting (auto-detects model tier), momentum tracking, method routing, and error responses.
