@@ -183,8 +183,8 @@ fn test_mcp_full_lifecycle() {
     let resources = res_list["result"]["resources"].as_array().unwrap();
     assert_eq!(
         resources.len(),
-        10,
-        "Expected 10 resources, got {}",
+        11,
+        "Expected 11 resources, got {}",
         resources.len()
     );
 

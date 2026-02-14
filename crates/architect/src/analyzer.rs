@@ -235,6 +235,21 @@ impl DependencyGraph {
         self.metrics.iter().find(|m| m.module_name == name)
     }
 
+    /// Get dependency pairs as (source_module, target_module) for external consumers.
+    /// Used by the Flight Recorder to detect causal links between session phases.
+    pub fn dep_pairs(&self) -> Vec<(String, String)> {
+        self.graph
+            .edge_indices()
+            .filter_map(|e| {
+                let (src, tgt) = self.graph.edge_endpoints(e)?;
+                Some((
+                    self.graph[src].name.clone(),
+                    self.graph[tgt].name.clone(),
+                ))
+            })
+            .collect()
+    }
+
     /// Get all edges (source_name, target_name, edge).
     pub(crate) fn all_edges(&self) -> Vec<(String, String, &DependencyEdge)> {
         self.graph

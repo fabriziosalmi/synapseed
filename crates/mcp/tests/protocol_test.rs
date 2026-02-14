@@ -258,8 +258,8 @@ fn test_list_resources_returns_10() {
     let resources = resources::list_resources();
     assert_eq!(
         resources.len(),
-        10,
-        "Expected 10 resources, got {}",
+        11,
+        "Expected 11 resources, got {}",
         resources.len()
     );
 }

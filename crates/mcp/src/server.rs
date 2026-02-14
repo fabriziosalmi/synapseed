@@ -13,6 +13,7 @@ use tracing::{debug, error, info, warn};
 
 use synapseed_core::context::SynapseContext;
 use synapseed_core::momentum::{ModelTier, MomentumEngine};
+use synapseed_core::recorder::{EventKind, FlightRecorder};
 use synapseed_core::session::SessionState;
 use synapseed_core::state::ProjectState;
 use synapseed_shadow_check::runner::DiagnosticStore;
@@ -28,6 +29,9 @@ use crate::tools;
 /// via `tokio::task::spawn_blocking`, keeping the main loop responsive.
 pub async fn run(ctx: SynapseContext) -> anyhow::Result<()> {
     info!("MCP server starting (async stdio transport)");
+
+    // Spawn Flight Recorder event bus subscriber (passive listener)
+    spawn_recorder_subscriber(&ctx);
 
     let stdin = tokio::io::stdin();
     let mut stdout = tokio::io::stdout();
@@ -94,6 +98,68 @@ pub async fn run(ctx: SynapseContext) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Spawn a background task that feeds EventBus events into the FlightRecorder.
+/// Listens for FileChanged, SymbolResolved, and DiagnosticUpdated.
+fn spawn_recorder_subscriber(ctx: &SynapseContext) {
+    use synapseed_core::event::SynapseEvent;
+    let mut rx = ctx.subscribe();
+    let ctx = ctx.clone();
+    tokio::spawn(async move {
+        loop {
+            match rx.recv().await {
+                Ok(event) => {
+                    let recorder = match ctx.get_extension::<Mutex<FlightRecorder>>() {
+                        Some(r) => r,
+                        None => continue,
+                    };
+                    match &event {
+                        SynapseEvent::FileChanged { path, kind, .. } => {
+                            recorder.lock().record(
+                                EventKind::FileChange,
+                                path,
+                                Some(&format!("{kind:?}")),
+                                None,
+                            );
+                        }
+                        SynapseEvent::SymbolResolved { name, file, .. } => {
+                            recorder.lock().record(
+                                EventKind::SymbolResolved,
+                                file,
+                                Some(name),
+                                None,
+                            );
+                        }
+                        SynapseEvent::DiagnosticUpdated { errors, warnings } => {
+                            let detail = format!("{errors} errors, {warnings} warnings");
+                            recorder.lock().record(
+                                EventKind::Diagnostic,
+                                "project",
+                                Some(&detail),
+                                None,
+                            );
+                        }
+                        SynapseEvent::SearchReady => {
+                            // Feed dep_hints from Architect once search is ready
+                            if let Some(report_store) = ctx.get_extension::<synapseed_architect::ReportStore>() {
+                                if let Some(report) = report_store.get() {
+                                    // Report has module-level info; use stored dep graph if available
+                                    let _ = report; // Dep hints fed separately when architect runs
+                                }
+                            }
+                        }
+                        SynapseEvent::SystemShutdown => break,
+                        _ => {}
+                    }
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                    debug!(skipped = n, "Flight Recorder subscriber lagged, dropped events");
+                }
+                Err(_) => break, // Channel closed
+            }
+        }
+    });
+}
+
 async fn handle_request(
     req: &JsonRpcRequest,
     ctx: &SynapseContext,
@@ -143,6 +209,20 @@ async fn handle_request(
                     // Momentum Engine: record tool for phase detection (#52)
                     if let Some(engine) = ctx.get_extension::<Mutex<MomentumEngine>>() {
                         engine.lock().record_tool(&name_for_momentum);
+                    }
+                    // Flight Recorder: record tool call for session memory
+                    if let Some(recorder) = ctx.get_extension::<Mutex<FlightRecorder>>() {
+                        let detail = result.content.first().and_then(|b| match b {
+                            crate::protocol::ContentBlock::Text { text } => {
+                                Some(text.chars().take(80).collect::<String>())
+                            }
+                        });
+                        recorder.lock().record(
+                            EventKind::ToolCall,
+                            &name_for_momentum,
+                            detail.as_deref(),
+                            Some(&name_for_momentum),
+                        );
                     }
                     JsonRpcResponse::success(id, serde_json::to_value(result).unwrap_or_default())
                 }
@@ -258,6 +338,9 @@ fn handle_initialize(req: &JsonRpcRequest, ctx: &SynapseContext) -> JsonRpcRespo
     // Register MomentumEngine in the extension registry
     let engine = MomentumEngine::new(tier);
     ctx.set_extension(Arc::new(Mutex::new(engine)));
+
+    // Register FlightRecorder for session memory
+    ctx.set_extension(Arc::new(Mutex::new(FlightRecorder::new())));
 
     // Dynamic Context Injection based on project state
     let instructions = build_instructions(ctx);

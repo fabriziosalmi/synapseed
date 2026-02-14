@@ -1,5 +1,7 @@
+use parking_lot::Mutex;
 use synapseed_architect::ReportStore;
 use synapseed_core::context::SynapseContext;
+use synapseed_core::recorder::FlightRecorder;
 use synapseed_cortex::graph::CodeGraph;
 
 use super::{error_result, text_result};
@@ -48,6 +50,11 @@ pub(super) fn tool_architect_analyze(
     let config = synapseed_architect::linter::LinterConfig::from_dna(&dna.architect);
     let violations = synapseed_architect::linter::lint(&dep_graph, &config);
     let report = synapseed_architect::blueprint::generate_report(&dep_graph, violations);
+
+    // Feed dependency hints to the Flight Recorder for causal link detection
+    if let Some(recorder) = ctx.get_extension::<Mutex<FlightRecorder>>() {
+        recorder.lock().set_dep_hints(dep_graph.dep_pairs());
+    }
 
     // Cache the report if store exists
     if let Some(store) = ctx.get_extension::<ReportStore>() {

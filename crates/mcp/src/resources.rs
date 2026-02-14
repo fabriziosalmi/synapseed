@@ -4,8 +4,11 @@
 
 use serde_json::json;
 
+use parking_lot::Mutex;
+
 use synapseed_architect::ReportStore;
 use synapseed_core::context::SynapseContext;
+use synapseed_core::recorder::FlightRecorder;
 use synapseed_core::state::ProjectState;
 use synapseed_janitor::ProposalStore;
 use synapseed_root::sentinel::Sentinel;
@@ -99,6 +102,17 @@ pub fn list_resources() -> Vec<ResourceDefinition> {
             mime_type: Some("application/json".into()),
         },
         ResourceDefinition {
+            uri: "synapseed://session/recorder".into(),
+            name: "Session Flight Recorder".into(),
+            description: Some(
+                "Dual-track session memory: Working Set (last 20 events) + Journey Map (compressed context shifts). \
+                 Shows current activity, module focus, loop detection, and causal chains. Use to understand what the developer \
+                 has been doing and where they are headed."
+                    .into(),
+            ),
+            mime_type: Some("application/json".into()),
+        },
+        ResourceDefinition {
             uri: "synapseed://context/active".into(),
             name: "Active Context Briefing".into(),
             description: Some(
@@ -124,6 +138,7 @@ pub fn read_resource(uri: &str, ctx: &SynapseContext) -> Option<ResourceContent>
         "synapseed://janitor/proposals" => Some(resource_janitor_proposals(ctx)),
         "synapseed://architect/health" => Some(resource_architect_health(ctx)),
         "synapseed://consistency" => Some(resource_consistency(ctx)),
+        "synapseed://session/recorder" => Some(resource_flight_recorder(ctx)),
         "synapseed://context/active" => Some(resource_context_active(ctx)),
         _ => None,
     }
@@ -447,6 +462,28 @@ fn resource_consistency(ctx: &SynapseContext) -> ResourceContent {
     }
 }
 
+fn resource_flight_recorder(ctx: &SynapseContext) -> ResourceContent {
+    let text = ctx
+        .get_extension::<Mutex<FlightRecorder>>()
+        .map(|rec| {
+            let recorder = rec.lock();
+            serde_json::to_string_pretty(&recorder.to_json()).unwrap_or_default()
+        })
+        .unwrap_or_else(|| {
+            serde_json::to_string_pretty(&serde_json::json!({
+                "status": "inactive",
+                "message": "Flight Recorder not initialized. Available in MCP serve mode."
+            }))
+            .unwrap_or_default()
+        });
+
+    ResourceContent {
+        uri: "synapseed://session/recorder".into(),
+        mime_type: Some("application/json".into()),
+        text: Some(text),
+    }
+}
+
 /// Dynamic project briefing — aggregates key signals into a single resource.
 ///
 /// This is the "Passive Interception" strategy: clients that preload this
@@ -511,6 +548,15 @@ fn resource_context_active(ctx: &SynapseContext) -> ResourceContent {
         },
         "session": session_info,
         "routing_hint": "For ANY code question, call the `ask` tool FIRST. It orchestrates all subsystems automatically.",
+        "flight_recorder": ctx.get_extension::<Mutex<FlightRecorder>>().map(|rec| {
+            let r = rec.lock();
+            serde_json::json!({
+                "total_events": r.total_events(),
+                "phase_count": r.journey().len(),
+                "current_phase": r.current_phase(),
+                "loop_alert": r.detect_loop(),
+            })
+        }),
     }))
     .unwrap_or_default();
 
