@@ -135,6 +135,66 @@ impl SemanticIndex {
         !self.pagerank_scores.read().is_empty()
     }
 
+    /// Index project metadata files (Cargo.toml, LICENSE, .cargo/config.toml)
+    /// as searchable pseudo-documents (v4.15.0). This allows LLMs to answer
+    /// questions like "what version?" or "what license?" via search.
+    pub fn index_metadata_files(&self, project_root: &Path) -> usize {
+        let metadata_specs: &[(&str, &str, &str)] = &[
+            ("Cargo.toml", "workspace_config", "Constant"),
+            ("LICENSE", "project_license", "Constant"),
+            (".cargo/config.toml", "cargo_config", "Constant"),
+            ("rust-toolchain.toml", "rust_toolchain", "Constant"),
+        ];
+
+        let mut writer = match self.writer.lock() {
+            Ok(w) => w,
+            Err(_) => return 0,
+        };
+
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+
+        let mut count = 0;
+        for &(rel_path, symbol_name, kind) in metadata_specs {
+            let abs = project_root.join(rel_path);
+            if let Ok(content) = std::fs::read_to_string(&abs) {
+                // Take first 80 lines as the body snippet
+                let snippet: String = content.lines().take(80).collect::<Vec<_>>().join("\n");
+                let doc_comment = format!("Project metadata file: {rel_path}");
+
+                match writer.add_document(doc!(
+                    self.fields.file_path => rel_path.to_string(),
+                    self.fields.symbol_name => symbol_name.to_string(),
+                    self.fields.kind => kind.to_string(),
+                    self.fields.signature => String::new(),
+                    self.fields.doc_comment => doc_comment,
+                    self.fields.body_snippet => snippet,
+                    self.fields.line_start => 1u64,
+                    self.fields.line_end => content.lines().count() as u64,
+                    self.fields.last_modified_epoch => now_secs,
+                    self.fields.visibility => "public",
+                    self.fields.schema_version => SCHEMA_VERSION,
+                )) {
+                    Ok(_) => count += 1,
+                    Err(e) => warn!(error = %e, file = rel_path, "Search: Failed to index metadata file"),
+                }
+            }
+        }
+
+        if count > 0 {
+            if let Err(e) = writer.commit() {
+                warn!(error = %e, "Search: Failed to commit metadata index");
+            }
+            if let Err(e) = self.reader.reload() {
+                warn!(error = %e, "Search: Failed to reload after metadata");
+            }
+            debug!(count, "Search: Indexed metadata files");
+        }
+        count
+    }
+
     /// Index all symbols from a CodeGraph snapshot.
     pub fn index_all(&self, files: &[FileStructure], project_root: &Path) -> usize {
         let mut count = 0;
@@ -534,6 +594,13 @@ impl SemanticIndex {
             .collect();
 
         results.sort_by(|a, b| b.score.total_cmp(&a.score));
+
+        // Dedup same-symbol results (v4.15.0): when Tantivy returns duplicate
+        // entries for the same (symbol, file) pair (e.g. struct impl blocks),
+        // keep only the highest-scored entry to improve result diversity.
+        let mut seen = std::collections::HashSet::new();
+        results.retain(|r| seen.insert((r.symbol.clone(), r.file.clone())));
+
         results
     }
 

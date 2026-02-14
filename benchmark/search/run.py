@@ -61,13 +61,13 @@ QUERIES: list[SearchQuery] = [
     SearchQuery(
         id="s03_security_scan",
         query="DLP scanner finding",
-        relevant_symbols=["Finding", "scan_content"],
+        relevant_symbols=["Finding", "DlpScanner"],
         relevant_files=["crates/husk/src/scanner.rs"],
     ),
     SearchQuery(
         id="s04_search_index",
         query="search index build tantivy",
-        relevant_symbols=["SearchIndex", "index_all", "search"],
+        relevant_symbols=["SemanticIndex", "index_all", "search"],
         relevant_files=["crates/search/src/indexer.rs"],
     ),
     SearchQuery(
@@ -91,14 +91,14 @@ QUERIES: list[SearchQuery] = [
     SearchQuery(
         id="s08_gym_sandbox",
         query="gym sandbox evaluate mutation",
-        relevant_symbols=["evaluate", "run_mutations"],
-        relevant_files=["crates/gym/src/sandbox.rs"],
+        relevant_symbols=["evaluate", "Mutation", "apply_mutation"],
+        relevant_files=["crates/gym/src/sandbox.rs", "crates/gym/src/adversarial.rs"],
     ),
     SearchQuery(
         id="s09_visibility",
         query="visibility boost public private",
-        relevant_symbols=["Visibility", "visibility_boost"],
-        relevant_files=["crates/search/src/indexer.rs"],
+        relevant_symbols=["Visibility", "visibility_to_str", "extract_visibility"],
+        relevant_files=["crates/search/src/indexer.rs", "crates/core/src/symbol.rs", "crates/cortex/src/parser.rs"],
         difficulty="hard",
     ),
     SearchQuery(
@@ -110,14 +110,15 @@ QUERIES: list[SearchQuery] = [
     SearchQuery(
         id="s11_camel_case",
         query="HttpServer",
-        relevant_symbols=["HttpServer"],
+        relevant_symbols=["split_camel_case", "test_http_acronym_split"],
+        relevant_files=["crates/search/src/tokenizer.rs"],
         difficulty="hard",
     ),
     SearchQuery(
         id="s12_pagerank",
         query="pagerank module authority",
-        relevant_symbols=["pagerank_boost"],
-        relevant_files=["crates/search/src/indexer.rs"],
+        relevant_symbols=["pagerank", "pagerank_by_file", "set_pagerank_scores"],
+        relevant_files=["crates/architect/src/analyzer.rs", "crates/architect/src/lib.rs", "crates/search/src/indexer.rs"],
         difficulty="hard",
     ),
 ]

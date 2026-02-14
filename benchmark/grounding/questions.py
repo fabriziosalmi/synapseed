@@ -176,10 +176,10 @@ QUESTIONS: list[GroundingQuestion] = [
         question_type="cross_crate",
         difficulty="medium",
         question="How does the visibility boost affect search ranking? What are the multipliers?",
-        ground_truth_answer="pub=1.5, crate=1.0, super=0.8, private=0.6, unknown=1.0",
-        required_keywords=["1.5", "visibility", "public"],
+        ground_truth_answer="public=1.0, crate=0.7, super=0.5, private=0.3, unknown=0.6 (weight W_VISIBILITY=0.05)",
+        required_keywords=["visibility", "public", "0.05"],
         required_files=["crates/search/src/indexer.rs"],
-        required_symbols=["visibility_boost"],
+        required_symbols=["visibility_to_str", "score_results"],
     ),
     GroundingQuestion(
         id="g15_momentum_tiers",

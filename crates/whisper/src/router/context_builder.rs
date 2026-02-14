@@ -300,7 +300,15 @@ pub(super) fn inject_raw_sources(targets: &[Target], ctx: &SynapseContext, atomi
             let sym = candidates.iter().find(|s| s.file_path.ends_with(&rel_path));
 
             if let Some(s) = sym {
-                (s.line_start, s.line_end)
+                // Enum/Constant expansion (v4.15.0): enums and constants often
+                // have their value spread over many lines after the definition.
+                // Expand the window so the model sees all variants/values.
+                let extra = match s.kind {
+                    synapseed_core::symbol::SymbolKind::Enum => 25,
+                    synapseed_core::symbol::SymbolKind::Constant => 15,
+                    _ => 0,
+                };
+                (s.line_start, (s.line_end + extra).min(lines.len()))
             } else if let Some(ls) = target.line_start {
                 let s = ls.saturating_sub(1);
                 let e = (ls + 30).min(lines.len());

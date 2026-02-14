@@ -109,7 +109,8 @@ impl SynapsePlugin for SearchPlugin {
 
             let files = graph.all_files();
             let count = index.index_all(&files, &bg_root);
-            info!(symbols = count, "Search: Semantic index ready");
+            let meta_count = index.index_metadata_files(&bg_root);
+            info!(symbols = count, metadata = meta_count, "Search: Semantic index ready");
             bg_ctx.broadcast(SynapseEvent::SearchReady);
 
             if bg_ctx.is_shutting_down() {

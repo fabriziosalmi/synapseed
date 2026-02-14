@@ -1,0 +1,220 @@
+{
+    "name": "synapseed",
+    "displayName": "SYNAPSEED",
+    "description": "Real-time metrics, diagnostics, architecture health, and project insights from SYNAPSEED — directly in VS Code.",
+    "version": "0.1.0",
+    "publisher": "fabriziosalmi",
+    "license": "Apache-2.0",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/fabriziosalmi/synapseed"
+    },
+    "engines": {
+        "vscode": "^1.85.0"
+    },
+    "categories": [
+        "Other",
+        "Linters",
+        "Testing"
+    ],
+    "keywords": [
+        "synapseed",
+        "mcp",
+        "rust",
+        "code-analysis",
+        "architecture",
+        "diagnostics",
+        "dlp",
+        "security"
+    ],
+    "activationEvents": [
+        "workspaceContains:**/Cargo.toml",
+        "workspaceContains:.synapseed/dna.yaml"
+    ],
+    "main": "./out/extension.js",
+    "contributes": {
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "synapseed",
+                    "title": "SYNAPSEED",
+                    "icon": "media/synapseed-icon.svg"
+                }
+            ]
+        },
+        "views": {
+            "synapseed": [
+                {
+                    "id": "synapseed.status",
+                    "name": "Project Status"
+                },
+                {
+                    "id": "synapseed.metrics",
+                    "name": "Metrics"
+                },
+                {
+                    "id": "synapseed.diagnostics",
+                    "name": "Compiler Diagnostics"
+                },
+                {
+                    "id": "synapseed.architecture",
+                    "name": "Architecture Health"
+                },
+                {
+                    "id": "synapseed.git",
+                    "name": "Git History"
+                },
+                {
+                    "id": "synapseed.security",
+                    "name": "Security"
+                },
+                {
+                    "id": "synapseed.consistency",
+                    "name": "Consistency"
+                },
+                {
+                    "id": "synapseed.janitor",
+                    "name": "Janitor Proposals"
+                },
+                {
+                    "id": "synapseed.telemetry",
+                    "name": "OTEL Telemetry"
+                }
+            ]
+        },
+        "commands": [
+            {
+                "command": "synapseed.refresh",
+                "title": "SYNAPSEED: Refresh All",
+                "icon": "$(refresh)"
+            },
+            {
+                "command": "synapseed.refreshStatus",
+                "title": "SYNAPSEED: Refresh Status",
+                "icon": "$(refresh)"
+            },
+            {
+                "command": "synapseed.refreshDiagnostics",
+                "title": "SYNAPSEED: Refresh Diagnostics",
+                "icon": "$(refresh)"
+            },
+            {
+                "command": "synapseed.refreshArchitecture",
+                "title": "SYNAPSEED: Refresh Architecture",
+                "icon": "$(refresh)"
+            },
+            {
+                "command": "synapseed.refreshGit",
+                "title": "SYNAPSEED: Refresh Git",
+                "icon": "$(refresh)"
+            },
+            {
+                "command": "synapseed.openDashboard",
+                "title": "SYNAPSEED: Open Dashboard",
+                "icon": "$(dashboard)"
+            },
+            {
+                "command": "synapseed.runJanitor",
+                "title": "SYNAPSEED: Run Janitor Scan",
+                "icon": "$(tools)"
+            },
+            {
+                "command": "synapseed.askQuestion",
+                "title": "SYNAPSEED: Ask a Question",
+                "icon": "$(comment-discussion)"
+            },
+            {
+                "command": "synapseed.refreshTelemetry",
+                "title": "SYNAPSEED: Refresh Telemetry",
+                "icon": "$(refresh)"
+            },
+            {
+                "command": "synapseed.resetTelemetry",
+                "title": "SYNAPSEED: Reset Telemetry Data",
+                "icon": "$(trash)"
+            }
+        ],
+        "menus": {
+            "view/title": [
+                {
+                    "command": "synapseed.refreshStatus",
+                    "when": "view == synapseed.status",
+                    "group": "navigation"
+                },
+                {
+                    "command": "synapseed.refreshDiagnostics",
+                    "when": "view == synapseed.diagnostics",
+                    "group": "navigation"
+                },
+                {
+                    "command": "synapseed.refreshArchitecture",
+                    "when": "view == synapseed.architecture",
+                    "group": "navigation"
+                },
+                {
+                    "command": "synapseed.refreshGit",
+                    "when": "view == synapseed.git",
+                    "group": "navigation"
+                },
+                {
+                    "command": "synapseed.refresh",
+                    "when": "view == synapseed.metrics",
+                    "group": "navigation"
+                },
+                {
+                    "command": "synapseed.runJanitor",
+                    "when": "view == synapseed.janitor",
+                    "group": "navigation"
+                },
+                {
+                    "command": "synapseed.refreshTelemetry",
+                    "when": "view == synapseed.telemetry",
+                    "group": "navigation"
+                },
+                {
+                    "command": "synapseed.resetTelemetry",
+                    "when": "view == synapseed.telemetry",
+                    "group": "navigation"
+                }
+            ]
+        },
+        "configuration": {
+            "title": "SYNAPSEED",
+            "properties": {
+                "synapseed.binaryPath": {
+                    "type": "string",
+                    "default": "synapseed",
+                    "description": "Path to the synapseed binary (default: uses PATH)"
+                },
+                "synapseed.autoRefreshInterval": {
+                    "type": "number",
+                    "default": 30,
+                    "description": "Auto-refresh interval in seconds (0 to disable)"
+                },
+                "synapseed.refreshOnSave": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Refresh diagnostics and metrics on file save"
+                },
+                "synapseed.showNotifications": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Show notifications for important events"
+                }
+            }
+        }
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./",
+        "lint": "eslint src --ext ts",
+        "package": "vsce package"
+    },
+    "devDependencies": {
+        "@types/vscode": "^1.85.0",
+        "@types/node": "^20.0.0",
+        "typescript": "^5.3.0",
+        "@vscode/vsce": "^2.22.0"
+    }
+}
