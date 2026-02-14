@@ -129,7 +129,7 @@ Features: 9 sidebar panels (Status, Metrics, Diagnostics, Architecture, Git, Sec
 │  └─────────┘  └──────┘  └─────┘  └────────┘  └─────┘              │
 │                                                                      │
 └──────────────────────────────────────────────────────────────────────┘
-   17 crates · Plugin architecture · Priority-based init · HCI-tuned
+   16 crates · Plugin architecture · Priority-based init · HCI-tuned
 ```
 
 ```mermaid
