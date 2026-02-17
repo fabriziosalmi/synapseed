@@ -42,7 +42,6 @@ Every shell command suggested by the LLM is evaluated:
 
 ### Layer 3: Network Isolation
 
-- Visualizer binds only to `127.0.0.1:3000` (localhost)
 - Telemetry Sink binds only to `127.0.0.1:4317` (localhost)
 - No outbound network calls from any subsystem
 - Self-telemetry sends only to localhost

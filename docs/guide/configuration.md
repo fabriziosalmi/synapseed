@@ -160,7 +160,7 @@ Human-Computer Interaction settings. Controls perceptual quality features.
 | Field | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `background_indexing` | boolean | `true` | Enable non-blocking code indexing at startup |
-| `port_retry` | boolean | `true` | Enable automatic port retry for the Visualizer dashboard |
+| `port_retry` | boolean | `true` | Enable automatic port retry for the telemetry gRPC server |
 | `adaptive_linting` | boolean | `true` | Enable debounce escalation during rapid edits |
 | `mentor_mode` | boolean | `true` | Response depth adapts to query complexity |
 | `session_persistence` | boolean | `true` | Enable cross-session continuity |

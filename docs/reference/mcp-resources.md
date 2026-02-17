@@ -1,6 +1,6 @@
 # MCP Resources
 
-SYNAPSEED exposes 9 read-only resources. Resources provide context data that the LLM can inspect without side effects.
+SYNAPSEED exposes 13 read-only resources. Resources provide context data that the LLM can inspect without side effects.
 
 ## `synapseed://status`
 
@@ -188,6 +188,39 @@ The `score` is `1.0` when no inconsistencies are found.
 
 ---
 
+## `synapseed://session/recorder`
+
+**Name:** Session Flight Recorder
+
+Session memory with working set (recently accessed files/symbols) and journey map (development phases).
+
+```json
+{
+  "working_set": ["src/auth.rs", "src/config.rs"],
+  "journey": [
+    { "phase": "exploration", "modules": ["auth", "config"], "duration_secs": 120 }
+  ]
+}
+```
+
+---
+
+## `synapseed://session/context`
+
+**Name:** Cognitive Ledger — Session Pulse
+
+Deterministic Operational Moment classification and session pulse data.
+
+```json
+{
+  "operational_moment": "deep_work",
+  "confidence": 0.85,
+  "session_duration_secs": 600
+}
+```
+
+---
+
 ## `synapseed://context/active`
 
 **Name:** Active Context Briefing
@@ -212,3 +245,39 @@ The `score` is `1.0` when no inconsistencies are found.
 ```
 
 This resource supports the **Passive Interception** strategy: clients that preload it give the LLM project context before any tool call, reducing roundtrips.
+
+---
+
+## `synapseed://pulse`
+
+**Name:** Activity Pulse
+
+Exponential-decay working set tracking files and symbols with recency-weighted activity scores.
+
+```json
+{
+  "files": [
+    { "path": "src/auth.rs", "score": 0.95, "last_seen_secs_ago": 30 }
+  ],
+  "symbols": [
+    { "name": "verify_token", "score": 0.88, "last_seen_secs_ago": 45 }
+  ]
+}
+```
+
+---
+
+## `synapseed://pipeline/metrics`
+
+**Name:** Pipeline Performance Metrics
+
+Ingest throughput and enrichment statistics for the indexing pipeline.
+
+```json
+{
+  "files_processed": 42,
+  "symbols_indexed": 310,
+  "enrichment_passes": 3,
+  "pipeline_duration_ms": 1250
+}
+```

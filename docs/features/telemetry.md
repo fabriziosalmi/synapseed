@@ -12,7 +12,7 @@ Instrumented App (OpenTelemetry SDK)
         → Cortex (resolve file:line → Symbol)
           → SpanStore (ring buffer, 1000 spans)
             → Broadcast TelemetryUpdate event
-              → Visualizer heatmap coloring
+              → Available via synapseed://telemetry/hotspots
 ```
 
 ## How It Works
@@ -22,7 +22,7 @@ Instrumented App (OpenTelemetry SDK)
 3. For each span, it extracts the `code.file.path` and `code.line.number` attributes
 4. It resolves these to source symbols via the Cortex AST engine
 5. Spans are stored in a ring buffer (max 1000) with per-symbol metrics
-6. The Visualizer renders hotspots as colored borders on the code graph
+6. Hotspot data is available via the `synapseed://telemetry/hotspots` resource
 
 ## SpanStore
 
@@ -33,11 +33,11 @@ The ring buffer stores:
 
 ### Hotspot Classification
 
-| Duration | Level | Visualizer Color |
-| :--- | :--- | :--- |
-| > 200ms | Hot | Red |
-| 50–200ms | Warm | Yellow |
-| < 50ms | Cool | Green |
+| Duration | Level |
+| :--- | :--- |
+| > 200ms | Hot |
+| 50–200ms | Warm |
+| < 50ms | Cool |
 
 ## Instrumenting Your App
 
@@ -71,7 +71,7 @@ SYNAPSEED can observe its own performance. Set `SYNAPSEED_SELF_TELEMETRY=1`:
 SYNAPSEED_SELF_TELEMETRY=1 synapseed serve --project .
 ```
 
-This enables the **dogfooding loop**: SYNAPSEED's tracing spans are sent to its own OTLP receiver via an async `BatchSpanProcessor`, allowing you to see SYNAPSEED's own hotspots in the Visualizer.
+This enables the **dogfooding loop**: SYNAPSEED's tracing spans are sent to its own OTLP receiver via an async `BatchSpanProcessor`, allowing you to see SYNAPSEED's own hotspots via the `synapseed://telemetry/hotspots` resource.
 
 ## MCP Integration
 

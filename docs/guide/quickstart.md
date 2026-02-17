@@ -37,7 +37,7 @@ synapseed check --project . "rm -rf /"
 ## 5. View Git History
 
 ```bash
-synapseed history --project . --limit 5
+synapseed blame src/main.rs --start 1 --end 20
 ```
 
 ## 6. Run Full Diagnostic
@@ -63,7 +63,7 @@ Install the [VS Code extension](/integration/vscode-extension) for real-time pan
 ```bash
 cd vscode-extension
 npm install && npm run package
-code --install-extension synapseed-0.3.0.vsix
+code --install-extension synapseed-0.4.0.vsix
 ```
 
 ## 8. Ask a Question (Recommended)

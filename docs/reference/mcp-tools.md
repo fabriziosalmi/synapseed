@@ -1,6 +1,6 @@
 # MCP Tools
 
-SYNAPSEED exposes 24 tools via the Model Context Protocol. Tools are callable actions that the LLM can invoke.
+SYNAPSEED exposes 25 tools via the Model Context Protocol. Tools are callable actions that the LLM can invoke.
 
 ::: tip PRIMARY TOOL
 **Start with `ask`** — The intent router orchestrates all subsystems and provides the best response for any query. Only use low-level tools when you need direct access to specific subsystems.
@@ -226,6 +226,20 @@ Apply a specific Janitor fix proposal. **Dry-run by default** — shows a previe
 | Name          | Type    | Required | Description                                             |
 | :------------ | :------ | :------- | :------------------------------------------------------ |
 | `proposal_id` | string  | Yes      | UUID of the proposal (from `janitor`)                   |
+| `confirm`     | boolean | No       | Set to `true` to apply. Default: `false` (preview only) |
+
+**Returns:** Preview diff (dry-run) or success/error message (confirmed). Automatically reverts if compilation breaks.
+
+---
+
+## `approve-fix`
+
+Apply a RepairOrchestrator auto-fix proposal. **Dry-run by default** — shows a preview. Set `confirm: true` to apply. The fix is verified with `cargo check` and auto-reverted on failure.
+
+**Parameters:**
+| Name          | Type    | Required | Description                                             |
+| :------------ | :------ | :------- | :------------------------------------------------------ |
+| `proposal_id` | string  | Yes      | UUID of the auto-repair proposal                        |
 | `confirm`     | boolean | No       | Set to `true` to apply. Default: `false` (preview only) |
 
 **Returns:** Preview diff (dry-run) or success/error message (confirmed). Automatically reverts if compilation breaks.

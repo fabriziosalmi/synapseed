@@ -56,9 +56,9 @@ pub enum SynapseEvent {
 ```
 File modified on disk
   → notify crate detects change
-  → VisualizerPlugin broadcasts FileChanged
-  → WebSocket pushes event to browser
-  → Cytoscape.js pulses the corresponding node
+  → CortexPlugin broadcasts FileChanged
+  → SearchPlugin re-indexes affected symbols
+  → ShadowCheckPlugin triggers background cargo check
 ```
 
 ### Telemetry Pipeline
@@ -69,7 +69,7 @@ External app sends OTLP trace
   → Resolves span to source symbol via Cortex
   → Pushes to SpanStore ring buffer
   → Broadcasts TelemetryUpdate event
-  → Visualizer refreshes heatmap colors
+  → Available via synapseed://telemetry/hotspots resource
 ```
 
 ### Indexing Pipeline

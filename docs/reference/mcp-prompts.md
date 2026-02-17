@@ -1,6 +1,6 @@
 # MCP Prompts
 
-SYNAPSEED provides 6 prompt templates that guide the LLM through complex multi-step workflows using the available tools and resources.
+SYNAPSEED provides 5 prompt templates that guide the LLM through complex multi-step workflows using the available tools and resources.
 
 ## `describe_architecture`
 
@@ -18,24 +18,6 @@ Analyze and describe the project architecture using SYNAPSEED's semantic underst
 3. Read `synapseed://dna` for configuration
 4. `lookup` for key types (detailed/deep modes)
 5. `blame` on key files (deep mode only)
-
----
-
-## `analyze_architecture`
-
-Analyze project architecture health with structural metrics and recommendations.
-
-**Arguments:**
-| Name | Required | Description |
-| :--- | :--- | :--- |
-| `refresh` | No | `true` to force fresh analysis, `false` (default) to use cache |
-
-**Workflow:**
-1. `architect` to get health analysis
-2. Read `synapseed://architect/health` for current state
-3. `consult` for architecture guidance from DNA
-4. Identify violations and coupling issues
-5. Provide actionable recommendations
 
 ---
 

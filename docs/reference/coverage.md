@@ -2,7 +2,7 @@
 
 ## Current Status
 
-📊 **373 tests passing** (up from 267 in v4.14.0, 93 in v3.2.0)
+📊 **512 tests passing**
 
 Coverage tracking is now enabled via GitHub Actions with `cargo-llvm-cov` and Codecov.
 
@@ -10,7 +10,7 @@ Coverage tracking is now enabled via GitHub Actions with `cargo-llvm-cov` and Co
 
 ## Philosophy
 
-Test count alone is deceptive — 373 tests include many smoke tests. **Line coverage** is the objective baseline.
+Test count alone is deceptive — 512 tests include many smoke tests. **Line coverage** is the objective baseline.
 
 Current strategy: **report-only** (no CI gate). Once baseline is established, we'll add gates incrementally.
 

@@ -8,18 +8,17 @@ designed to be copy-pasted into your AI coding session.
 
 ---
 
-## Baseline (as of v4.15.0)
+## Baseline (v1.0.0)
 
 | Metric | Value |
 |--------|-------|
-| Architecture Score | **97/100 (Grade A)** |
-| Modules | 131 |
-| Tests | 373 passing, 0 failing |
-| MCP Surface | 24 tools, 9 resources, 6 prompts |
+| Architecture Score | **A** |
+| Tests | 512 passing, 0 failing |
+| MCP Surface | 25 tools, 13 resources, 5 prompts |
 
 ---
 
-## The 24 MCP Tools — Organized by Role
+## The 25 MCP Tools — Organized by Role
 
 ### Tier 1: Orchestration (start here)
 

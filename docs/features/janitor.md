@@ -22,7 +22,7 @@ The Janitor operates on a **Safe Proposal** model. It never modifies your code w
    - Proposals are stored in memory resource `synapseed://janitor/proposals`.
 
 3. **Apply**: usage `synapseed janitor-fix`
-   - You (or the LLM) invoke `janitor_apply_fix` with a proposal ID.
+   - You (or the LLM) invoke `janitor-fix` with a proposal ID.
    - **Dry Run**: By default, it shows a diff of what *would* happen.
    - **Confirm**: Call with `confirm: true` to apply the change.
    - **Verification**: After applying, it runs `cargo check`. If the check fails, it **automatically reverts** the change to ensure the codebase remains compiling.
@@ -33,5 +33,5 @@ The Janitor is designed to run in the background or on-demand. In **Claude Deskt
 
 ## Protocol
 
-- **Tool**: `janitor` (scan), `janitor_apply_fix` (apply)
+- **Tool**: `janitor` (scan), `janitor-fix` (apply)
 - **Resource**: `synapseed://janitor/proposals` (active proposals)

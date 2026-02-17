@@ -53,6 +53,6 @@ Git Repository (.git/)
 # Blame a file region
 synapseed blame src/auth.rs --start 10 --end 30
 
-# View recent commits
-synapseed history --project . --limit 5
+# Analyze file history with churn, co-changes, risk
+synapseed analyze src/auth.rs
 ```

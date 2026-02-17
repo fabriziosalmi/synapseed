@@ -2,8 +2,8 @@
 
 Real-time metrics, diagnostics, architecture health, and project insights from **SYNAPSEED** — directly in VS Code.
 
-::: info NEW IN v4.15.0
-The SYNAPSEED VS Code Extension was first released in version 4.15.0, providing a comprehensive IDE integration for all SYNAPSEED features.
+::: info
+The SYNAPSEED VS Code Extension provides a comprehensive IDE integration for all SYNAPSEED features.
 :::
 
 ## Overview
@@ -70,7 +70,7 @@ The extension keeps your data fresh automatically:
 
 2. **Install the `.vsix` file**:
    ```bash
-   code --install-extension synapseed-0.3.0.vsix
+   code --install-extension synapseed-0.4.0.vsix
    ```
 
 3. **Reload VS Code**: Press `Ctrl+Shift+P` / `Cmd+Shift+P` and select "Developer: Reload Window"
@@ -246,6 +246,12 @@ vscode-extension/
 Both approaches are complementary — use the extension for your own development workflow and MCP integration for AI assistance.
 
 ## Version History
+
+### v0.4.0 (February 2026)
+- **Bug fixes**: 110+ issues fixed across 22 files
+- **Security hardening**: Path traversal guard, timer leak fix, workspace trust
+- **Async I/O**: File operations migrated to VS Code async API
+- **Memory management**: All providers implement proper disposal
 
 ### v0.3.0 (February 2026)
 - **UI/UX Overhaul**: Tabbed dashboard, drag-and-drop panels, enriched Ask panel

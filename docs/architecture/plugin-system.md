@@ -40,8 +40,10 @@ let mut plugins: Vec<Box<dyn SynapsePlugin>> = vec![
     Box::new(ShadowCheckPlugin::new()),  // priority: 150
     Box::new(SearchPlugin::new()),       // priority: 160
     Box::new(TelemetrySinkPlugin::new()),// priority: 200
-    Box::new(VisualizerPlugin::new()),   // priority: 250
+    Box::new(ArchitectPlugin::new()),    // priority: 210
     Box::new(WhisperPlugin::new()),      // priority: 999
+    Box::new(GymPlugin::new()),          // priority: 1000
+    Box::new(JanitorPlugin::new()),      // priority: 1010
 ];
 plugins.sort_by_key(|p| p.priority());
 ```
@@ -54,7 +56,7 @@ plugins.sort_by_key(|p| p.priority());
 | 50–99 | Core analysis | Cortex (50) |
 | 100–149 | History & context | Chronos (100) |
 | 150–199 | Tooling | Shadow (150), Search (160) |
-| 200–299 | Infrastructure | Telemetry (200), Visualizer (250) |
+| 200–299 | Infrastructure | Telemetry (200), Architect (210) |
 | 900+ | Orchestration | Whisper (999) |
 
 ## Context Extensions

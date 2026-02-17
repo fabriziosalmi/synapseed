@@ -11,7 +11,7 @@ SYNAPSEED operation (e.g., scan)
   → gRPC export to localhost:4317
   → TelemetrySink receives the span
   → SpanStore records metrics
-  → Visualizer colors the node RED if slow
+  → Hotspot data available via synapseed://telemetry/hotspots
 ```
 
 ## Enabling Self-Telemetry
@@ -55,10 +55,9 @@ The `BatchSpanProcessor` handles the race condition gracefully — if the server
 
 ## Viewing Results
 
-1. Open the Visualizer at `http://localhost:3000`
-2. Trigger some operations (e.g., ask Claude to scan code)
-3. Observe the heatmap coloring on the code graph
-4. Read `synapseed://telemetry/hotspots` for detailed metrics
+1. Trigger some operations (e.g., ask Claude to scan code)
+2. Read `synapseed://telemetry/hotspots` for detailed hotspot metrics
+3. Use `reset-telemetry` to clear all spans and start fresh
 
 ## Dependencies
 
