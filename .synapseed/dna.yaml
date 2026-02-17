@@ -1,0 +1,24 @@
+# SYNAPSEED DNA — Project-level configuration
+# This file defines the "genetic code" of your project.
+# It overrides user-level (~/.config/synapseed/dna.yaml) and embedded defaults.
+
+workspace_strategy: monorepo
+
+preferred_libs:
+  async: tokio
+  json: serde_json
+  error: thiserror
+  cli: clap
+  http: reqwest
+
+naming:
+  core_crate: core
+  bin_name: synapseed
+
+plugins:
+  - cortex
+  - husk
+  - root
+  - chronos
+
+dlp_level: standard

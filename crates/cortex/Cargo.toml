@@ -1,0 +1,27 @@
+[package]
+name = "synapseed-cortex"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The Semantic Brain — AST parsing, symbol extraction, and code graph navigation"
+
+[dependencies]
+synapseed-core = { workspace = true }
+tree-sitter = { workspace = true }
+tree-sitter-rust = { workspace = true }
+tree-sitter-python = { workspace = true }
+tree-sitter-javascript = { workspace = true }
+dashmap = { workspace = true }
+rayon = { workspace = true }
+tracing = { workspace = true }
+ignore = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tempfile = { workspace = true }
+proptest = { workspace = true }
+
+[[bench]]
+name = "indexing"
+harness = false

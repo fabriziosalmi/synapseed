@@ -1,0 +1,449 @@
+{
+    "name": "synapseed",
+    "displayName": "SYNAPSEED",
+    "description": "Semantic AI middleware for code intelligence — AST analysis, security scanning, architecture health, git history, and more. Directly in VS Code.",
+    "version": "0.4.0",
+    "publisher": "fabriziosalmi",
+    "license": "Apache-2.0",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/fabriziosalmi/synapseed"
+    },
+    "engines": {
+        "vscode": "^1.85.0"
+    },
+    "categories": [
+        "Other",
+        "Linters",
+        "Testing",
+        "Programming Languages"
+    ],
+    "keywords": [
+        "synapseed",
+        "mcp",
+        "rust",
+        "code-analysis",
+        "architecture",
+        "diagnostics",
+        "dlp",
+        "security",
+        "ast",
+        "semantic-search"
+    ],
+    "activationEvents": [
+        "workspaceContains:**/Cargo.toml",
+        "workspaceContains:.synapseed/dna.yaml"
+    ],
+    "capabilities": {
+        "untrustedWorkspaces": {
+            "supported": false,
+            "description": "SYNAPSEED executes shell commands and reads project files — requires workspace trust."
+        }
+    },
+    "main": "./out/extension.js",
+    "contributes": {
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "synapseed",
+                    "title": "SYNAPSEED",
+                    "icon": "media/synapseed-icon.svg"
+                }
+            ]
+        },
+        "views": {
+            "synapseed": [
+                {
+                    "id": "synapseed.overview",
+                    "name": "Overview",
+                    "visibility": "visible"
+                },
+                {
+                    "id": "synapseed.diagnostics",
+                    "name": "Diagnostics"
+                },
+                {
+                    "id": "synapseed.codeQuality",
+                    "name": "Code Quality"
+                },
+                {
+                    "id": "synapseed.security",
+                    "name": "Security"
+                },
+                {
+                    "id": "synapseed.git",
+                    "name": "Git"
+                }
+            ]
+        },
+        "viewsWelcome": [
+            {
+                "view": "synapseed.overview",
+                "contents": "SYNAPSEED is not initialized in this workspace.\n[Initialize Project](command:synapseed.initProject)\n[Open Dashboard](command:synapseed.openDashboard)"
+            }
+        ],
+        "commands": [
+            {
+                "command": "synapseed.refresh",
+                "title": "Refresh All",
+                "icon": "$(refresh)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.refreshOverview",
+                "title": "Refresh Overview",
+                "icon": "$(refresh)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.refreshDiagnostics",
+                "title": "Refresh Diagnostics",
+                "icon": "$(refresh)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.refreshCodeQuality",
+                "title": "Refresh Code Quality",
+                "icon": "$(refresh)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.refreshGit",
+                "title": "Refresh Git",
+                "icon": "$(refresh)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.refreshSecurity",
+                "title": "Refresh Security",
+                "icon": "$(refresh)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.openDashboard",
+                "title": "Open Dashboard",
+                "icon": "$(dashboard)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.openBenchmark",
+                "title": "Open Benchmark Results",
+                "icon": "$(graph)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.askQuestion",
+                "title": "Ask a Question",
+                "icon": "$(comment-discussion)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.openAskPanel",
+                "title": "Open Ask Panel",
+                "icon": "$(comment-discussion)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.askAboutSymbol",
+                "title": "Ask About Symbol",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.askAboutActiveFile",
+                "title": "Ask About Active File",
+                "icon": "$(file-code)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.analyzeFile",
+                "title": "Analyze File History",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.lookupSymbol",
+                "title": "Lookup Symbol",
+                "icon": "$(search)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.searchCode",
+                "title": "Search Code by Concept",
+                "icon": "$(search-fuzzy)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.scanSelection",
+                "title": "Scan Selection for Secrets",
+                "icon": "$(shield)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.checkCommand",
+                "title": "Check Shell Command Safety",
+                "icon": "$(terminal)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.blameCurrentFile",
+                "title": "Git Blame Current File",
+                "icon": "$(git-commit)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.clearCache",
+                "title": "Clear Cache",
+                "icon": "$(clear-all)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.initProject",
+                "title": "Initialize Project",
+                "icon": "$(rocket)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.exportConversation",
+                "title": "Export Conversation",
+                "icon": "$(export)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.clearConversation",
+                "title": "Clear Conversation",
+                "icon": "$(clear-all)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.moveAskBeside",
+                "title": "Move Ask Panel: Beside Editor",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.moveAskCenter",
+                "title": "Move Ask Panel: Center",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.focusSidebar",
+                "title": "Focus Sidebar",
+                "icon": "$(layout-sidebar-left)",
+                "category": "SYNAPSEED"
+            },
+            {
+                "command": "synapseed.cyclePanels",
+                "title": "Switch Panel...",
+                "icon": "$(window)",
+                "category": "SYNAPSEED"
+            }
+        ],
+        "keybindings": [
+            {
+                "command": "synapseed.askQuestion",
+                "key": "ctrl+shift+a",
+                "mac": "cmd+shift+a",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "synapseed.lookupSymbol",
+                "key": "ctrl+alt+l",
+                "mac": "cmd+alt+l",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "synapseed.searchCode",
+                "key": "ctrl+shift+f6",
+                "mac": "cmd+shift+f6"
+            },
+            {
+                "command": "synapseed.blameCurrentFile",
+                "key": "ctrl+alt+b",
+                "mac": "cmd+alt+b",
+                "when": "editorTextFocus && !editorReadonly"
+            },
+            {
+                "command": "synapseed.scanSelection",
+                "key": "ctrl+alt+d",
+                "mac": "cmd+alt+d",
+                "when": "editorHasSelection"
+            },
+            {
+                "command": "synapseed.refresh",
+                "key": "ctrl+alt+r",
+                "mac": "cmd+alt+r"
+            },
+            {
+                "command": "synapseed.askAboutActiveFile",
+                "key": "ctrl+shift+.",
+                "mac": "cmd+shift+.",
+                "when": "editorTextFocus"
+            }
+        ],
+        "menus": {
+            "view/title": [
+                {
+                    "command": "synapseed.refreshOverview",
+                    "when": "view == synapseed.overview",
+                    "group": "navigation"
+                },
+                {
+                    "command": "synapseed.refreshDiagnostics",
+                    "when": "view == synapseed.diagnostics",
+                    "group": "navigation"
+                },
+                {
+                    "command": "synapseed.refreshCodeQuality",
+                    "when": "view == synapseed.codeQuality",
+                    "group": "navigation"
+                },
+                {
+                    "command": "synapseed.refreshGit",
+                    "when": "view == synapseed.git",
+                    "group": "navigation"
+                },
+                {
+                    "command": "synapseed.refreshSecurity",
+                    "when": "view == synapseed.security",
+                    "group": "navigation"
+                }
+            ],
+            "editor/context": [
+                {
+                    "command": "synapseed.askQuestion",
+                    "group": "synapseed@1",
+                    "when": "editorTextFocus"
+                },
+                {
+                    "command": "synapseed.scanSelection",
+                    "group": "synapseed@2",
+                    "when": "editorHasSelection"
+                },
+                {
+                    "command": "synapseed.blameCurrentFile",
+                    "group": "synapseed@3",
+                    "when": "editorTextFocus"
+                }
+            ],
+            "editor/title": [
+                {
+                    "command": "synapseed.blameCurrentFile",
+                    "group": "navigation",
+                    "when": "resourceLangId == rust"
+                },
+                {
+                    "command": "synapseed.askAboutActiveFile",
+                    "group": "navigation@2",
+                    "when": "resourceLangId =~ /rust|python|typescript/"
+                }
+            ],
+            "explorer/context": [
+                {
+                    "command": "synapseed.analyzeFile",
+                    "group": "synapseed@1",
+                    "when": "resourceLangId == rust"
+                },
+                {
+                    "command": "synapseed.askAboutActiveFile",
+                    "group": "synapseed@2"
+                }
+            ]
+        },
+        "configuration": {
+            "title": "SYNAPSEED",
+            "properties": {
+                "synapseed.binaryPath": {
+                    "type": "string",
+                    "default": "synapseed",
+                    "description": "Path to the synapseed binary (default: uses PATH)",
+                    "scope": "machine"
+                },
+                "synapseed.autoRefreshInterval": {
+                    "type": "number",
+                    "default": 30,
+                    "minimum": 0,
+                    "maximum": 600,
+                    "description": "Auto-refresh interval in seconds (0 to disable)"
+                },
+                "synapseed.refreshOnSave": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Refresh diagnostics and cache on file save"
+                },
+                "synapseed.codeLens.enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Show CodeLens annotations on functions and types"
+                }
+            }
+        },
+        "walkthroughs": [
+            {
+                "id": "synapseed.getStarted",
+                "title": "Get Started with SYNAPSEED",
+                "description": "Set up semantic code intelligence in your workspace",
+                "steps": [
+                    {
+                        "id": "install",
+                        "title": "Install SYNAPSEED binary",
+                        "description": "Install the Rust binary from source:\n\n```bash\ncargo install --path bin/synapseed --force\n```\n\n[Open Terminal](command:workbench.action.terminal.new)",
+                        "media": {
+                            "markdown": "media/walkthrough-install.md"
+                        }
+                    },
+                    {
+                        "id": "sidebar",
+                        "title": "Explore the Sidebar",
+                        "description": "Click the SYNAPSEED icon in the Activity Bar to open 5 panels: Overview, Diagnostics, Code Quality, Security, Git.\n\n[Open Sidebar](command:synapseed.overview.focus)",
+                        "media": {
+                            "markdown": "media/walkthrough-sidebar.md"
+                        }
+                    },
+                    {
+                        "id": "dashboard",
+                        "title": "Open the Dashboard",
+                        "description": "Get a visual overview of your project's health.\n\n[Open Dashboard](command:synapseed.openDashboard)",
+                        "media": {
+                            "markdown": "media/walkthrough-dashboard.md"
+                        }
+                    },
+                    {
+                        "id": "ask",
+                        "title": "Ask a Question",
+                        "description": "Use natural language to query your codebase. SYNAPSEED orchestrates AST, search, git, diagnostics, and security in one call.\n\n[Ask SYNAPSEED](command:synapseed.askQuestion)",
+                        "media": {
+                            "markdown": "media/walkthrough-ask.md"
+                        }
+                    },
+                    {
+                        "id": "security",
+                        "title": "Security Scanning",
+                        "description": "Select code and scan for leaked secrets with `Cmd+Shift+D`. Or evaluate shell command safety.\n\n[Scan Selection](command:synapseed.scanSelection)",
+                        "media": {
+                            "markdown": "media/walkthrough-security.md"
+                        }
+                    }
+                ]
+            }
+        ]
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./",
+        "lint": "eslint src --ext ts",
+        "test": "npm run test:unit",
+        "test:unit": "npm run compile && mocha out/test/unit/**/*.test.js --require out/test/unit/vscode-mock.js --ui tdd --timeout 5000",
+        "test:integration": "npm run compile && node ./out/test/runTest.js",
+        "test:all": "npm run test:unit && npm run test:integration",
+        "package": "vsce package --no-dependencies"
+    },
+    "devDependencies": {
+        "@types/glob": "^8.1.0",
+        "@types/mocha": "^10.0.0",
+        "@types/node": "^20.0.0",
+        "@types/vscode": "^1.85.0",
+        "@vscode/test-electron": "^2.3.0",
+        "@vscode/vsce": "^2.22.0",
+        "mocha": "^10.2.0",
+        "typescript": "^5.3.0"
+    }
+}

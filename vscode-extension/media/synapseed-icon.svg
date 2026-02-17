@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Brain/neural network icon representing SYNAPSEED -->
+  <!-- Outer circle -->
+  <circle cx="12" cy="12" r="10" stroke-opacity="0.3"/>
+  <!-- Central node -->
+  <circle cx="12" cy="12" r="2" fill="currentColor"/>
+  <!-- Top node -->
+  <circle cx="12" cy="4.5" r="1.2" fill="currentColor"/>
+  <line x1="12" y1="10" x2="12" y2="5.7"/>
+  <!-- Bottom node -->
+  <circle cx="12" cy="19.5" r="1.2" fill="currentColor"/>
+  <line x1="12" y1="14" x2="12" y2="18.3"/>
+  <!-- Left node -->
+  <circle cx="5.5" cy="8" r="1.2" fill="currentColor"/>
+  <line x1="10.3" y1="11" x2="6.7" y2="8.7"/>
+  <!-- Right node -->
+  <circle cx="18.5" cy="8" r="1.2" fill="currentColor"/>
+  <line x1="13.7" y1="11" x2="17.3" y2="8.7"/>
+  <!-- Bottom-left node -->
+  <circle cx="6.5" cy="17" r="1.2" fill="currentColor"/>
+  <line x1="10.5" y1="13.5" x2="7.5" y2="15.9"/>
+  <!-- Bottom-right node -->
+  <circle cx="17.5" cy="17" r="1.2" fill="currentColor"/>
+  <line x1="13.5" y1="13.5" x2="16.5" y2="15.9"/>
+  <!-- Cross connections for neural effect -->
+  <line x1="6.5" y1="8.8" x2="6.5" y2="15.8" stroke-opacity="0.4"/>
+  <line x1="17.5" y1="8.8" x2="17.5" y2="15.8" stroke-opacity="0.4"/>
+</svg>

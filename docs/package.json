@@ -1,0 +1,19 @@
+{
+  "name": "synapseed-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "mermaid": "^11.12.2",
+    "vitepress": "^1.6.3",
+    "vitepress-plugin-mermaid": "^2.0.17"
+  },
+  "overrides": {
+    "lodash-es": ">=4.17.23",
+    "esbuild": ">=0.25.0"
+  }
+}

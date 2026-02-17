@@ -1,0 +1,40 @@
+[package]
+description = "MCP (Model Context Protocol) server — the bridge between SYNAPSEED and LLMs"
+edition.workspace = true
+license.workspace = true
+name = "synapseed-mcp"
+version.workspace = true
+
+[features]
+bench = ["dep:synapseed-bench"]
+decompiler = ["dep:synapseed-decompiler"]
+default = ["bench", "decompiler"]
+embeddings = ["synapseed-search/embeddings"]
+
+[dependencies]
+anyhow = {workspace = true}
+chrono = {workspace = true}
+ignore = {workspace = true}
+parking_lot = {workspace = true}
+serde = {workspace = true}
+serde_json = {workspace = true}
+synapseed-architect = {workspace = true}
+synapseed-bench = {workspace = true, optional = true}
+synapseed-chronos = {workspace = true}
+synapseed-core = {workspace = true}
+synapseed-cortex = {workspace = true}
+synapseed-decompiler = {workspace = true, optional = true}
+synapseed-gym = {workspace = true}
+synapseed-husk = {workspace = true}
+synapseed-janitor = {workspace = true}
+synapseed-root = {workspace = true}
+synapseed-search = {workspace = true}
+synapseed-shadow-check = {workspace = true}
+synapseed-telemetry-sink = {workspace = true}
+synapseed-whisper = {workspace = true}
+tokio = {workspace = true}
+tracing = {workspace = true}
+
+[dev-dependencies]
+tempfile = {workspace = true}
+tokio = {workspace = true, features = ["rt-multi-thread", "macros"]}

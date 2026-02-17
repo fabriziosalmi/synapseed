@@ -1,0 +1,9 @@
+
+.venv/
+__pycache__/
+assets/*.pdf
+assets/*.tex
+assets/*.log
+assets/*.aux
+assets/*.out
+!assets/.gitkeep

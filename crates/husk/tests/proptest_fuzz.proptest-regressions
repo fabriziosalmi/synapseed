@@ -1,0 +1,11 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 5b992b8a1100243bfb67a9195b209044db1f04939587558b9abbbc4b2a1bad97 # shrinks to input = "$ꬠ®®𞓐A\u{10a05}Σ®A𑃐aA0 aAa\u{1d17b}a A𑘀𐀀🩠AA੦®ਫ਼0Aa A0  aA®a 🂠A\u{1e023}A0a￼A`a⭶0𝋠00A𬺰𞓐0¡0𫝀${}`"
+cc 09aaf76af0cc4df1384d8fee43a36299176d15841a4bdca607262bffd8d2c11c # shrinks to input = "$ 𑴈𖠀A  A0A0A0A੦A🉐 a AAA𱍐¡ 🀀®AAaഒ Σ0 𑰀 🬀a ΣaΣ`0aaῲa𑏌¡®\u{ac7}® \u{b82} ￼®ଵ𐣠a𰀀𞺥${}`"
+cc 18bd30c1ffadb91e3446a4776205bf9fd88297000ae9f862ec7378524db58ed4 # shrinks to input = "0aAΣ 0A  ®0並𞸴𑋰0𐞇 A0a0A᧞0A￼എ 🌀¡\u{a01} a\u{11180}a অa\u{1171d}®aa￼𓀀𛅐a🤀Aໜ¡`A\u{11370}aa𑌪 AAa🃑יִ${}`"
+cc e38f00c59ccc40c9a975ae80176aa975307e40eaab4b21a2fdd83d1fbb8f8c37 # shrinks to input = "᧐A᐀ ൦`￼®ఒᚠa𞟠${🌀 𐤟 ®𝔇 0 a00Σ   𑶓𝒻AA℀🌀ໜ a𝕊A\u{11300}0A Σ0 𛅕A\u{11d3a}aa𑑝0®A\u{119da}￼}`"
+cc 23746d30299637103f115b6cd3efc4dd291ae47d84078c6c4804fad2918fca73 # shrinks to input = "000000"

@@ -1,0 +1,18 @@
+[package]
+name = "synapseed-root"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Infrastructure layer — command execution sandbox and policy enforcement"
+
+[dependencies]
+synapseed-core = { workspace = true }
+synapseed-husk = { workspace = true }
+regex = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }

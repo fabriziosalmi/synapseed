@@ -1,0 +1,16 @@
+[package]
+name = "synapseed-architect"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The Architect — structural analysis, anti-pattern detection, architecture health scoring"
+
+[dependencies]
+synapseed-core = { workspace = true }
+synapseed-cortex = { workspace = true }
+parking_lot = { workspace = true }
+petgraph = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }

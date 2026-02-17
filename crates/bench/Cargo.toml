@@ -1,0 +1,19 @@
+[package]
+authors.workspace = true
+description = "Benchmark engine for reproducible SCR evaluation of SYNAPSEED MCP grounding"
+edition.workspace = true
+license.workspace = true
+name = "synapseed-bench"
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow = {workspace = true}
+serde = {workspace = true}
+serde_json = {workspace = true}
+synapseed-core = {workspace = true}
+synapseed-whisper = {workspace = true}
+tracing = {workspace = true}
+
+[dev-dependencies]
+tempfile = {workspace = true}

@@ -1,0 +1,76 @@
+\documentclass[twocolumn]{article}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{geometry}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\lstset{
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    keywordstyle=\color{blue},
+    commentstyle=\color{green!50!black},
+    stringstyle=\color{red}
+}
+
+\geometry{
+ a4paper,
+ total={170mm,257mm},
+ left=15mm,
+ top=20mm,
+ columnsep=6mm
+}
+
+\title{Synapseed: Bridging LLMs and Codebases via Graph-Based Differential Memory and MCP}
+\author{Synapseed Team}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\input{assets/abstract.tex}
+
+\section{Introduction}
+\input{assets/introduction.tex}
+
+\section{Related Work}
+\input{assets/related_work.tex}
+
+\section{Methodology}
+\input{assets/methodology.tex}
+\input{assets/formalization.tex}
+
+\section{Results}
+\label{sec:results}
+\subsection{Search Quality}
+\input{assets/table_search.tex}
+
+\subsection{Grounding Performance}
+\input{assets/table_grounding.tex}
+
+\subsection{System Performance}
+\input{assets/table3_performance.tex}
+\input{assets/plots.tex}
+
+\subsection{Qualitative Analysis}
+\input{assets/case_study.tex}
+
+\section{Discussion}
+\input{assets/discussion.tex}
+
+\section{Conclusion}
+\input{assets/conclusion.tex}
+
+\bibliographystyle{plain}
+\bibliography{assets/references}
+\nocite{*}
+
+\end{document}
+

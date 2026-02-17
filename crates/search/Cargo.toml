@@ -1,0 +1,34 @@
+[package]
+description = "Semantic code search — Tantivy full-text + optional vector embedding similarity"
+edition.workspace = true
+license.workspace = true
+name = "synapseed-search"
+version.workspace = true
+
+[features]
+default = []
+embeddings = ["fastembed", "hnsw_rs"]
+
+[dependencies]
+bincode = {workspace = true}
+parking_lot = {workspace = true}
+serde = {workspace = true}
+serde_json = {workspace = true}
+synapseed-core = {workspace = true}
+synapseed-cortex = {workspace = true}
+tantivy = {workspace = true}
+thiserror = {workspace = true}
+tokio = {workspace = true}
+tracing = {workspace = true}
+
+# Optional: vector embeddings
+fastembed = {workspace = true, optional = true}
+hnsw_rs = {workspace = true, optional = true}
+
+[dev-dependencies]
+criterion = {workspace = true}
+tempfile = {workspace = true}
+
+[[bench]]
+harness = false
+name = "search"

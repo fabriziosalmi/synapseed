@@ -1,0 +1,17 @@
+[package]
+name = "synapseed-husk"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The Security Shield — DLP scanning, secret detection, and content sanitization"
+
+[dependencies]
+synapseed-core = { workspace = true }
+aho-corasick = { workspace = true }
+regex = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }

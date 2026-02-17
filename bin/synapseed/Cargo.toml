@@ -1,0 +1,43 @@
+[package]
+description = "SYNAPSEED CLI — High-Performance Semantic AI Middleware"
+edition.workspace = true
+license.workspace = true
+name = "synapseed-cli"
+version.workspace = true
+
+[[bin]]
+name = "synapseed"
+path = "src/main.rs"
+
+[features]
+bench = ["synapseed-mcp/bench"]
+decompiler = ["synapseed-mcp/decompiler"]
+default = ["vendored-openssl", "embeddings", "bench", "decompiler"]
+embeddings = ["dep:ort", "synapseed-mcp/embeddings", "synapseed-search/embeddings", "synapseed-whisper/embeddings"]
+vendored-openssl = ["git2/vendored-openssl"]
+
+[dependencies]
+anyhow = {workspace = true}
+clap = {workspace = true}
+git2 = {workspace = true}
+notify-debouncer-mini = {workspace = true}
+ort = {workspace = true, features = ["copy-dylibs"], optional = true}
+parking_lot = {workspace = true}
+serde = {workspace = true}
+serde_json = {workspace = true}
+synapseed-architect = {workspace = true}
+synapseed-chronos = {workspace = true}
+synapseed-core = {workspace = true, features = ["self-telemetry"]}
+synapseed-cortex = {workspace = true}
+synapseed-gym = {workspace = true}
+synapseed-husk = {workspace = true}
+synapseed-janitor = {workspace = true}
+synapseed-mcp = {workspace = true}
+synapseed-root = {workspace = true}
+synapseed-search = {workspace = true}
+synapseed-shadow-check = {workspace = true}
+synapseed-telemetry-sink = {workspace = true, features = ["grpc"]}
+synapseed-whisper = {workspace = true}
+tokio = {workspace = true}
+tracing = {workspace = true}
+tracing-subscriber = {workspace = true}

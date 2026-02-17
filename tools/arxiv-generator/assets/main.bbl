@@ -1,0 +1,66 @@
+\begin{thebibliography}{10}
+
+\bibitem{mcp2024}
+Anthropic.
+\newblock Model context protocol: Standardizing llm-context interactions.
+\newblock {\em https://modelcontextprotocol.io}, 2024.
+
+\bibitem{edge2024graphrag}
+Darren Edge, Ha~Trinh, Newman Cheng, Joshua Bradley, Alex Chao, Apurva Mody,
+  Steven Truitt, and Jonathan Larson.
+\newblock From local to global: A graph rag approach to query-focused
+  summarization.
+\newblock {\em arXiv preprint arXiv:2404.16130}, 2024.
+
+\bibitem{javaheripi2023slm}
+Mojan Javaheripi and Sebastien Bubeck.
+\newblock Phi-2: The surprising power of small language models.
+\newblock {\em Microsoft Research Blog}, 2023.
+
+\bibitem{jiang2023mistral}
+Albert~Q Jiang, Alexandre Sablayrolles, Arthur Mensch, Chris Bamford, Chaplot~S
+  Devendra, Guillaume Lample, Patrick Merritt, Baptiste Rozi{\`e}re, Thibaut
+  Lavril, Thomas Wang, et~al.
+\newblock Mistral 7b.
+\newblock {\em arXiv preprint arXiv:2310.06825}, 2023.
+
+\bibitem{jimenez2024swebench}
+Carlos Jimenez, John Yang, Alexander Wettig, Shunyu Yao, Kexin Pei, Ofir Press,
+  and Karthik Narasimhan.
+\newblock Swe-bench: Can language models resolve real-world github issues?
+\newblock {\em arXiv preprint arXiv:2310.06770}, 2024.
+
+\bibitem{lewis2020retrieval}
+Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir
+  Karpukhin, Naman Goyal, Heinrich K{\"u}ttler, Mike Lewis, Wen-tau Yih, Tim
+  Rockt{\"a}schel, et~al.
+\newblock Retrieval-augmented generation for knowledge-intensive nlp tasks.
+\newblock {\em Advances in Neural Information Processing Systems},
+  33:9459--9474, 2020.
+
+\bibitem{schick2024toolformer}
+Timo Schick, Jane Dwivedi-Yu, Roberto Dess{\`\i}, Roberta Raileanu, Maria
+  Lomeli, Luke Zettlemoyer, Nicola Cancedda, and Thomas Scialom.
+\newblock Toolformer: Language models can teach themselves to use tools.
+\newblock {\em Advances in Neural Information Processing Systems}, 36, 2024.
+
+\bibitem{touvron2023llama}
+Hugo Touvron, Louis Martin, Kevin Stone, Peter Albert, Amjad Almahairi, Yasmine
+  Babaei, Nikolay Bashlykov, Soumya Batra, Prajjwal Bhargava, Shruti Bhosale,
+  et~al.
+\newblock Llama 2: Open foundation and fine-tuned chat models.
+\newblock {\em arXiv preprint arXiv:2307.09288}, 2023.
+
+\bibitem{opendevin}
+Xingyao Wang, Bunyamin Jeen, and Yan Ma.
+\newblock Opendevin: An open platform for ai software engineers as generalist
+  agents.
+\newblock {\em arXiv preprint arXiv:2404.07636}, 2024.
+
+\bibitem{yang2024qwen}
+An~Yang, Baosong Yang, Binyuan Hui, Bo~Zheng, Bowen Yu, Chang Zhou, Chengpeng
+  Li, Chengyuan Li, Dayiheng Liu, Fei Huang, et~al.
+\newblock Qwen technical report.
+\newblock {\em arXiv preprint arXiv:2309.16609}, 2023.
+
+\end{thebibliography}
