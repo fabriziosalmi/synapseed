@@ -294,8 +294,9 @@ def load_all_grounding_metrics() -> dict:
 
 def generate_search_table() -> str:
     """Generates Table 1: Search Quality (MRR, Precision, Recall)."""
+    data = load_benchmark_data("search")
     agg = load_search_metrics()
-    version = "v4.23"
+    version = "v" + data.get("metadata", {}).get("version", "N/A")
 
     # LaTeX Template
     tex = r"""
@@ -385,21 +386,34 @@ Synapseed (Grounded) & \textbf{%.3f} & \textbf{%.3f} & \textbf{%d} \\
     return tex
 
 def generate_all_tables(output_dir: Path):
-    """Orchestrates table creation."""
+    """Orchestrates table creation. Each table is independent — one failure doesn't block others."""
     print("🚀 Starting Data Ingestion pipeline...")
-    
+    generated = 0
+    errors = []
+
+    # Table 1: Search (no LLM dependency)
     try:
         t1 = generate_search_table()
         with open(output_dir / "table_search.tex", "w") as f:
             f.write(t1)
         print("   ✅ Table 1 (Search) generated.")
+        generated += 1
+    except FileNotFoundError as e:
+        print(f"   ⚠️  Table 1 (Search) SKIPPED: {e}")
+        errors.append(str(e))
 
+    # Table 2: Grounding (requires LLM benchmark data)
+    try:
         t2 = generate_grounding_table()
         with open(output_dir / "table_grounding.tex", "w") as f:
             f.write(t2)
         print("   ✅ Table 2 (Grounding) generated.")
-        
-    except Exception as e:
-        print(f"\n❌ FATAL: Pipeline failed. {str(e)}")
-        # Allow exit(1) to propagate failure
-        raise e
+        generated += 1
+    except FileNotFoundError as e:
+        print(f"   ⚠️  Table 2 (Grounding) SKIPPED: {e}")
+        errors.append(str(e))
+
+    if generated == 0:
+        raise RuntimeError(f"No tables generated. Errors: {'; '.join(errors)}")
+    if errors:
+        print(f"\n⚠️  {generated} table(s) generated, {len(errors)} skipped (missing benchmark data).")

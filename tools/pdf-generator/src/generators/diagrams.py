@@ -35,27 +35,28 @@ def get_architecture_mermaid() -> str:
 def get_sequence_mermaid() -> str:
     return """sequenceDiagram
     participant U as User
-    participant S as Synapseed (RAG)
+    participant S as Synapseed (MCP)
     participant L as LLM
     participant T as Tools (MCP)
-    
+
     U->>S: Query: "Why is auth failing?"
     activate S
-    S->>S: Hybrid RRF (Vector + Graph)
-    S->>L: Prompt + Initial Context
+    S->>S: Whisper Router (intent + extraction)
+    S->>S: Hybrid RRF (BM25 + Vector)
+    S->>L: Prompt + Grounded Context
     activate L
-    L->>L: Thought: Need to check auth logs
-    L->>T: Call: search_logs("auth error")
+    L->>L: Thought: Need to inspect auth module
+    L->>T: Call: search(query="auth error")
     activate T
-    T-->>L: Returns: "Error 401 in login.rs"
+    T-->>L: Returns: ranked symbols from auth module
     deactivate T
-    
-    L->>L: Thought: Check login.rs logic
-    L->>T: Call: read_file("src/auth/login.rs")
+
+    L->>L: Thought: Check specific function
+    L->>T: Call: lookup(name="verify_token")
     activate T
-    T-->>L: Returns: Function verify_token()...
+    T-->>L: Returns: file, line range, signature
     deactivate T
-    
+
     L->>S: Final Answer Construction
     deactivate L
     S-->>U: "Auth fails due to expired JWT check in login.rs"

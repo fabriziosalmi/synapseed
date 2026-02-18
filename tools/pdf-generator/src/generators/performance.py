@@ -111,7 +111,7 @@ def generate_performance_table(metrics: dict) -> str:
         \\textbf{{Efficiency Score}} & \\textbf{{{metrics['efficiency_score']:.2f}}} \\\\
         \\bottomrule
     \\end{{tabular}}
-    \\small{{Binary size measured at \\texttt{{target/release/synapseed}}. Efficiency = (F1 $\\times$ 1000) / Tokens.}}
+    \\small{{Binary size measured at \\texttt{{target/release/synapseed}}. Efficiency = (Quality Score $\\times$ 1000) / Tokens.}}
 \\end{{table}}
 """
 

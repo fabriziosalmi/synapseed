@@ -37,17 +37,10 @@ A tool execution is a function $f: \mathcal{T} \times S \to S'$ that transitions
 \end{equation}
 The effectiveness of a tool $t$ is measured by the Grounding Quality Index (GQI) described in Section \ref{sec:results}.
 
-\subsection{Strategic Calibration}
-We define the \textbf{Operational Pulse} $P$ as a 4-tuple that modulates the transition function $\delta$:
+\subsection{Hybrid Retrieval Calibration}
+The retrieval pipeline fuses BM25 lexical search with vector embedding similarity using Reciprocal Rank Fusion (RRF)~\cite{edge2024graphrag}. For a document $d$ and rank lists $R_1$ (BM25), $R_2$ (vector), the fused score is:
 \begin{equation}
-    P = (\alpha, \beta, \gamma, \tau)
+    \text{RRF}(d) = \sum_{r \in \{R_1, R_2\}} \frac{1}{k + \text{rank}_r(d)}
 \end{equation}
-where:
-\begin{itemize}
-    \item $\alpha \in [0,1]$ represents the \textbf{Efficiency Gradient}, biasing retrieval towards low-latency lexical matches (BM25) when $\alpha \to 1$ or expensive vector search when $\alpha \to 0$.
-    \item $\beta \in [0,1]$ represents \textbf{Entropy Tolerance}, governing the strictness of JSON output validation. Lower $\beta$ implies stricter schema enforcement.
-    \item $\gamma \in [0,1]$ represents the \textbf{Graph Depth Factor}, controlling dependency expansion depth. At $\gamma = 1.0$, the transitive closure of dependencies is fully traversed.
-    \item $\tau > 0$ defines the \textbf{Latency Ceiling} in seconds, establishing a hard timeout for sub-tool orchestration.
-\end{itemize}
-This formalism allows Synapseed to dynamically adapt its search strategy based on real-time constraints.
+where $k = 60$ is the smoothing constant. Results from each source are tagged with their provenance (\textsc{Bm25Only}, \textsc{VectorOnly}, \textsc{Both}) to enable downstream quality analysis. An over-fetch multiplier of $3\times$ ensures sufficient candidates before fusion and re-ranking.
 """

@@ -3,6 +3,18 @@ import argparse
 from pathlib import Path
 from .generators import results, methodology, performance, discussion, formalization, plots, bibliography, case_study
 
+
+def _try_generate(label: str, fn, *args):
+    """Run a generator function, print result, skip on missing data."""
+    try:
+        result = fn(*args)
+        print(f"   ✅ {label}")
+        return result
+    except FileNotFoundError as e:
+        print(f"   ⚠️  {label} SKIPPED (missing data): {e}")
+        return None
+
+
 def main():
     parser = argparse.ArgumentParser(description="Synapseed ArXiv Generator")
     parser.add_argument("--mode", choices=["tables", "full"], required=True)
@@ -12,101 +24,78 @@ def main():
     asset_dir = Path("assets")
     asset_dir.mkdir(exist_ok=True)
 
+    def _write(filename: str, content: str | None):
+        if content is not None:
+            with open(asset_dir / filename, "w") as f:
+                f.write(content)
 
     if args.mode == "tables":
         print("📊 Generating Benchmark Tables...")
         results.generate_all_tables(asset_dir)
-        
+
         print("🏗️ Generating Methodology Stats...")
-        # methodology imported at top
-        with open(asset_dir / "methodology.tex", "w") as f:
-            f.write(methodology.generate_methodology_tex())
-            
-        print("📐 Generating Formalization...") 
-        with open(asset_dir / "formalization.tex", "w") as f:
-            f.write(formalization.generate_formalization_tex())
+        _write("methodology.tex", methodology.generate_methodology_tex())
+
+        print("📐 Generating Formalization...")
+        _write("formalization.tex", formalization.generate_formalization_tex())
 
         print("📚 Generating Bibliography...")
-        with open(asset_dir / "references.bib", "w") as f:
-            f.write(bibliography.generate_bibtex())
-            
+        _write("references.bib", bibliography.generate_bibtex())
+
         print("🚀 Generating Performance Metrics...")
-        # performance imported at top
-        perf_metrics = performance.load_performance_metrics()
-        perf_tex = performance.generate_performance_table(perf_metrics)
-        with open(asset_dir / "table3_performance.tex", "w") as f:
-            f.write(perf_tex)
-            
+        perf_metrics = _try_generate("Performance data loaded", performance.load_performance_metrics)
+        if perf_metrics:
+            _write("table3_performance.tex", performance.generate_performance_table(perf_metrics))
+        else:
+            _write("table3_performance.tex", "% No performance data available (grounding benchmark not yet run)\n")
+
         print("📊 Generating Visualization Plots...")
-        plot_tex_lines = plots.generate_plots(asset_dir)
-        
-        # Add Comparison Plots
-        comp_lines = plots.generate_comparison_plots(asset_dir)
-        if comp_lines:
-            plot_tex_lines.extend(["", ""] + comp_lines)
-            
-        with open(asset_dir / "plots.tex", "w") as f:
-            f.write("\n".join(plot_tex_lines))
-            
-        print("✅ All assets generated.")
+        plot_lines = _try_generate("Plots generated", plots.generate_plots, asset_dir)
+        comp_lines = _try_generate("Comparison plots generated", plots.generate_comparison_plots, asset_dir)
+        all_lines = (plot_lines or []) + (["", ""] + comp_lines if comp_lines else [])
+        _write("plots.tex", "\n".join(all_lines) if all_lines else "% No plot data available\n")
+
+        print("✅ Tables mode complete.")
+
     elif args.mode == "full":
         print("📝 Generating Narrative Sections...")
-        # discussion imported at top
 
-        # Manually trigger generation since discussion.py is designed to be run directly or imported.
-        # But wait, discussion.py's functions just return strings.
-        # Let's adjust discussion.py to have a generate_all function or just write files here.
-        
-        # Actually, simpler: just call the function if main is modified to return content
-        # But current discussion.py writes files when run as main.
-        # Let's import and call the functions.
-        
-        abstract = discussion.generate_abstract()
-        intro = discussion.generate_introduction()
-        discuss = discussion.generate_discussion()
-        related = discussion.generate_related_work()
-        conclusion = discussion.generate_conclusion()
-        
-        with open(asset_dir / "abstract.tex", "w") as f: f.write(abstract)
-        with open(asset_dir / "introduction.tex", "w") as f: f.write(intro)
-        with open(asset_dir / "discussion.tex", "w") as f: f.write(discuss)
-        with open(asset_dir / "related_work.tex", "w") as f: f.write(related)
-        with open(asset_dir / "conclusion.tex", "w") as f: f.write(conclusion)
-        
+        abstract = _try_generate("Abstract", discussion.generate_abstract)
+        _write("abstract.tex", abstract)
+
+        _write("introduction.tex", discussion.generate_introduction())
+
+        discuss = _try_generate("Discussion", discussion.generate_discussion)
+        _write("discussion.tex", discuss)
+
+        _write("related_work.tex", discussion.generate_related_work())
+        _write("conclusion.tex", discussion.generate_conclusion())
+
         print("✅ Narrative assets generated.")
 
-        
-        # Also run tables generation if not already done
+        # Tables
         print("📊 Ensure Tables are fresh...")
         results.generate_all_tables(asset_dir)
-        
-        with open(asset_dir / "methodology.tex", "w") as f:
-            f.write(methodology.generate_methodology_tex())
 
-        # Also Bibliography
-        with open(asset_dir / "references.bib", "w") as f:
-            f.write(bibliography.generate_bibtex())
+        _write("methodology.tex", methodology.generate_methodology_tex())
+        _write("references.bib", bibliography.generate_bibtex())
 
         print("🕵️ Generating Case Study...")
-        with open(asset_dir / "case_study.tex", "w") as f:
-            f.write(case_study.generate_case_study())
+        _write("case_study.tex", case_study.generate_case_study())
 
-        # Also Performance
-        perf = performance.load_performance_metrics()
-        with open(asset_dir / "table3_performance.tex", "w") as f:
-            f.write(performance.generate_performance_table(perf))
-            
+        # Performance
+        perf = _try_generate("Performance data loaded", performance.load_performance_metrics)
+        if perf:
+            _write("table3_performance.tex", performance.generate_performance_table(perf))
+        else:
+            _write("table3_performance.tex", "% No performance data available\n")
+
         print("📊 Generating Visualization Plots...")
-        plot_tex_lines = plots.generate_plots(asset_dir)
-        
-        # Add Comparison Plots
-        comp_lines = plots.generate_comparison_plots(asset_dir)
-        if comp_lines:
-            plot_tex_lines.extend(["", ""] + comp_lines)
+        plot_lines = _try_generate("Plots generated", plots.generate_plots, asset_dir)
+        comp_lines = _try_generate("Comparison plots generated", plots.generate_comparison_plots, asset_dir)
+        all_lines = (plot_lines or []) + (["", ""] + comp_lines if comp_lines else [])
+        _write("plots.tex", "\n".join(all_lines) if all_lines else "% No plot data available\n")
 
-        with open(asset_dir / "plots.tex", "w") as f:
-            f.write("\n".join(plot_tex_lines))
-            
         print("🎉 All assets ready for PDF compilation.")
 
 
