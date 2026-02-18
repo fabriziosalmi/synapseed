@@ -232,7 +232,7 @@ synapseed diagnostics --project .
 - 📖 Read the [Introduction](introduction.md) to understand the full architecture
 - 🔧 Configure SYNAPSEED with [Configuration Guide](configuration.md)
 - 🛠️ Learn the [Complete Workflow](workflow.md)
-- 🤝 Start contributing with [Good First Issues](../../GOOD_FIRST_ISSUES.md)
+- 🤝 Start contributing with [Good First Issues](https://github.com/fabriziosalmi/synapseed/blob/main/GOOD_FIRST_ISSUES.md)
 
 ---
 
