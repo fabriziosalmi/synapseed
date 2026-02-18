@@ -16,7 +16,7 @@ hero:
 features:
   - icon: "🔍"
     title: Smart Code Search
-    details: Find functions, classes, and patterns across your entire codebase. Works with 30+ languages.
+    details: Find functions, classes, and patterns across your entire codebase. Works with 20+ languages via tree-sitter.
     link: /features/search
   - icon: "🛡️"
     title: Secret Protection

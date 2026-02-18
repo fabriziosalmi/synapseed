@@ -205,7 +205,7 @@ docs/assets/
 
 Priority list for visual demonstrations:
 
-1. ✅ **5-minute quickstart** - Highest priority, shows end-to-end workflow
+1. ⏳ **5-minute quickstart** - Highest priority, shows end-to-end workflow (guide exists, video needed)
 2. ⏳ **Secret scanning demo** - Show security in action
 3. ⏳ **Search comparison** - grep vs semantic search
 4. ⏳ **Claude integration** - Before/after with AI assistant

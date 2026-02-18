@@ -264,7 +264,7 @@ Make sure you're in a directory with source code files. SYNAPSEED looks for:
 - `.py` (Python)  
 - `.js`, `.ts` (JavaScript/TypeScript)
 - `.go` (Go)
-- And 25+ other file types
+- And 20+ other file types
 
 ### "Permission denied"
 

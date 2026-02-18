@@ -205,7 +205,7 @@ Make sure you're in a directory with source code. SYNAPSEED works with:
 - Rust (`.rs` files)
 - Python (`.py` files)
 - JavaScript/TypeScript (`.js`, `.ts` files)
-- And 27 other languages
+- And 20+ other languages
 
 ### "Rust version too old"
 

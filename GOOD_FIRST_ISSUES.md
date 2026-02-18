@@ -134,7 +134,13 @@ These involve adding new functionality with guidance.
 - **Files to edit:** `crates/cortex/src/parsers.rs`
 - **Dependencies:** Add tree-sitter grammar to `Cargo.toml`
 
-**Guided steps available in:** `docs/development/adding-languages.md` (create this!)
+**Guided steps:**
+1. Add the tree-sitter grammar dependency to `Cargo.toml`
+2. Update `parsers.rs` to register the new language
+3. Add test cases in the cortex tests
+4. Update documentation to include the new language
+
+See the existing language implementations in `crates/cortex/src/parsers.rs` for examples.
 
 ### 8. Create a New Benchmark Test
 **Difficulty:** ⭐⭐⭐ Challenging  

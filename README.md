@@ -273,7 +273,7 @@ SYNAPSEED includes a comprehensive benchmark suite that measures its impact. Her
 **Coding Task Accuracy (tested with multiple models):**
 - **Without SYNAPSEED (blind):** 40-60% correct answers on code understanding tasks
 - **With SYNAPSEED:** 75-90% correct answers
-- **Improvement:** ~50% increase in accuracy
+- **Improvement:** ~50% increase in accuracy (see [benchmark/](benchmark/) for detailed results)
 
 **Search Quality Metrics:**
 - **Mean Reciprocal Rank (MRR):** 0.85 (industry benchmark: 0.70)
