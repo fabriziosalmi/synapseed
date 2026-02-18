@@ -110,7 +110,11 @@ impl SynapsePlugin for SearchPlugin {
             let files = graph.all_files();
             let count = index.index_all(&files, &bg_root);
             let meta_count = index.index_metadata_files(&bg_root);
-            info!(symbols = count, metadata = meta_count, "Search: Semantic index ready");
+            info!(
+                symbols = count,
+                metadata = meta_count,
+                "Search: Semantic index ready"
+            );
             bg_ctx.broadcast(SynapseEvent::SearchReady);
 
             if bg_ctx.is_shutting_down() {
@@ -205,10 +209,10 @@ impl SynapsePlugin for SearchPlugin {
 /// implementations of the same trait.
 fn build_embedding_text(sym: &synapseed_core::symbol::Symbol, source: Option<&str>) -> String {
     const TOTAL_BUDGET: usize = 512;
-    const NAME_BUDGET: usize = 80;   // 3x repetition of name (max ~26 char name)
-    const SIG_BUDGET: usize = 160;   // 2x repetition of signature
-    const DOC_BUDGET: usize = 140;   // doc comment
-    // Body gets whatever remains (minimum ~132 chars)
+    const NAME_BUDGET: usize = 80; // 3x repetition of name (max ~26 char name)
+    const SIG_BUDGET: usize = 160; // 2x repetition of signature
+    const DOC_BUDGET: usize = 140; // doc comment
+                                   // Body gets whatever remains (minimum ~132 chars)
 
     let mut text = String::with_capacity(TOTAL_BUDGET);
 
@@ -274,13 +278,20 @@ fn build_embedding_text(sym: &synapseed_core::symbol::Symbol, source: Option<&st
 /// For large functions, samples from start, middle, and end regions to capture
 /// representative keywords across the entire function body.
 /// Returns a space-separated string of keywords (lowercase, ≥3 chars, deduplicated).
-fn extract_body_keywords(source: &str, line_start: usize, line_end: usize, max_lines: usize) -> String {
+fn extract_body_keywords(
+    source: &str,
+    line_start: usize,
+    line_end: usize,
+    max_lines: usize,
+) -> String {
     let lines: Vec<&str> = source.lines().collect();
     if line_start == 0 || line_start > lines.len() {
         return String::new();
     }
     let start = line_start.saturating_sub(1);
-    let body_end = line_end.saturating_sub(1).min(lines.len().saturating_sub(1));
+    let body_end = line_end
+        .saturating_sub(1)
+        .min(lines.len().saturating_sub(1));
     let total_body = body_end.saturating_sub(start) + 1;
 
     // Collect line ranges to sample
@@ -311,14 +322,55 @@ fn extract_body_keywords(source: &str, line_start: usize, line_end: usize, max_l
                 if word.len() >= 3 {
                     let lower = word.to_lowercase();
                     // Skip common Rust/Python/JS keywords
-                    if !matches!(lower.as_str(),
-                        "let" | "mut" | "pub" | "use" | "mod" | "fn" | "impl" | "self" | "super"
-                        | "return" | "match" | "some" | "none" | "true" | "false" | "else"
-                        | "def" | "class" | "import" | "from" | "pass" | "with" | "async" | "await"
-                        | "const" | "var" | "function" | "new" | "this" | "null" | "undefined"
-                        | "for" | "while" | "loop" | "break" | "continue" | "struct" | "enum"
-                        | "type" | "trait" | "where" | "dyn" | "ref" | "str" | "string"
-                    ) && seen.insert(lower.clone()) {
+                    if !matches!(
+                        lower.as_str(),
+                        "let"
+                            | "mut"
+                            | "pub"
+                            | "use"
+                            | "mod"
+                            | "fn"
+                            | "impl"
+                            | "self"
+                            | "super"
+                            | "return"
+                            | "match"
+                            | "some"
+                            | "none"
+                            | "true"
+                            | "false"
+                            | "else"
+                            | "def"
+                            | "class"
+                            | "import"
+                            | "from"
+                            | "pass"
+                            | "with"
+                            | "async"
+                            | "await"
+                            | "const"
+                            | "var"
+                            | "function"
+                            | "new"
+                            | "this"
+                            | "null"
+                            | "undefined"
+                            | "for"
+                            | "while"
+                            | "loop"
+                            | "break"
+                            | "continue"
+                            | "struct"
+                            | "enum"
+                            | "type"
+                            | "trait"
+                            | "where"
+                            | "dyn"
+                            | "ref"
+                            | "str"
+                            | "string"
+                    ) && seen.insert(lower.clone())
+                    {
                         keywords.push(lower);
                     }
                 }
@@ -415,10 +467,7 @@ fn embed_all_symbols(
     let chunk_size = 256;
     let mut total_embedded = 0;
 
-    for (chunk_texts, chunk_entries) in texts
-        .chunks(chunk_size)
-        .zip(entries.chunks(chunk_size))
-    {
+    for (chunk_texts, chunk_entries) in texts.chunks(chunk_size).zip(entries.chunks(chunk_size)) {
         let batch: Vec<String> = chunk_texts.to_vec();
         match engine.embed_batch(&batch) {
             Ok(vectors) => {
@@ -495,7 +544,11 @@ fn reembed_file(file: &FileStructure, ctx: &SynapseContext) {
         Ok(vectors) => {
             vector_index.add_batch(vectors, entries);
             vector_index.save_to_disk();
-            debug!(file = file.path, symbols = texts.len(), "Search: Re-embedded file");
+            debug!(
+                file = file.path,
+                symbols = texts.len(),
+                "Search: Re-embedded file"
+            );
         }
         Err(e) => {
             warn!(error = %e, file = file.path, "Search: Re-embedding failed");

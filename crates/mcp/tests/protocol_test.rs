@@ -7,8 +7,8 @@ use synapseed_core::context::SynapseContext;
 use synapseed_core::liquid::ProjectDna;
 use synapseed_core::state::ProjectState;
 
-use synapseed_mcp::protocol::*;
 use synapseed_mcp::prompts;
+use synapseed_mcp::protocol::*;
 use synapseed_mcp::resources;
 use synapseed_mcp::tools;
 
@@ -142,8 +142,7 @@ fn test_tool_call_legacy_alias() {
     let dir = tempfile::tempdir().unwrap();
     let ctx = test_ctx(dir.path());
     // "scan_security" is a legacy alias for "scan"
-    let result =
-        tools::handle_tool_call("scan_security", &json!({"content": "hello world"}), &ctx);
+    let result = tools::handle_tool_call("scan_security", &json!({"content": "hello world"}), &ctx);
     assert!(
         result.is_error.is_none() || result.is_error == Some(false),
         "Legacy alias scan_security should resolve to scan"
@@ -157,11 +156,7 @@ fn test_tool_call_unknown_returns_error() {
     // Use a short gibberish name (< 20 chars, no spaces) that won't fuzzy-match
     // any real tool name (edit distance > 3) and won't trigger the natural-language
     // redirect (requires len > 20 or spaces/question mark).
-    let result = tools::handle_tool_call(
-        "zzqxwk",
-        &json!({}),
-        &ctx,
-    );
+    let result = tools::handle_tool_call("zzqxwk", &json!({}), &ctx);
     assert_eq!(result.is_error, Some(true));
     if let Some(ContentBlock::Text { text }) = result.content.first() {
         assert!(text.contains("Unknown tool"));
@@ -208,8 +203,12 @@ fn test_list_tools_returns_all_24_tools() {
     // Tool count depends on features: base 22 + bench(1) + decompiler(2)
     // v5.2.1: +1 for approve-fix tool
     let mut expected_count = 22;
-    if cfg!(feature = "bench") { expected_count += 1; }
-    if cfg!(feature = "decompiler") { expected_count += 2; }
+    if cfg!(feature = "bench") {
+        expected_count += 1;
+    }
+    if cfg!(feature = "decompiler") {
+        expected_count += 2;
+    }
     assert_eq!(
         tools.len(),
         expected_count,
@@ -224,10 +223,26 @@ fn test_list_tools_contains_expected_names() {
     let tools = tools::list_tools();
     let names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();
     let expected = [
-        "hoist", "lookup", "scan", "check", "blame", "diagnose", "consult",
-        "search", "diagnostics", "analyze", "quickfix", "ask", "intent",
-        "train", "reset-telemetry", "janitor", "janitor-fix", "architect",
-        "oracle", "similar",
+        "hoist",
+        "lookup",
+        "scan",
+        "check",
+        "blame",
+        "diagnose",
+        "consult",
+        "search",
+        "diagnostics",
+        "analyze",
+        "quickfix",
+        "ask",
+        "intent",
+        "train",
+        "reset-telemetry",
+        "janitor",
+        "janitor-fix",
+        "architect",
+        "oracle",
+        "similar",
         #[cfg(feature = "decompiler")]
         "analyze_binary",
         #[cfg(feature = "decompiler")]
@@ -248,7 +263,11 @@ fn test_tool_definitions_have_valid_schemas() {
     let tools = tools::list_tools();
     for tool in &tools {
         assert!(!tool.name.is_empty(), "Tool name must not be empty");
-        assert!(!tool.description.is_empty(), "Tool '{}' has empty description", tool.name);
+        assert!(
+            !tool.description.is_empty(),
+            "Tool '{}' has empty description",
+            tool.name
+        );
         // input_schema must have "type": "object"
         assert_eq!(
             tool.input_schema.get("type").and_then(|v| v.as_str()),
@@ -297,7 +316,10 @@ fn test_read_known_resource() {
     assert_eq!(content.uri, "synapseed://status");
     assert!(content.text.is_some());
     let text = content.text.unwrap();
-    assert!(text.contains("project_root"), "Status should contain project_root");
+    assert!(
+        text.contains("project_root"),
+        "Status should contain project_root"
+    );
 }
 
 #[test]
@@ -314,8 +336,14 @@ fn test_read_dna_resource() {
     let ctx = test_ctx(dir.path());
     let content = resources::read_resource("synapseed://dna", &ctx).unwrap();
     let text = content.text.unwrap();
-    assert!(text.contains("workspace_strategy"), "DNA should contain workspace_strategy");
-    assert!(text.contains("monorepo"), "Default strategy should be monorepo");
+    assert!(
+        text.contains("workspace_strategy"),
+        "DNA should contain workspace_strategy"
+    );
+    assert!(
+        text.contains("monorepo"),
+        "Default strategy should be monorepo"
+    );
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -338,16 +366,26 @@ fn test_prompt_definitions_have_names_and_descriptions() {
     let prompts_list = prompts::list_prompts();
     for p in &prompts_list {
         assert!(!p.name.is_empty(), "Prompt has empty name");
-        assert!(!p.description.is_empty(), "Prompt '{}' has empty description", p.name);
+        assert!(
+            !p.description.is_empty(),
+            "Prompt '{}' has empty description",
+            p.name
+        );
     }
 }
 
 #[test]
 fn test_get_known_prompt() {
     let messages = prompts::get_prompt("describe_architecture", &json!({}));
-    assert!(messages.is_some(), "describe_architecture prompt should exist");
+    assert!(
+        messages.is_some(),
+        "describe_architecture prompt should exist"
+    );
     let messages = messages.unwrap();
-    assert!(!messages.is_empty(), "Prompt should produce at least one message");
+    assert!(
+        !messages.is_empty(),
+        "Prompt should produce at least one message"
+    );
     assert_eq!(messages[0].role, "user");
     let ContentBlock::Text { ref text } = messages[0].content;
     assert!(
@@ -364,8 +402,7 @@ fn test_get_unknown_prompt_returns_none() {
 
 #[test]
 fn test_prompt_with_arguments() {
-    let messages =
-        prompts::get_prompt("explain_evolution", &json!({"file": "src/main.rs"}));
+    let messages = prompts::get_prompt("explain_evolution", &json!({"file": "src/main.rs"}));
     assert!(messages.is_some());
     let messages = messages.unwrap();
     let ContentBlock::Text { ref text } = messages[0].content;
@@ -405,9 +442,7 @@ fn test_tool_call_result_serialization() {
 #[test]
 fn test_tool_call_result_no_error_skips_field() {
     let result = ToolCallResult {
-        content: vec![ContentBlock::Text {
-            text: "ok".into(),
-        }],
+        content: vec![ContentBlock::Text { text: "ok".into() }],
         is_error: None,
     };
     let serialized = serde_json::to_string(&result).unwrap();

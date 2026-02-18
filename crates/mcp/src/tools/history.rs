@@ -4,10 +4,7 @@ use synapseed_search::indexer::SemanticIndex;
 use super::{error_result, get_historian, text_result};
 use crate::protocol::ToolCallResult;
 
-pub(super) fn tool_git_history(
-    args: &serde_json::Value,
-    ctx: &SynapseContext,
-) -> ToolCallResult {
+pub(super) fn tool_git_history(args: &serde_json::Value, ctx: &SynapseContext) -> ToolCallResult {
     let file = match args.get("file").and_then(|v| v.as_str()) {
         Some(f) => f,
         None => return error_result("Missing required parameter: file".into()),
@@ -47,11 +44,14 @@ pub(super) fn tool_git_history(
                      - The file may have been renamed or deleted — try `intent` to check recent commits\n\
                      - Use `search` with the old filename to find where it moved"
                 )
-            } else if msg.contains("not a git repository") || msg.contains("Failed to open git repo") {
+            } else if msg.contains("not a git repository")
+                || msg.contains("Failed to open git repo")
+            {
                 "Blame failed: this project is not a Git repository.\n\n\
                  Suggestions:\n\
                  - Use `search` or `lookup` for code intelligence without Git\n\
-                 - Use `hoist` to explore the project structure".to_string()
+                 - Use `hoist` to explore the project structure"
+                    .to_string()
             } else {
                 format!("Blame failed for '{file}': {msg}")
             };
@@ -119,7 +119,10 @@ pub(super) fn tool_analyze_history(
         // D46: Socratic error for analyze too.
         Err(e) => {
             let msg = format!("{e}");
-            if msg.contains("does not exist") || msg.contains("not found") || msg.contains("no such path") {
+            if msg.contains("does not exist")
+                || msg.contains("not found")
+                || msg.contains("no such path")
+            {
                 error_result(format!(
                     "History analysis failed for '{file}': file not found in Git history.\n\n\
                      Suggestions:\n\

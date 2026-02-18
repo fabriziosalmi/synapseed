@@ -1,10 +1,28 @@
 use synapseed_core::context::SynapseContext;
 use synapseed_cortex::graph::CodeGraph;
-use synapseed_search::indexer::SemanticIndex;
+use synapseed_search::indexer::{SearchResult, SemanticIndex};
 use tracing::info;
 
 use super::{error_result, text_result};
 use crate::protocol::ToolCallResult;
+
+/// Build an ephemeral Tantivy index from the project tree and search it.
+fn build_ephemeral_index(
+    ctx: &SynapseContext,
+    query: &str,
+    limit: usize,
+) -> Result<Vec<SearchResult>, String> {
+    info!("Search: building ephemeral index (auto-hoist)");
+    let root = ctx.project_root();
+    let graph = CodeGraph::new();
+    graph
+        .index_directory(&root)
+        .map_err(|e| format!("Failed to index project: {e}"))?;
+    let index = SemanticIndex::new().map_err(|e| format!("Failed to create search index: {e}"))?;
+    let files = graph.all_files();
+    index.index_all(&files, &root);
+    Ok(index.search(query, limit))
+}
 
 pub(super) fn tool_semantic_search(
     args: &serde_json::Value,
@@ -16,35 +34,42 @@ pub(super) fn tool_semantic_search(
     };
     let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
 
-    // Try to use the persistent index from SearchPlugin
+    // Try to use the persistent index from SearchPlugin.
+    // If the persistent index exists but returns no results (cold start / empty),
+    // fall back to building an ephemeral index on demand (auto-hoist).
     let results = if let Some(index) = ctx.get_extension::<SemanticIndex>() {
-        index.search(query, limit)
-    } else {
-        // Fallback: build an ephemeral index on demand
-        info!("Search: No persistent index, building ephemeral index");
-        let root = ctx.project_root();
-        let graph = CodeGraph::new();
-        if let Err(e) = graph.index_directory(&root) {
-            return error_result(format!("Failed to index project: {e}"));
+        let persistent_results = index.search(query, limit);
+        if persistent_results.is_empty() {
+            // Persistent index might be empty (not yet populated) — try ephemeral.
+            match build_ephemeral_index(ctx, query, limit) {
+                Ok(r) => r,
+                Err(e) => return error_result(e),
+            }
+        } else {
+            persistent_results
         }
-        let index = match SemanticIndex::new() {
-            Ok(idx) => idx,
-            Err(e) => return error_result(format!("Failed to create search index: {e}")),
-        };
-        let files = graph.all_files();
-        index.index_all(&files, &root);
-        index.search(query, limit)
+    } else {
+        // No persistent index at all — build ephemeral.
+        match build_ephemeral_index(ctx, query, limit) {
+            Ok(r) => r,
+            Err(e) => return error_result(e),
+        }
     };
 
     // D45: Warn if the index is likely still populating (cold-start).
-    let cold_start_warning = if ctx.get_extension::<CodeGraph>().map_or(true, |g| g.file_count() == 0) {
+    let cold_start_warning = if ctx
+        .get_extension::<CodeGraph>()
+        .is_none_or(|g| g.file_count() == 0)
+    {
         "⚠ Indexing may still be in progress — results could be incomplete. Retry shortly for full coverage.\n\n"
     } else {
         ""
     };
 
     if results.is_empty() {
-        text_result(format!("{cold_start_warning}No results found for: \"{query}\""))
+        text_result(format!(
+            "{cold_start_warning}No results found for: \"{query}\""
+        ))
     } else {
         let json = serde_json::to_string_pretty(&results).unwrap_or_default();
         text_result(format!(

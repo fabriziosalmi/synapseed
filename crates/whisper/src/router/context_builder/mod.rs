@@ -16,7 +16,10 @@ pub(super) mod injection;
 use synapseed_core::context::SynapseContext;
 use synapseed_core::momentum::{ModelTier, SessionPhase};
 
-use super::{CodeContext, DiagnosticsContext, GatheredContext, HistoryContext, Intent, QueryComplexity, RawSource, SessionState};
+use super::{
+    CodeContext, DiagnosticsContext, GatheredContext, HistoryContext, Intent, QueryComplexity,
+    RawSource, SessionState,
+};
 
 // Re-exports for parent module
 pub(in crate::router) use injection::inject_raw_sources;
@@ -91,10 +94,7 @@ pub(super) fn build_human_summary(code_context: &Option<CodeContext>) -> Option<
             let name = sym.get("name")?.as_str()?;
             let file = sym.get("file_path")?.as_str()?;
             let line = sym.get("line_start")?.as_u64()?;
-            let kind = sym
-                .get("kind")
-                .and_then(|k| k.as_str())
-                .unwrap_or("symbol");
+            let kind = sym.get("kind").and_then(|k| k.as_str()).unwrap_or("symbol");
             // Include signature if available (v3.6.2: Narrative Bridge)
             let display_name = if let Some(sig) = sym.get("signature").and_then(|s| s.as_str()) {
                 sig.to_string()
@@ -304,7 +304,10 @@ pub(super) fn detect_git_staged(ctx: &SynapseContext) -> bool {
             let stdout = String::from_utf8_lossy(&output.stdout);
             let has_staged = !stdout.trim().is_empty();
             if has_staged {
-                tracing::debug!(files = stdout.trim(), "Git: staged files detected → forcing Stabilization");
+                tracing::debug!(
+                    files = stdout.trim(),
+                    "Git: staged files detected → forcing Stabilization"
+                );
             }
             has_staged
         }
@@ -418,9 +421,15 @@ pub(super) fn build_smart_context(input: SmartContextInput) -> String {
                 for item in diag.items.iter().take(10) {
                     // v4.17.1 (W7): Use correct Diagnostic struct field names:
                     // file_path (not "file"), line_start (not "line")
-                    let file = item.get("file_path").and_then(|v| v.as_str()).unwrap_or("?");
+                    let file = item
+                        .get("file_path")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("?");
                     let line = item.get("line_start").and_then(|v| v.as_u64()).unwrap_or(0);
-                    let level = item.get("level").and_then(|v| v.as_str()).unwrap_or("error");
+                    let level = item
+                        .get("level")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("error");
                     let msg = item.get("message").and_then(|v| v.as_str()).unwrap_or("");
                     if !msg.is_empty() {
                         parts.push(format!("  {level}: {file}:{line}: {msg}"));
@@ -444,7 +453,11 @@ pub(super) fn build_smart_context(input: SmartContextInput) -> String {
                 .and_then(|m| m.as_str())
                 .map(|m| {
                     let truncated: String = m.chars().take(80).collect();
-                    if m.len() > 80 { format!("{truncated}...") } else { truncated }
+                    if m.len() > 80 {
+                        format!("{truncated}...")
+                    } else {
+                        truncated
+                    }
                 });
             let mut hist_line = format!(
                 "- **History** ({}): {} commit(s), hotspot {:.1}, risk: {}",
@@ -497,15 +510,15 @@ pub(super) fn build_smart_context(input: SmartContextInput) -> String {
     if raw_injection && !raw_sources.is_empty() {
         parts.push(String::new());
         parts.push("## Injected Source Code".into());
-        parts.push("You are provided with the EXACT source code for your query. \
-                     Use the provided file paths and line numbers in your answer.".into());
+        parts.push(
+            "You are provided with the EXACT source code for your query. \
+                     Use the provided file paths and line numbers in your answer."
+                .into(),
+        );
         for src in raw_sources {
             if src.line_start == 0 && src.line_end == 0 {
                 // I/O error placeholder (v3.6.2: Transparent I/O Errors)
-                parts.push(format!(
-                    "\n--- FILE: {} (UNAVAILABLE) ---",
-                    src.file_path
-                ));
+                parts.push(format!("\n--- FILE: {} (UNAVAILABLE) ---", src.file_path));
                 parts.push(src.source.clone());
             } else {
                 parts.push(format!(
@@ -521,9 +534,12 @@ pub(super) fn build_smart_context(input: SmartContextInput) -> String {
     if raw_injection && !raw_sources.is_empty() {
         // Instruction sandwiching: repeat grounding rules after code
         let file_list: Vec<&str> = raw_sources.iter().map(|s| s.file_path.as_str()).collect();
-        parts.push("\nAnswer based ONLY on the injected source code above. \
+        parts.push(
+            "\nAnswer based ONLY on the injected source code above. \
              Cite exact file paths and line numbers. \
-             ONLY use the file paths listed above. DO NOT invent file names.".to_string());
+             ONLY use the file paths listed above. DO NOT invent file names."
+                .to_string(),
+        );
         // Zero-Hallucination Recency Bias Guard: LAST line of context
         parts.push(format!(
             "\nIF YOU CITE A FILE NOT LISTED BELOW, YOU FAIL.\n\
@@ -555,9 +571,7 @@ mod tests {
 
     #[test]
     fn test_human_summary_none_when_empty_symbols() {
-        let ctx = CodeContext {
-            symbols: vec![],
-        };
+        let ctx = CodeContext { symbols: vec![] };
         assert!(build_human_summary(&Some(ctx)).is_none());
     }
 
@@ -569,9 +583,7 @@ mod tests {
             "file_path": "crates/whisper/src/router/mod.rs",
             "line_start": 136
         });
-        let ctx = CodeContext {
-            symbols: vec![sym],
-        };
+        let ctx = CodeContext { symbols: vec![sym] };
         let summary = build_human_summary(&Some(ctx)).unwrap();
         assert_eq!(
             summary,
@@ -626,9 +638,7 @@ mod tests {
             "file_path": "src/lib.rs",
             "line_start": 1
         });
-        let ctx = CodeContext {
-            symbols: vec![sym],
-        };
+        let ctx = CodeContext { symbols: vec![sym] };
         let summary = build_human_summary(&Some(ctx)).unwrap();
         assert!(summary.contains("Found symbol `mystery`"));
     }
@@ -852,12 +862,27 @@ mod tests {
         });
         let ctx = CodeContext { symbols: vec![sym] };
         let summary = build_human_summary(&Some(ctx)).unwrap();
-        assert!(summary.contains("Methods:"), "should have Methods line: {summary}");
+        assert!(
+            summary.contains("Methods:"),
+            "should have Methods line: {summary}"
+        );
         assert!(summary.contains("name"), "should list 'name': {summary}");
-        assert!(summary.contains("on_init"), "should list 'on_init': {summary}");
-        assert!(summary.contains("on_event"), "should list 'on_event': {summary}");
-        assert!(summary.contains("on_shutdown"), "should list 'on_shutdown': {summary}");
-        assert!(summary.contains("priority"), "should list 'priority': {summary}");
+        assert!(
+            summary.contains("on_init"),
+            "should list 'on_init': {summary}"
+        );
+        assert!(
+            summary.contains("on_event"),
+            "should list 'on_event': {summary}"
+        );
+        assert!(
+            summary.contains("on_shutdown"),
+            "should list 'on_shutdown': {summary}"
+        );
+        assert!(
+            summary.contains("priority"),
+            "should list 'priority': {summary}"
+        );
     }
 
     #[test]
@@ -872,10 +897,22 @@ mod tests {
         });
         let ctx = CodeContext { symbols: vec![sym] };
         let summary = build_human_summary(&Some(ctx)).unwrap();
-        assert!(summary.contains("Fields:"), "should have Fields line: {summary}");
-        assert!(summary.contains("sql_patterns"), "should list 'sql_patterns': {summary}");
-        assert!(summary.contains("xss_patterns"), "should list 'xss_patterns': {summary}");
-        assert!(summary.contains("prompt_injection_patterns"), "should list 'prompt_injection_patterns': {summary}");
+        assert!(
+            summary.contains("Fields:"),
+            "should have Fields line: {summary}"
+        );
+        assert!(
+            summary.contains("sql_patterns"),
+            "should list 'sql_patterns': {summary}"
+        );
+        assert!(
+            summary.contains("xss_patterns"),
+            "should list 'xss_patterns': {summary}"
+        );
+        assert!(
+            summary.contains("prompt_injection_patterns"),
+            "should list 'prompt_injection_patterns': {summary}"
+        );
     }
 
     #[test]
@@ -890,10 +927,22 @@ mod tests {
         });
         let ctx = CodeContext { symbols: vec![sym] };
         let summary = build_human_summary(&Some(ctx)).unwrap();
-        assert!(summary.contains("Body:"), "should have Body line: {summary}");
-        assert!(summary.contains("resolve_tool_name"), "body should contain 'resolve_tool_name': {summary}");
-        assert!(summary.contains("TOOL_NAMES"), "body should contain 'TOOL_NAMES': {summary}");
-        assert!(summary.contains("levenshtein"), "body should contain 'levenshtein': {summary}");
+        assert!(
+            summary.contains("Body:"),
+            "should have Body line: {summary}"
+        );
+        assert!(
+            summary.contains("resolve_tool_name"),
+            "body should contain 'resolve_tool_name': {summary}"
+        );
+        assert!(
+            summary.contains("TOOL_NAMES"),
+            "body should contain 'TOOL_NAMES': {summary}"
+        );
+        assert!(
+            summary.contains("levenshtein"),
+            "body should contain 'levenshtein': {summary}"
+        );
     }
 
     #[test]
@@ -907,9 +956,18 @@ mod tests {
         });
         let ctx = CodeContext { symbols: vec![sym] };
         let summary = build_human_summary(&Some(ctx)).unwrap();
-        assert!(!summary.contains("Body:"), "should NOT have Body without snippet: {summary}");
-        assert!(!summary.contains("Methods:"), "should NOT have Methods without snippet: {summary}");
-        assert!(!summary.contains("Fields:"), "should NOT have Fields without snippet: {summary}");
+        assert!(
+            !summary.contains("Body:"),
+            "should NOT have Body without snippet: {summary}"
+        );
+        assert!(
+            !summary.contains("Methods:"),
+            "should NOT have Methods without snippet: {summary}"
+        );
+        assert!(
+            !summary.contains("Fields:"),
+            "should NOT have Fields without snippet: {summary}"
+        );
     }
 
     #[test]

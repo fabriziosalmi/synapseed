@@ -559,7 +559,12 @@ fn resource_context_active(ctx: &SynapseContext) -> ResourceContent {
         .get_extension::<DiagnosticStore>()
         .map(|store| {
             let snap = store.snapshot();
-            (snap.error_count, snap.warning_count, snap.prev_error_count, snap.prev_warning_count)
+            (
+                snap.error_count,
+                snap.warning_count,
+                snap.prev_error_count,
+                snap.prev_warning_count,
+            )
         })
         .unwrap_or((0, 0, 0, 0));
 

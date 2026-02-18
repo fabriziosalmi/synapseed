@@ -50,7 +50,11 @@ impl Executor {
             }
         }
 
-        debug!(command = command, timeout_secs = self.timeout_secs, "Executing sandboxed command");
+        debug!(
+            command = command,
+            timeout_secs = self.timeout_secs,
+            "Executing sandboxed command"
+        );
 
         let child_future = tokio::process::Command::new("sh")
             .arg("-c")
@@ -65,7 +69,11 @@ impl Executor {
         {
             Ok(res) => res.map_err(SynapseedError::Io)?,
             Err(_) => {
-                warn!(command = command, timeout_secs = self.timeout_secs, "Command timed out");
+                warn!(
+                    command = command,
+                    timeout_secs = self.timeout_secs,
+                    "Command timed out"
+                );
                 return Err(SynapseedError::Internal(format!(
                     "Command timed out after {}s: {}",
                     self.timeout_secs, command

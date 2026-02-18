@@ -105,7 +105,11 @@ fn test_scan_clippy_on_clean_project() {
 
     let result = synapseed_janitor::scanner::scan_clippy(project_root);
     // Should not error (clippy is installed)
-    assert!(result.is_ok(), "scan_clippy should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "scan_clippy should succeed: {:?}",
+        result.err()
+    );
 }
 
 #[test]
@@ -153,7 +157,10 @@ pub fn add(a: i32, b: i32) -> i32 {
 
     // Should have a MachineApplicable suggestion
     let issue = return_issue.unwrap();
-    assert!(issue.has_auto_fix(), "needless_return should be auto-fixable");
+    assert!(
+        issue.has_auto_fix(),
+        "needless_return should be auto-fixable"
+    );
 }
 
 // ── Janitor integration test ────────────────────────────────

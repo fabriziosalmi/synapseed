@@ -22,9 +22,9 @@ use tracing::{debug, info};
 
 use synapseed_core::context::SynapseContext;
 use synapseed_core::event::SynapseEvent;
+use synapseed_janitor::proposal::{Proposal, ProposalCategory, ProposalStore};
 use synapseed_shadow_check::diagnostic::Applicability;
 use synapseed_shadow_check::runner::DiagnosticStore;
-use synapseed_janitor::proposal::{Proposal, ProposalCategory, ProposalStore};
 
 use crate::notification_sink::{Notification, NotificationSink};
 
@@ -63,7 +63,8 @@ pub fn spawn_repair_orchestrator(ctx: &SynapseContext) {
                         continue; // Clean build — nothing to repair
                     }
                     debug!(
-                        errors, warnings,
+                        errors,
+                        warnings,
                         "RepairOrchestrator: diagnostics updated, scanning for auto-fixable issues"
                     );
                     process_diagnostics(&ctx, &mut state);
@@ -76,7 +77,7 @@ pub fn spawn_repair_orchestrator(ctx: &SynapseContext) {
                     debug!(skipped = n, "RepairOrchestrator: lagged, dropped events");
                 }
                 Err(_) => break, // Channel closed
-                _ => {} // Ignore other events
+                _ => {}          // Ignore other events
             }
         }
     });
@@ -95,7 +96,10 @@ fn process_diagnostics(ctx: &SynapseContext, state: &mut OrchestratorState) {
 
     // Guard: session proposal limit
     if PROPOSAL_COUNT.load(Ordering::Relaxed) >= MAX_PROPOSALS_PER_SESSION {
-        debug!("RepairOrchestrator: session proposal limit reached ({})", MAX_PROPOSALS_PER_SESSION);
+        debug!(
+            "RepairOrchestrator: session proposal limit reached ({})",
+            MAX_PROPOSALS_PER_SESSION
+        );
         return;
     }
 
@@ -104,9 +108,11 @@ fn process_diagnostics(ctx: &SynapseContext, state: &mut OrchestratorState) {
 
     for diag in &snapshot.diagnostics {
         // Only process errors/warnings with MachineApplicable suggestions
-        let suggestion = match diag.suggestions.iter().find(|s| {
-            s.applicability == Applicability::MachineApplicable
-        }) {
+        let suggestion = match diag
+            .suggestions
+            .iter()
+            .find(|s| s.applicability == Applicability::MachineApplicable)
+        {
             Some(s) => s,
             None => continue,
         };

@@ -81,9 +81,10 @@ impl EmbeddingEngine {
 
     /// Embed a single text string into a vector.
     pub fn embed(&self, text: &str) -> Result<Vec<f32>, EmbeddingError> {
-        let mut model = self.model.lock().map_err(|e| {
-            EmbeddingError::Inference(format!("Model lock poisoned: {e}"))
-        })?;
+        let mut model = self
+            .model
+            .lock()
+            .map_err(|e| EmbeddingError::Inference(format!("Model lock poisoned: {e}")))?;
 
         let embeddings = model
             .embed(vec![text], None)
@@ -101,9 +102,10 @@ impl EmbeddingEngine {
             return Ok(Vec::new());
         }
 
-        let mut model = self.model.lock().map_err(|e| {
-            EmbeddingError::Inference(format!("Model lock poisoned: {e}"))
-        })?;
+        let mut model = self
+            .model
+            .lock()
+            .map_err(|e| EmbeddingError::Inference(format!("Model lock poisoned: {e}")))?;
 
         let refs: Vec<&str> = texts.iter().map(|s| s.as_str()).collect();
         model

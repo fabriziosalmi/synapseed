@@ -3,10 +3,7 @@ use synapseed_core::context::SynapseContext;
 use super::{error_result, text_result};
 use crate::protocol::ToolCallResult;
 
-pub(super) fn tool_ask_synapseed(
-    args: &serde_json::Value,
-    ctx: &SynapseContext,
-) -> ToolCallResult {
+pub(super) fn tool_ask_synapseed(args: &serde_json::Value, ctx: &SynapseContext) -> ToolCallResult {
     let query = match args.get("query").and_then(|v| v.as_str()) {
         Some(q) => q,
         None => return error_result("Missing required parameter: query".into()),

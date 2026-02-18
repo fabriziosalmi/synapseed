@@ -9,44 +9,101 @@ use super::Intent;
 
 /// Weighted keyword: (pattern, weight). Higher weight = stronger signal.
 const BUG_KEYWORDS: &[(&str, u32)] = &[
-    ("crash", 3), ("panic", 3), ("segfault", 3), ("abort", 3),
-    ("bug", 2), ("broken", 2), ("fail", 2), ("wrong", 2), ("cannot", 2),
-    ("compile", 2), ("rott", 2), ("traceback", 2), ("exception", 2),
-    ("fix", 1), ("error", 1), ("issue", 1),
+    ("crash", 3),
+    ("panic", 3),
+    ("segfault", 3),
+    ("abort", 3),
+    ("bug", 2),
+    ("broken", 2),
+    ("fail", 2),
+    ("wrong", 2),
+    ("cannot", 2),
+    ("compile", 2),
+    ("rott", 2),
+    ("traceback", 2),
+    ("exception", 2),
+    ("fix", 1),
+    ("error", 1),
+    ("issue", 1),
     // Italian
-    ("errore", 2), ("rotto", 2), ("problema", 1), ("fallisce", 2), ("non funziona", 3),
+    ("errore", 2),
+    ("rotto", 2),
+    ("problema", 1),
+    ("fallisce", 2),
+    ("non funziona", 3),
 ];
 
 const SECURITY_KEYWORDS: &[(&str, u32)] = &[
-    ("cve", 3), ("injection", 3), ("xss", 3), ("rce", 3), ("ssrf", 3),
-    ("vulnerability", 3), ("exploit", 3),
-    ("security", 2), ("audit", 2), ("secret", 2), ("password", 2), ("leak", 2),
-    ("token", 1), ("key", 1), ("vuln", 2),
+    ("cve", 3),
+    ("injection", 3),
+    ("xss", 3),
+    ("rce", 3),
+    ("ssrf", 3),
+    ("vulnerability", 3),
+    ("exploit", 3),
+    ("security", 2),
+    ("audit", 2),
+    ("secret", 2),
+    ("password", 2),
+    ("leak", 2),
+    ("token", 1),
+    ("key", 1),
+    ("vuln", 2),
     // Italian
-    ("sicurezza", 2), ("segreto", 2), ("vulnerabilità", 3),
+    ("sicurezza", 2),
+    ("segreto", 2),
+    ("vulnerabilità", 3),
 ];
 
 const EXPLAIN_KEYWORDS: &[(&str, u32)] = &[
-    ("explain", 2), ("what is", 2), ("how does", 2), ("why", 1),
-    ("understand", 2), ("describe", 2), ("what does", 2), ("walk through", 2),
-    ("overview", 2), ("architecture", 2),
+    ("explain", 2),
+    ("what is", 2),
+    ("how does", 2),
+    ("why", 1),
+    ("understand", 2),
+    ("describe", 2),
+    ("what does", 2),
+    ("walk through", 2),
+    ("overview", 2),
+    ("architecture", 2),
     // Italian
-    ("cos'è", 2), ("perché", 1), ("come funziona", 2), ("spiega", 2),
-    ("descrivi", 2), ("mostrami", 2),
+    ("cos'è", 2),
+    ("perché", 1),
+    ("come funziona", 2),
+    ("spiega", 2),
+    ("descrivi", 2),
+    ("mostrami", 2),
 ];
 
 const REFACTOR_KEYWORDS: &[(&str, u32)] = &[
-    ("refactor", 2), ("optimize", 2), ("restructure", 2), ("simplify", 2),
-    ("clean", 1), ("improve", 1), ("extract", 1), ("rename", 1), ("move", 1),
-    ("performance", 2), ("speed up", 2), ("faster", 2), ("slow", 2),
+    ("refactor", 2),
+    ("optimize", 2),
+    ("restructure", 2),
+    ("simplify", 2),
+    ("clean", 1),
+    ("improve", 1),
+    ("extract", 1),
+    ("rename", 1),
+    ("move", 1),
+    ("performance", 2),
+    ("speed up", 2),
+    ("faster", 2),
+    ("slow", 2),
     // Italian
-    ("migliora", 2), ("pulisci", 1), ("ottimizza", 2), ("velocizza", 2),
-    ("velocità", 2), ("intelligenza", 2), ("più veloce", 2), ("lento", 2),
+    ("migliora", 2),
+    ("pulisci", 1),
+    ("ottimizza", 2),
+    ("velocizza", 2),
+    ("velocità", 2),
+    ("intelligenza", 2),
+    ("più veloce", 2),
+    ("lento", 2),
 ];
 
 /// Score a category by summing weights of matched keywords.
 fn score_category(lower: &str, keywords: &[(&str, u32)]) -> u32 {
-    keywords.iter()
+    keywords
+        .iter()
         .filter(|(k, _)| lower.contains(*k))
         .map(|(_, w)| *w)
         .sum()

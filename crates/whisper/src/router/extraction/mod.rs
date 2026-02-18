@@ -67,7 +67,10 @@ pub(super) fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> 
     // These are lowercased non-stop-word terms from the user query.
     let original_terms: Vec<String> = query
         .split(|c: char| c.is_whitespace() || c == '?' || c == '!' || c == ',')
-        .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric() && c != '_').to_ascii_lowercase())
+        .map(|w| {
+            w.trim_matches(|c: char| !c.is_alphanumeric() && c != '_')
+                .to_ascii_lowercase()
+        })
         .filter(|w| w.len() >= 2 && !STOP_WORDS.contains(&w.as_str()))
         .collect();
 
@@ -86,7 +89,10 @@ pub(super) fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> 
                     let scores = dep_graph.pagerank_by_file();
                     let f32_scores: std::collections::HashMap<String, f32> =
                         scores.into_iter().map(|(k, v)| (k, v as f32)).collect();
-                    debug!(modules = f32_scores.len(), "Whisper: PageRank scores injected");
+                    debug!(
+                        modules = f32_scores.len(),
+                        "Whisper: PageRank scores injected"
+                    );
                     backend.set_pagerank_scores(f32_scores);
                 }
             }
@@ -118,16 +124,24 @@ pub(super) fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> 
             // Cognitive Ledger: recency boost for working-set files (v4.19.0)
             // Compendium mode: boost ≤ 1.2x, never penalize, never discard
             let mut results = results;
-            if let Some(rec) = ctx.get_extension::<parking_lot::Mutex<synapseed_core::recorder::FlightRecorder>>() {
+            if let Some(rec) =
+                ctx.get_extension::<parking_lot::Mutex<synapseed_core::recorder::FlightRecorder>>()
+            {
                 let ws_subjects = rec.lock().working_set_subjects();
                 if !ws_subjects.is_empty() {
                     for r in &mut results {
                         let boost = synapseed_core::ledger::MomentClassifier::recency_boost(
-                            &r.symbol, &r.file, &ws_subjects,
+                            &r.symbol,
+                            &r.file,
+                            &ws_subjects,
                         );
                         r.score *= boost;
                     }
-                    results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+                    results.sort_by(|a, b| {
+                        b.score
+                            .partial_cmp(&a.score)
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    });
                 }
             }
 
@@ -562,19 +576,11 @@ pub(super) fn is_vendor_path(path: &str) -> bool {
 /// `"tests/test_requests.py"` → `["src/requests.py", "src/requests/__init__.py", ...]`
 fn derive_source_paths(test_path: &str) -> Vec<String> {
     let path = std::path::Path::new(test_path);
-    let file_name = path
-        .file_name()
-        .and_then(|f| f.to_str())
-        .unwrap_or("");
-    let ext = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("");
+    let file_name = path.file_name().and_then(|f| f.to_str()).unwrap_or("");
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
     // Strip test_ prefix and _test / .test suffix
-    let base = file_name
-        .strip_prefix("test_")
-        .unwrap_or(file_name);
+    let base = file_name.strip_prefix("test_").unwrap_or(file_name);
     let base = base
         .strip_suffix(&format!("_test.{ext}"))
         .or_else(|| base.strip_suffix(&format!(".test.{ext}")))
@@ -817,11 +823,14 @@ MIDDLEWARE = [
 ]
 "#;
         let refs = extract_dotted_references(source);
-        assert_eq!(refs, vec![
-            "SecurityMiddleware",
-            "CommonMiddleware",
-            "CsrfViewMiddleware",
-        ]);
+        assert_eq!(
+            refs,
+            vec![
+                "SecurityMiddleware",
+                "CommonMiddleware",
+                "CsrfViewMiddleware",
+            ]
+        );
     }
 
     #[test]

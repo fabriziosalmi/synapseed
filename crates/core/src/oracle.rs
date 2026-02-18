@@ -13,8 +13,7 @@ use serde::{Deserialize, Serialize};
 
 // ── Pre-compiled regexes for fix_docs() ────────────────────────────
 
-static VERSION_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"v\d+\.\d+\.\d+").unwrap());
+static VERSION_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"v\d+\.\d+\.\d+").unwrap());
 
 static CRATE_COUNT_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\b(\d+)\s+crates?\b").unwrap());
@@ -129,7 +128,9 @@ pub fn fix_docs(project_root: &Path) -> Vec<String> {
     let new_version = format!("v{version}");
     if let Some(first) = VERSION_RE.find(&patched) {
         if first.as_str() != new_version {
-            patched = VERSION_RE.replace_all(&patched, new_version.as_str()).to_string();
+            patched = VERSION_RE
+                .replace_all(&patched, new_version.as_str())
+                .to_string();
             changes.push(format!("Updated version references to {new_version}"));
         }
     }
@@ -244,7 +245,9 @@ fn check_workspace_members(root: &Path, total: &mut usize) -> Vec<Inconsistency>
                 if path.join("Cargo.toml").exists() {
                     *total += 1;
                     let relative = format!("{}/{}", dir_name, entry.file_name().to_string_lossy());
-                    let is_member = members.iter().any(|m| m == &relative || m.contains(&relative));
+                    let is_member = members
+                        .iter()
+                        .any(|m| m == &relative || m.contains(&relative));
                     if !is_member {
                         issues.push(Inconsistency {
                             category: "workspace".to_string(),
@@ -359,7 +362,12 @@ fn check_crate_descriptions(root: &Path, total: &mut usize) -> Vec<Inconsistency
 
     let mut issues = Vec::new();
 
-    for entry in std::fs::read_dir(&crates_dir).ok().into_iter().flatten().flatten() {
+    for entry in std::fs::read_dir(&crates_dir)
+        .ok()
+        .into_iter()
+        .flatten()
+        .flatten()
+    {
         let cargo_path = entry.path().join("Cargo.toml");
         if !cargo_path.exists() {
             continue;
@@ -382,9 +390,7 @@ fn check_crate_descriptions(root: &Path, total: &mut usize) -> Vec<Inconsistency
                 category: "features".to_string(),
                 severity: "warning".to_string(),
                 description: format!("Crate `{name}` Cargo.toml has no `description` field"),
-                suggestion: format!(
-                    "Add a `description = \"...\"` to crates/{name}/Cargo.toml."
-                ),
+                suggestion: format!("Add a `description = \"...\"` to crates/{name}/Cargo.toml."),
             });
         }
     }

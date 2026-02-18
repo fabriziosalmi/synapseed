@@ -7,7 +7,9 @@ use tracing::{debug, warn};
 
 use crate::adversarial::{AdversarialResult, MutationOutcome, Saboteur};
 use crate::fuzzer;
-use crate::report::{CompilationResult, CompilerMessage, FuzzFailure, FuzzResult, Metrics, Report, TestResult};
+use crate::report::{
+    CompilationResult, CompilerMessage, FuzzFailure, FuzzResult, Metrics, Report, TestResult,
+};
 use crate::scenario::Scenario;
 
 /// An isolated sandbox environment for compiling and testing Rust code.
@@ -39,8 +41,7 @@ impl Sandbox {
         // SECURITY: Force offline mode to prevent AI-generated code from
         // downloading payloads or exfiltrating data via network during eval.
         let cargo_dir = project_path.join(".cargo");
-        std::fs::create_dir_all(&cargo_dir)
-            .map_err(|e| crate::GymError::Sandbox(e.to_string()))?;
+        std::fs::create_dir_all(&cargo_dir).map_err(|e| crate::GymError::Sandbox(e.to_string()))?;
 
         std::fs::write(
             cargo_dir.join("config.toml"),
@@ -84,8 +85,9 @@ impl Sandbox {
                 let tests_dir = self.project_path.join("tests");
                 std::fs::create_dir_all(&tests_dir)
                     .map_err(|e| crate::GymError::Sandbox(e.to_string()))?;
-                std::fs::write(tests_dir.join("fuzz.rs"), &fuzz_code)
-                    .map_err(|e| crate::GymError::Sandbox(format!("Failed to write fuzz tests: {e}")))?;
+                std::fs::write(tests_dir.join("fuzz.rs"), &fuzz_code).map_err(|e| {
+                    crate::GymError::Sandbox(format!("Failed to write fuzz tests: {e}"))
+                })?;
                 debug!(bytes = fuzz_code.len(), "Injected fuzz tests");
                 true
             } else {
@@ -101,8 +103,11 @@ impl Sandbox {
             self.add_dependencies(scenario, fuzz_generated)?;
         }
 
-        debug!("Injected source ({} bytes) + tests ({} bytes)",
-            scenario.source_code.len(), scenario.test_code.len());
+        debug!(
+            "Injected source ({} bytes) + tests ({} bytes)",
+            scenario.source_code.len(),
+            scenario.test_code.len()
+        );
 
         Ok(())
     }
@@ -169,7 +174,11 @@ impl Sandbox {
         if !compiled {
             debug!(errors, warnings, "Compilation failed");
         } else {
-            debug!(warnings, compile_ms = compile_time_ms, "Compilation succeeded");
+            debug!(
+                warnings,
+                compile_ms = compile_time_ms,
+                "Compilation succeeded"
+            );
         }
 
         Ok((
@@ -207,11 +216,20 @@ impl Sandbox {
         let (passed, failed, ignored, total) = parse_test_summary(&combined);
 
         if total == 0 && output.status.success() {
-            debug!(stdout_len = stdout.len(), stderr_len = stderr.len(),
-                "No test summary found in output despite successful exit");
+            debug!(
+                stdout_len = stdout.len(),
+                stderr_len = stderr.len(),
+                "No test summary found in output despite successful exit"
+            );
         }
 
-        debug!(passed, failed, ignored, test_ms = test_time_ms, "Tests completed");
+        debug!(
+            passed,
+            failed,
+            ignored,
+            test_ms = test_time_ms,
+            "Tests completed"
+        );
 
         Ok((
             TestResult {
@@ -280,7 +298,9 @@ impl Sandbox {
 
         // Step 2b: Parse fuzz results from test output
         let fuzz = if scenario.fuzz {
-            tests.as_ref().map(|t| parse_fuzz_results(&t.output, &scenario.source_code))
+            tests
+                .as_ref()
+                .map(|t| parse_fuzz_results(&t.output, &scenario.source_code))
         } else {
             None
         };
@@ -296,7 +316,11 @@ impl Sandbox {
             } else {
                 let mut outcomes = Vec::new();
                 let original_src = std::fs::read_to_string(self.project_path.join("src/lib.rs"))
-                    .map_err(|e| crate::GymError::Sandbox(format!("Failed to read original source for restore: {e}")))?;
+                    .map_err(|e| {
+                        crate::GymError::Sandbox(format!(
+                            "Failed to read original source for restore: {e}"
+                        ))
+                    })?;
 
                 for mutation in &mutations {
                     let mutated_source = Saboteur::apply_mutation(&scenario.source_code, mutation);
@@ -338,7 +362,8 @@ impl Sandbox {
                 }
 
                 // Restore original source
-                if let Err(e) = std::fs::write(self.project_path.join("src/lib.rs"), &original_src) {
+                if let Err(e) = std::fs::write(self.project_path.join("src/lib.rs"), &original_src)
+                {
                     warn!(error = %e, "Gym: Failed to restore original source after mutation testing");
                 }
 
@@ -363,8 +388,7 @@ impl Sandbox {
             None
         };
 
-        let success = compilation.compiled
-            && tests.as_ref().is_none_or(|t| t.failed == 0);
+        let success = compilation.compiled && tests.as_ref().is_none_or(|t| t.failed == 0);
 
         Ok(Report {
             success,
@@ -484,8 +508,7 @@ fn parse_test_summary(output: &str) -> (u32, u32, u32, u32) {
 
 fn extract_number_before(s: &str, keyword: &str) -> Option<u32> {
     if s.contains(keyword) {
-        s.split_whitespace()
-            .find_map(|w| w.parse::<u32>().ok())
+        s.split_whitespace().find_map(|w| w.parse::<u32>().ok())
     } else {
         None
     }

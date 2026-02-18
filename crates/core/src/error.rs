@@ -44,13 +44,17 @@ pub fn safe_resolve_path(root: &Path, user_path: &str) -> Result<PathBuf> {
         root.join(user_path)
     };
 
-    let root_canonical = root.canonicalize().map_err(|_| SynapseedError::PathTraversal {
-        path: user_path.to_string(),
-    })?;
+    let root_canonical = root
+        .canonicalize()
+        .map_err(|_| SynapseedError::PathTraversal {
+            path: user_path.to_string(),
+        })?;
 
-    let canonical = abs_path.canonicalize().map_err(|_| SynapseedError::PathTraversal {
-        path: user_path.to_string(),
-    })?;
+    let canonical = abs_path
+        .canonicalize()
+        .map_err(|_| SynapseedError::PathTraversal {
+            path: user_path.to_string(),
+        })?;
 
     if !canonical.starts_with(&root_canonical) {
         return Err(SynapseedError::PathTraversal {
@@ -111,7 +115,10 @@ mod tests {
 
         // Create a file outside root for the traversal to target
         let result = safe_resolve_path(root, "../../etc/passwd");
-        assert!(result.is_err(), "expected Err(PathTraversal), got {result:?}");
+        assert!(
+            result.is_err(),
+            "expected Err(PathTraversal), got {result:?}"
+        );
 
         if let Err(SynapseedError::PathTraversal { path }) = result {
             assert_eq!(path, "../../etc/passwd");

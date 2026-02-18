@@ -186,7 +186,10 @@ pub fn extract_symbols(data: &[u8]) -> Result<Vec<ExportedSymbol>> {
                         continue;
                     }
                     // Skip if already in dynsyms
-                    if symbols.iter().any(|s| s.name == name && s.address == sym.st_value) {
+                    if symbols
+                        .iter()
+                        .any(|s| s.name == name && s.address == sym.st_value)
+                    {
                         continue;
                     }
                     symbols.push(ExportedSymbol {
@@ -200,34 +203,31 @@ pub fn extract_symbols(data: &[u8]) -> Result<Vec<ExportedSymbol>> {
                 }
             }
         }
-        Object::Mach(mach) => {
-            if let goblin::mach::Mach::Binary(macho) = mach {
-                for sym_result in macho.symbols() {
-                    let (name, nlist) = match sym_result {
-                        Ok(pair) => pair,
-                        Err(_) => continue,
-                    };
-                    if name.is_empty() {
-                        continue;
-                    }
-                    // Strip leading underscore (Mach-O convention)
-                    let clean_name = name.strip_prefix('_').unwrap_or(name);
-                    let is_import = nlist.is_undefined();
-                    let kind = if nlist.get_type() == goblin::mach::symbols::N_SECT {
-                        // Use heuristic: functions are usually in __TEXT,__text
-                        SymbolKind::Function
-                    } else {
-                        SymbolKind::Unknown
-                    };
-                    symbols.push(ExportedSymbol {
-                        demangled: demangle_name(clean_name),
-                        name: clean_name.to_string(),
-                        kind,
-                        address: nlist.n_value,
-                        size: 0,
-                        is_import,
-                    });
+        Object::Mach(goblin::mach::Mach::Binary(macho)) => {
+            for sym_result in macho.symbols() {
+                let Ok((name, nlist)) = sym_result else {
+                    continue;
+                };
+                if name.is_empty() {
+                    continue;
                 }
+                // Strip leading underscore (Mach-O convention)
+                let clean_name = name.strip_prefix('_').unwrap_or(name);
+                let is_import = nlist.is_undefined();
+                let kind = if nlist.get_type() == goblin::mach::symbols::N_SECT {
+                    // Use heuristic: functions are usually in __TEXT,__text
+                    SymbolKind::Function
+                } else {
+                    SymbolKind::Unknown
+                };
+                symbols.push(ExportedSymbol {
+                    demangled: demangle_name(clean_name),
+                    name: clean_name.to_string(),
+                    kind,
+                    address: nlist.n_value,
+                    size: 0,
+                    is_import,
+                });
             }
         }
         Object::PE(pe) => {
@@ -328,7 +328,10 @@ fn parse_rust_legacy(s: &str) -> Option<String> {
         }
         let part: String = chars[pos..pos + len].iter().collect();
         // Filter hash suffix (17-char hex like h followed by hex digits)
-        if !(part.starts_with('h') && part.len() == 17 && part[1..].chars().all(|c| c.is_ascii_hexdigit())) {
+        if !(part.starts_with('h')
+            && part.len() == 17
+            && part[1..].chars().all(|c| c.is_ascii_hexdigit()))
+        {
             parts.push(part);
         }
         pos += len;

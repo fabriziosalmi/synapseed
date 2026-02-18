@@ -87,41 +87,77 @@ impl BenchmarkReport {
     pub fn summary(&self) -> String {
         let a = &self.aggregate;
         let mut out = String::with_capacity(1024);
-        out.push_str(&format!("# Benchmark Report — {}\n\n", self.metadata.timestamp));
+        out.push_str(&format!(
+            "# Benchmark Report — {}\n\n",
+            self.metadata.timestamp
+        ));
         out.push_str(&format!("**Suite**: {}\n", self.metadata.suite_path));
-        out.push_str(&format!("**Project**: {} (v{})\n", self.metadata.project_root, self.metadata.version));
-        out.push_str(&format!("**Questions**: {}\n\n", self.metadata.question_count));
+        out.push_str(&format!(
+            "**Project**: {} (v{})\n",
+            self.metadata.project_root, self.metadata.version
+        ));
+        out.push_str(&format!(
+            "**Questions**: {}\n\n",
+            self.metadata.question_count
+        ));
 
         out.push_str("## Aggregate Metrics\n\n");
-        out.push_str(&format!("| Metric | Value |\n|--------|-------|\n"));
+        out.push_str("| Metric | Value |\n|--------|-------|\n");
         out.push_str(&format!("| F1 (mean) | {:.3} |\n", a.mean_f1));
         out.push_str(&format!("| Precision (mean) | {:.3} |\n", a.mean_precision));
         out.push_str(&format!("| Recall (mean) | {:.3} |\n", a.mean_recall));
         out.push_str(&format!("| SID (mean) | {:.1} |\n", a.mean_sid));
         out.push_str(&format!("| SCR (mean) | {:.2} |\n", a.mean_scr));
-        out.push_str(&format!("| Hallucination Rate | {:.1}% |\n", a.hallucination_rate * 100.0));
-        out.push_str(&format!("| SID↔F1 Correlation | {:.3} |\n", a.sid_f1_correlation));
+        out.push_str(&format!(
+            "| Hallucination Rate | {:.1}% |\n",
+            a.hallucination_rate * 100.0
+        ));
+        out.push_str(&format!(
+            "| SID↔F1 Correlation | {:.3} |\n",
+            a.sid_f1_correlation
+        ));
         out.push_str(&format!("| Perfect Scores | {} |\n", a.perfect_scores));
         out.push_str(&format!("| Zero Scores | {} |\n", a.zero_scores));
-        out.push_str(&format!("| Latency (mean) | {:.1}ms |\n", a.mean_latency_ms));
+        out.push_str(&format!(
+            "| Latency (mean) | {:.1}ms |\n",
+            a.mean_latency_ms
+        ));
         out.push_str(&format!("| Latency (p95) | {:.1}ms |\n", a.p95_latency_ms));
-        out.push_str(&format!("| Latency (min/max) | {:.1}/{:.1}ms |\n\n", a.min_latency_ms, a.max_latency_ms));
+        out.push_str(&format!(
+            "| Latency (min/max) | {:.1}/{:.1}ms |\n\n",
+            a.min_latency_ms, a.max_latency_ms
+        ));
 
         out.push_str("## Difficulty Breakdown\n\n");
-        out.push_str(&format!("| Difficulty | Mean F1 |\n|-----------|--------|\n"));
+        out.push_str("| Difficulty | Mean F1 |\n|-----------|--------|\n");
         out.push_str(&format!("| Easy | {:.3} |\n", a.easy_mean_f1));
         out.push_str(&format!("| Medium | {:.3} |\n", a.medium_mean_f1));
         out.push_str(&format!("| Hard | {:.3} |\n\n", a.hard_mean_f1));
 
         out.push_str("## Per-Question Results\n\n");
-        out.push_str("| ID | Difficulty | F1 | SID | SCR | Facts | Halluc | Latency | Bottleneck |\n");
-        out.push_str("|-----|-----------|------|------|------|-------|--------|---------|------------|\n");
+        out.push_str(
+            "| ID | Difficulty | F1 | SID | SCR | Facts | Halluc | Latency | Bottleneck |\n",
+        );
+        out.push_str(
+            "|-----|-----------|------|------|------|-------|--------|---------|------------|\n",
+        );
         for q in &self.questions {
-            let flag = if q.f1 >= 0.8 { "✅" } else if q.f1 >= 0.5 { "⚠️" } else { "❌" };
+            let flag = if q.f1 >= 0.8 {
+                "✅"
+            } else if q.f1 >= 0.5 {
+                "⚠️"
+            } else {
+                "❌"
+            };
             out.push_str(&format!(
                 "| {flag} {} | {:?} | {:.2} | {:.1} | {:.2} | {}/{} | {} | {:.1}ms | {} |\n",
-                q.id, q.difficulty, q.f1, q.sid, q.scr,
-                q.facts_matched, q.facts_total,
+                q.id,
+                q.difficulty,
+                q.f1,
+                q.sid,
+                q.scr,
+                q.facts_matched,
+                q.facts_total,
                 q.hallucinated_files.len(),
                 q.latency_ms,
                 q.bottleneck,

@@ -71,13 +71,11 @@ impl Trainer {
         let mut results: Vec<(usize, Report)> = scenarios
             .iter()
             .enumerate()
-            .filter_map(|(i, s)| {
-                match self.evaluate(s) {
-                    Ok(report) => Some((i, report)),
-                    Err(e) => {
-                        tracing::warn!(index = i, error = %e, "Scenario evaluation failed");
-                        None
-                    }
+            .filter_map(|(i, s)| match self.evaluate(s) {
+                Ok(report) => Some((i, report)),
+                Err(e) => {
+                    tracing::warn!(index = i, error = %e, "Scenario evaluation failed");
+                    None
                 }
             })
             .collect();

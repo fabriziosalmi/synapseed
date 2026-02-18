@@ -103,9 +103,25 @@ fn infer_behaviors(symbols: &[ExportedSymbol], strings: &[ClassifiedString]) -> 
 
     // Network I/O
     let net_patterns = [
-        "socket", "connect", "bind", "listen", "accept", "send", "recv",
-        "tcp", "udp", "http", "https", "dns", "tls", "ssl", "curl",
-        "reqwest", "hyper", "tokio::net", "getaddrinfo",
+        "socket",
+        "connect",
+        "bind",
+        "listen",
+        "accept",
+        "send",
+        "recv",
+        "tcp",
+        "udp",
+        "http",
+        "https",
+        "dns",
+        "tls",
+        "ssl",
+        "curl",
+        "reqwest",
+        "hyper",
+        "tokio::net",
+        "getaddrinfo",
     ];
     if has_pattern(&all_names, &all_strings, &net_patterns) {
         tags.push(BehaviorTag::NetworkIO);
@@ -113,8 +129,17 @@ fn infer_behaviors(symbols: &[ExportedSymbol], strings: &[ClassifiedString]) -> 
 
     // File I/O
     let file_patterns = [
-        "open", "read_to_string", "write_all", "fopen", "fclose", "fread",
-        "fwrite", "mmap", "std::fs", "create_dir", "remove_file",
+        "open",
+        "read_to_string",
+        "write_all",
+        "fopen",
+        "fclose",
+        "fread",
+        "fwrite",
+        "mmap",
+        "std::fs",
+        "create_dir",
+        "remove_file",
     ];
     if has_pattern(&all_names, &all_strings, &file_patterns) {
         tags.push(BehaviorTag::FileIO);
@@ -122,9 +147,8 @@ fn infer_behaviors(symbols: &[ExportedSymbol], strings: &[ClassifiedString]) -> 
 
     // Crypto
     let crypto_patterns = [
-        "aes", "sha256", "sha512", "rsa", "ed25519", "hmac", "encrypt",
-        "decrypt", "digest", "sign", "verify", "ring::", "openssl",
-        "rustls", "chacha", "argon2", "bcrypt", "pbkdf",
+        "aes", "sha256", "sha512", "rsa", "ed25519", "hmac", "encrypt", "decrypt", "digest",
+        "sign", "verify", "ring::", "openssl", "rustls", "chacha", "argon2", "bcrypt", "pbkdf",
     ];
     if has_pattern(&all_names, &all_strings, &crypto_patterns) {
         tags.push(BehaviorTag::Crypto);
@@ -132,9 +156,18 @@ fn infer_behaviors(symbols: &[ExportedSymbol], strings: &[ClassifiedString]) -> 
 
     // Serialization
     let ser_patterns = [
-        "serde", "json", "yaml", "toml", "protobuf", "msgpack",
-        "serialize", "deserialize", "from_str", "to_string",
-        "bincode", "cbor",
+        "serde",
+        "json",
+        "yaml",
+        "toml",
+        "protobuf",
+        "msgpack",
+        "serialize",
+        "deserialize",
+        "from_str",
+        "to_string",
+        "bincode",
+        "cbor",
     ];
     if has_pattern(&all_names, &all_strings, &ser_patterns) {
         tags.push(BehaviorTag::Serialization);
@@ -142,8 +175,15 @@ fn infer_behaviors(symbols: &[ExportedSymbol], strings: &[ClassifiedString]) -> 
 
     // Memory management
     let mem_patterns = [
-        "malloc", "free", "realloc", "mmap", "munmap", "alloc::alloc",
-        "arena", "bump_alloc", "jemalloc",
+        "malloc",
+        "free",
+        "realloc",
+        "mmap",
+        "munmap",
+        "alloc::alloc",
+        "arena",
+        "bump_alloc",
+        "jemalloc",
     ];
     if has_pattern(&all_names, &all_strings, &mem_patterns) {
         tags.push(BehaviorTag::MemoryManagement);
@@ -151,9 +191,19 @@ fn infer_behaviors(symbols: &[ExportedSymbol], strings: &[ClassifiedString]) -> 
 
     // Concurrency
     let conc_patterns = [
-        "pthread", "mutex", "rwlock", "condvar", "futex", "atomic",
-        "rayon", "tokio::spawn", "thread::spawn", "crossbeam",
-        "arc", "channel", "mpsc",
+        "pthread",
+        "mutex",
+        "rwlock",
+        "condvar",
+        "futex",
+        "atomic",
+        "rayon",
+        "tokio::spawn",
+        "thread::spawn",
+        "crossbeam",
+        "arc",
+        "channel",
+        "mpsc",
     ];
     if has_pattern(&all_names, &all_strings, &conc_patterns) {
         tags.push(BehaviorTag::Concurrency);
@@ -161,8 +211,14 @@ fn infer_behaviors(symbols: &[ExportedSymbol], strings: &[ClassifiedString]) -> 
 
     // Process management
     let proc_patterns = [
-        "fork", "exec", "spawn", "waitpid", "kill", "signal",
-        "std::process", "Command::new",
+        "fork",
+        "exec",
+        "spawn",
+        "waitpid",
+        "kill",
+        "signal",
+        "std::process",
+        "Command::new",
     ];
     if has_pattern(&all_names, &all_strings, &proc_patterns) {
         tags.push(BehaviorTag::ProcessManagement);
@@ -170,8 +226,16 @@ fn infer_behaviors(symbols: &[ExportedSymbol], strings: &[ClassifiedString]) -> 
 
     // Logging
     let log_patterns = [
-        "tracing", "log::", "syslog", "env_logger", "debug!", "info!",
-        "warn!", "error!", "trace!", "spdlog",
+        "tracing",
+        "log::",
+        "syslog",
+        "env_logger",
+        "debug!",
+        "info!",
+        "warn!",
+        "error!",
+        "trace!",
+        "spdlog",
     ];
     if has_pattern(&all_names, &all_strings, &log_patterns) {
         tags.push(BehaviorTag::Logging);
@@ -179,8 +243,18 @@ fn infer_behaviors(symbols: &[ExportedSymbol], strings: &[ClassifiedString]) -> 
 
     // Database
     let db_patterns = [
-        "sqlite", "postgres", "mysql", "diesel", "sqlx", "rusqlite",
-        "SELECT", "INSERT", "CREATE TABLE", "redis", "rocksdb", "sled",
+        "sqlite",
+        "postgres",
+        "mysql",
+        "diesel",
+        "sqlx",
+        "rusqlite",
+        "SELECT",
+        "INSERT",
+        "CREATE TABLE",
+        "redis",
+        "rocksdb",
+        "sled",
     ];
     if has_pattern(&all_names, &all_strings, &db_patterns) {
         tags.push(BehaviorTag::Database);
@@ -188,8 +262,17 @@ fn infer_behaviors(symbols: &[ExportedSymbol], strings: &[ClassifiedString]) -> 
 
     // Compression
     let comp_patterns = [
-        "zlib", "zstd", "lz4", "gzip", "deflate", "inflate",
-        "compress", "decompress", "flate2", "brotli", "snappy",
+        "zlib",
+        "zstd",
+        "lz4",
+        "gzip",
+        "deflate",
+        "inflate",
+        "compress",
+        "decompress",
+        "flate2",
+        "brotli",
+        "snappy",
     ];
     if has_pattern(&all_names, &all_strings, &comp_patterns) {
         tags.push(BehaviorTag::Compression);
@@ -246,6 +329,9 @@ fn build_summary(
 
     format!(
         "{} binary ({}, {} symbols) — involves: {}",
-        info.format, info.arch, symbols.len(), behaviors_str
+        info.format,
+        info.arch,
+        symbols.len(),
+        behaviors_str
     )
 }

@@ -14,7 +14,9 @@
 //! - `state` — Project state detection
 //! - `telemetry` — Structured logging and metrics setup
 //! - `event` — Domain events for plugin communication
-//! - `recorder` — Flight Recorder: dual-track session memory (working set + journey map)/// - `ledger` — Cognitive Ledger: deterministic Operational Moment classification
+//! - `recorder` — Flight Recorder: dual-track session memory (working set + journey map)
+//! - `ledger` — Cognitive Ledger: deterministic Operational Moment classification
+
 pub mod context;
 pub mod error;
 pub mod event;

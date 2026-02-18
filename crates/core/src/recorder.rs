@@ -202,10 +202,10 @@ pub struct FlightRecorder {
 
 #[derive(Debug, Default)]
 struct ActivityCounters {
-    reads: u32,     // search, lookup, hoist, ask
-    writes: u32,    // file_change (Modified/Created)
-    fixes: u32,     // diagnostics, quickfix
-    security: u32,  // scan, architect, janitor
+    reads: u32,    // search, lookup, hoist, ask
+    writes: u32,   // file_change (Modified/Created)
+    fixes: u32,    // diagnostics, quickfix
+    security: u32, // scan, architect, janitor
 }
 
 impl ActivityCounters {
@@ -250,9 +250,8 @@ impl ActivityCounters {
                             self.reads += 1
                         }
                         "diagnostics" | "quickfix" | "check" => self.fixes += 1,
-                        "scan" | "architect" | "janitor" | "janitor-fix" | "diagnose" | "oracle" => {
-                            self.security += 1
-                        }
+                        "scan" | "architect" | "janitor" | "janitor-fix" | "diagnose"
+                        | "oracle" => self.security += 1,
                         _ => {} // Neutral tools don't count
                     }
                 }
@@ -286,7 +285,13 @@ impl FlightRecorder {
     ///
     /// - Pushes to working set (Via 1).
     /// - Updates or creates a journey phase (Via 2).
-    pub fn record(&mut self, kind: EventKind, subject: &str, detail: Option<&str>, tool_name: Option<&str>) {
+    pub fn record(
+        &mut self,
+        kind: EventKind,
+        subject: &str,
+        detail: Option<&str>,
+        tool_name: Option<&str>,
+    ) {
         let now = Instant::now();
         let offset = now.duration_since(self.epoch).as_secs();
         let module = extract_module(subject);
@@ -322,12 +327,9 @@ impl FlightRecorder {
                 true
             }
             // Same module but idle timeout → auto-close and reopen
-            else if offset.saturating_sub(current.started_at_offset + current.duration_secs)
-                > PHASE_IDLE_TIMEOUT.as_secs()
-            {
-                true
-            } else {
-                false
+            else {
+                offset.saturating_sub(current.started_at_offset + current.duration_secs)
+                    > PHASE_IDLE_TIMEOUT.as_secs()
             }
         } else {
             // No phases yet → start first one
@@ -388,10 +390,9 @@ impl FlightRecorder {
 
             if kind == EventKind::FileChange
                 && !current.files_touched.contains(&subject.to_string())
+                && current.files_touched.len() < 10
             {
-                if current.files_touched.len() < 10 {
-                    current.files_touched.push(subject.to_string());
-                }
+                current.files_touched.push(subject.to_string());
             }
         }
     }
@@ -432,13 +433,15 @@ impl FlightRecorder {
         use crate::ledger::MetricsSnapshot;
 
         let window = 15; // METRICS_WINDOW from ledger
-        let mut snap = MetricsSnapshot::default();
-        snap.active_errors = active_errors;
-        snap.active_warnings = active_warnings;
-        snap.prev_errors = prev_errors;
-        snap.prev_warnings = prev_warnings;
-        snap.journey_phase_count = self.journey.len();
-        snap.loop_alert_active = self.detect_loop().is_some();
+        let mut snap = MetricsSnapshot {
+            active_errors,
+            active_warnings,
+            prev_errors,
+            prev_warnings,
+            journey_phase_count: self.journey.len(),
+            loop_alert_active: self.detect_loop().is_some(),
+            ..MetricsSnapshot::default()
+        };
 
         // Current activity from last phase
         if let Some(phase) = self.current_phase() {
@@ -468,10 +471,7 @@ impl FlightRecorder {
     /// Get the list of active file subjects in the working set.
     /// Used by the recency boost in hybrid search.
     pub fn working_set_subjects(&self) -> Vec<String> {
-        self.working_set
-            .iter()
-            .map(|e| e.subject.clone())
-            .collect()
+        self.working_set.iter().map(|e| e.subject.clone()).collect()
     }
 
     /// Get the causal chain linking events by cause→effect.
@@ -510,7 +510,9 @@ impl FlightRecorder {
             if prev.kind != cause_kind {
                 continue;
             }
-            let Some(prev_instant) = prev.instant else { continue };
+            let Some(prev_instant) = prev.instant else {
+                continue;
+            };
             if now.duration_since(prev_instant) > causal_window {
                 break; // too old
             }
@@ -552,9 +554,15 @@ impl FlightRecorder {
             let a = recent[0];
             let b = recent[1];
             if a != b
-                && recent.iter().enumerate().all(|(i, m)| {
-                    if i % 2 == 0 { *m == a } else { *m == b }
-                })
+                && recent.iter().enumerate().all(
+                    |(i, m)| {
+                        if i % 2 == 0 {
+                            *m == a
+                        } else {
+                            *m == b
+                        }
+                    },
+                )
             {
                 let oscillations = recent.len() / 2;
                 return Some(LoopAlert {
@@ -569,10 +577,7 @@ impl FlightRecorder {
         }
 
         // Check for same-module repeated phases (fix→error→fix→error)
-        let same_module: Vec<_> = recent
-            .iter()
-            .filter(|m| **m == recent[0])
-            .collect();
+        let same_module: Vec<_> = recent.iter().filter(|m| **m == recent[0]).collect();
         if same_module.len() >= 3 {
             return Some(LoopAlert {
                 modules: vec![recent[0].to_string()],
@@ -609,11 +614,7 @@ impl FlightRecorder {
                 .unwrap_or_default();
             out.push_str(&format!(
                 "- Phase {} [{status}]: `{}` — {} ({} events, {}s){trigger}\n",
-                phase.seq,
-                phase.module,
-                phase.activity,
-                phase.event_count,
-                phase.duration_secs,
+                phase.seq, phase.module, phase.activity, phase.event_count, phase.duration_secs,
             ));
         }
 
@@ -630,8 +631,10 @@ impl FlightRecorder {
             for link in self.causal_chain.iter().rev().take(5) {
                 out.push_str(&format!(
                     "- {:?}(`{}`) \u{2192} {:?}(`{}`) [{}ms]\n",
-                    link.cause_kind, link.cause_subject,
-                    link.effect_kind, link.effect_subject,
+                    link.cause_kind,
+                    link.cause_subject,
+                    link.effect_kind,
+                    link.effect_subject,
                     link.latency_ms,
                 ));
             }
@@ -717,9 +720,15 @@ mod tests {
 
     #[test]
     fn test_extract_module() {
-        assert_eq!(extract_module("crates/whisper/src/router/mod.rs"), "crates/whisper");
+        assert_eq!(
+            extract_module("crates/whisper/src/router/mod.rs"),
+            "crates/whisper"
+        );
         assert_eq!(extract_module("bin/synapseed/src/main.rs"), "bin/synapseed");
-        assert_eq!(extract_module("benchmark/search/run.py"), "benchmark/search");
+        assert_eq!(
+            extract_module("benchmark/search/run.py"),
+            "benchmark/search"
+        );
         assert_eq!(extract_module("Cargo.toml"), "root");
         assert_eq!(extract_module("search"), "");
     }
@@ -742,9 +751,24 @@ mod tests {
     fn test_journey_phase_creation() {
         let mut rec = FlightRecorder::new();
         // Events in same module → single phase
-        rec.record(EventKind::ToolCall, "crates/husk/src/scanner.rs", None, Some("search"));
-        rec.record(EventKind::ToolCall, "crates/husk/src/patterns.rs", None, Some("lookup"));
-        rec.record(EventKind::FileChange, "crates/husk/src/scanner.rs", Some("Modified"), None);
+        rec.record(
+            EventKind::ToolCall,
+            "crates/husk/src/scanner.rs",
+            None,
+            Some("search"),
+        );
+        rec.record(
+            EventKind::ToolCall,
+            "crates/husk/src/patterns.rs",
+            None,
+            Some("lookup"),
+        );
+        rec.record(
+            EventKind::FileChange,
+            "crates/husk/src/scanner.rs",
+            Some("Modified"),
+            None,
+        );
 
         assert_eq!(rec.journey.len(), 1);
         assert_eq!(rec.journey[0].module, "crates/husk");
@@ -755,8 +779,18 @@ mod tests {
     #[test]
     fn test_context_shift_creates_new_phase() {
         let mut rec = FlightRecorder::new();
-        rec.record(EventKind::ToolCall, "crates/husk/src/scanner.rs", None, Some("search"));
-        rec.record(EventKind::ToolCall, "crates/whisper/src/router/mod.rs", None, Some("ask"));
+        rec.record(
+            EventKind::ToolCall,
+            "crates/husk/src/scanner.rs",
+            None,
+            Some("search"),
+        );
+        rec.record(
+            EventKind::ToolCall,
+            "crates/whisper/src/router/mod.rs",
+            None,
+            Some("ask"),
+        );
 
         assert_eq!(rec.journey.len(), 2);
         assert_eq!(rec.journey[0].module, "crates/husk");
@@ -767,23 +801,31 @@ mod tests {
 
     #[test]
     fn test_activity_classification() {
-        let mut counters = ActivityCounters::default();
-        counters.reads = 10;
-        counters.writes = 1;
+        let counters = ActivityCounters {
+            reads: 10,
+            writes: 1,
+            ..ActivityCounters::default()
+        };
         assert_eq!(counters.classify(), Activity::Exploring);
 
-        counters.reset();
-        counters.writes = 10;
-        counters.reads = 1;
+        let counters = ActivityCounters {
+            writes: 10,
+            reads: 1,
+            ..ActivityCounters::default()
+        };
         assert_eq!(counters.classify(), Activity::Coding);
 
-        counters.reset();
-        counters.fixes = 10;
-        counters.reads = 2;
+        let counters = ActivityCounters {
+            fixes: 10,
+            reads: 2,
+            ..ActivityCounters::default()
+        };
         assert_eq!(counters.classify(), Activity::Debugging);
 
-        counters.reset();
-        counters.security = 10;
+        let counters = ActivityCounters {
+            security: 10,
+            ..ActivityCounters::default()
+        };
         assert_eq!(counters.classify(), Activity::Hardening);
     }
 
@@ -792,8 +834,18 @@ mod tests {
         let mut rec = FlightRecorder::new();
         // Create A-B-A-B-A-B pattern
         for _ in 0..3 {
-            rec.record(EventKind::FileChange, "crates/auth/src/lib.rs", Some("Modified"), None);
-            rec.record(EventKind::FileChange, "crates/tests/src/lib.rs", Some("Modified"), None);
+            rec.record(
+                EventKind::FileChange,
+                "crates/auth/src/lib.rs",
+                Some("Modified"),
+                None,
+            );
+            rec.record(
+                EventKind::FileChange,
+                "crates/tests/src/lib.rs",
+                Some("Modified"),
+                None,
+            );
         }
         let alert = rec.detect_loop();
         assert!(alert.is_some(), "Should detect oscillation");
@@ -805,17 +857,42 @@ mod tests {
     #[test]
     fn test_no_loop_on_normal_flow() {
         let mut rec = FlightRecorder::new();
-        rec.record(EventKind::ToolCall, "crates/core/src/lib.rs", None, Some("search"));
-        rec.record(EventKind::ToolCall, "crates/husk/src/lib.rs", None, Some("search"));
-        rec.record(EventKind::ToolCall, "crates/mcp/src/lib.rs", None, Some("search"));
+        rec.record(
+            EventKind::ToolCall,
+            "crates/core/src/lib.rs",
+            None,
+            Some("search"),
+        );
+        rec.record(
+            EventKind::ToolCall,
+            "crates/husk/src/lib.rs",
+            None,
+            Some("search"),
+        );
+        rec.record(
+            EventKind::ToolCall,
+            "crates/mcp/src/lib.rs",
+            None,
+            Some("search"),
+        );
         assert!(rec.detect_loop().is_none());
     }
 
     #[test]
     fn test_render_markdown_not_empty() {
         let mut rec = FlightRecorder::new();
-        rec.record(EventKind::ToolCall, "crates/whisper/src/router/mod.rs", None, Some("ask"));
-        rec.record(EventKind::FileChange, "crates/whisper/src/router/extraction.rs", Some("Modified"), None);
+        rec.record(
+            EventKind::ToolCall,
+            "crates/whisper/src/router/mod.rs",
+            None,
+            Some("ask"),
+        );
+        rec.record(
+            EventKind::FileChange,
+            "crates/whisper/src/router/extraction.rs",
+            Some("Modified"),
+            None,
+        );
         let md = rec.render_markdown();
         assert!(md.contains("FLIGHT RECORDER"));
         assert!(md.contains("crates/whisper"));
@@ -825,7 +902,12 @@ mod tests {
     #[test]
     fn test_to_json_structure() {
         let mut rec = FlightRecorder::new();
-        rec.record(EventKind::ToolCall, "crates/core/src/lib.rs", None, Some("search"));
+        rec.record(
+            EventKind::ToolCall,
+            "crates/core/src/lib.rs",
+            None,
+            Some("search"),
+        );
         let json = rec.to_json();
         assert!(json.get("total_events").is_some());
         assert!(json.get("journey").is_some());
@@ -836,11 +918,19 @@ mod tests {
     fn test_triggered_by_dependency() {
         let mut rec = FlightRecorder::new();
         // mcp depends on core
-        rec.set_dep_hints(vec![
-            ("crates/mcp".to_string(), "crates/core".to_string()),
-        ]);
-        rec.record(EventKind::FileChange, "crates/core/src/lib.rs", Some("Modified"), None);
-        rec.record(EventKind::FileChange, "crates/mcp/src/lib.rs", Some("Modified"), None);
+        rec.set_dep_hints(vec![("crates/mcp".to_string(), "crates/core".to_string())]);
+        rec.record(
+            EventKind::FileChange,
+            "crates/core/src/lib.rs",
+            Some("Modified"),
+            None,
+        );
+        rec.record(
+            EventKind::FileChange,
+            "crates/mcp/src/lib.rs",
+            Some("Modified"),
+            None,
+        );
 
         assert_eq!(rec.journey.len(), 2);
         assert_eq!(rec.journey[1].triggered_by, Some(1)); // Phase 2 triggered by Phase 1

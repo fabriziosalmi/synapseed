@@ -45,7 +45,7 @@ use serde::Serialize;
 /// Per-stage timing for one `ask` pipeline execution.
 ///
 /// All durations in **microseconds** (µs).
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct PipelineMetrics {
     /// Stage 1: Read ModelTier + SessionPhase + git staged detection
     pub momentum_us: u64,
@@ -155,28 +155,6 @@ impl PipelineMetrics {
     }
 }
 
-impl Default for PipelineMetrics {
-    fn default() -> Self {
-        Self {
-            momentum_us: 0,
-            classify_us: 0,
-            extract_us: 0,
-            prune_us: 0,
-            coherence_us: 0,
-            gather_us: 0,
-            raw_inject_us: 0,
-            session_us: 0,
-            context_us: 0,
-            finalize_us: 0,
-            total_us: 0,
-            targets_before_prune: 0,
-            targets_after_prune: 0,
-            context_bytes: 0,
-            context_tokens: 0,
-        }
-    }
-}
-
 // ── Rolling Aggregator (for MCP resource) ──────────────────────────────
 
 /// Thread-safe rolling aggregator that tracks the last N pipeline executions.
@@ -200,7 +178,9 @@ impl PipelineAggregator {
     /// Record a completed pipeline run.
     pub fn record(&self, metrics: PipelineMetrics) {
         self.total_queries.fetch_add(1, Ordering::Relaxed);
-        let Ok(mut history) = self.history.lock() else { return };
+        let Ok(mut history) = self.history.lock() else {
+            return;
+        };
         if history.len() >= self.capacity {
             history.remove(0);
         }
@@ -340,21 +320,27 @@ mod tests {
 
     #[test]
     fn test_bottleneck() {
-        let mut m = PipelineMetrics::default();
-        m.gather_us = 9999;
-        m.extract_us = 5000;
+        let m = PipelineMetrics {
+            gather_us: 9999,
+            extract_us: 5000,
+            ..PipelineMetrics::default()
+        };
         assert_eq!(m.bottleneck(), "gather");
     }
 
     #[test]
     fn test_aggregator() {
         let agg = PipelineAggregator::new(10);
-        let mut m1 = PipelineMetrics::default();
-        m1.total_us = 1000;
-        m1.extract_us = 500;
-        let mut m2 = PipelineMetrics::default();
-        m2.total_us = 2000;
-        m2.extract_us = 1500;
+        let m1 = PipelineMetrics {
+            total_us: 1000,
+            extract_us: 500,
+            ..PipelineMetrics::default()
+        };
+        let m2 = PipelineMetrics {
+            total_us: 2000,
+            extract_us: 1500,
+            ..PipelineMetrics::default()
+        };
 
         agg.record(m1);
         agg.record(m2);

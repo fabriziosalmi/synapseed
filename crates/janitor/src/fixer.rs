@@ -176,7 +176,10 @@ pub fn apply_fix(fix: &Fix, project_path: &Path) -> Result<(), crate::JanitorErr
             // Revert: restore original content
             warn!(file = %fix.file_path.display(), "cargo check failed after fix — reverting");
             std::fs::write(&fix.file_path, &source).map_err(|e| {
-                crate::JanitorError::Fixer(format!("CRITICAL: cannot revert {}: {e}", fix.file_path.display()))
+                crate::JanitorError::Fixer(format!(
+                    "CRITICAL: cannot revert {}: {e}",
+                    fix.file_path.display()
+                ))
             })?;
             Err(crate::JanitorError::Fixer(format!(
                 "Fix for {} broke compilation — reverted",

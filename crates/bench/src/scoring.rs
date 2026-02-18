@@ -76,9 +76,9 @@ pub fn score_response(
         .expected_symbols
         .iter()
         .filter(|es| {
-            target_names.iter().any(|tn| {
-                tn.contains(es.as_str()) || es.contains(tn)
-            })
+            target_names
+                .iter()
+                .any(|tn| tn.contains(es.as_str()) || es.contains(tn))
         })
         .count();
 
@@ -187,9 +187,16 @@ mod tests {
         let recall: f64 = 1.0;
         let f1: f64 = 1.0;
 
-        assert_eq!(facts_matched, q.ground_truth.iter()
-            .filter(|fact| result.smart_context.to_lowercase().contains(&fact.to_lowercase()))
-            .count());
+        assert_eq!(
+            facts_matched,
+            q.ground_truth
+                .iter()
+                .filter(|fact| result
+                    .smart_context
+                    .to_lowercase()
+                    .contains(&fact.to_lowercase()))
+                .count()
+        );
         assert!((precision - 1.0).abs() < f64::EPSILON);
         assert!((recall - 1.0).abs() < f64::EPSILON);
         assert!((f1 - 1.0).abs() < f64::EPSILON);
@@ -197,10 +204,17 @@ mod tests {
 
     #[test]
     fn test_partial_match() {
-        let ground_truth = vec!["BugFix".to_string(), "Security".into(), "Explain".into(), "Refactor".into(), "General".into()];
+        let ground_truth = [
+            "BugFix".to_string(),
+            "Security".into(),
+            "Explain".into(),
+            "Refactor".into(),
+            "General".into(),
+        ];
         let context = "The intents are BugFix, Security, and Explain. There are more.";
 
-        let matched = ground_truth.iter()
+        let matched = ground_truth
+            .iter()
             .filter(|f| context.to_lowercase().contains(&f.to_lowercase()))
             .count();
 
@@ -211,10 +225,11 @@ mod tests {
 
     #[test]
     fn test_no_match() {
-        let ground_truth = vec!["nonexistent_thing".to_string()];
+        let ground_truth = ["nonexistent_thing".to_string()];
         let context = "This response has nothing relevant.";
 
-        let matched = ground_truth.iter()
+        let matched = ground_truth
+            .iter()
             .filter(|f| context.to_lowercase().contains(&f.to_lowercase()))
             .count();
 

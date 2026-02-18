@@ -71,10 +71,7 @@ impl CodeGraph {
     pub fn lookup(&self, name: &str) -> Vec<Symbol> {
         let key = name.to_ascii_lowercase();
         match self.lowercase_index.get(&key) {
-            Some(ids) => ids
-                .iter()
-                .filter_map(|id| self.get_symbol(id))
-                .collect(),
+            Some(ids) => ids.iter().filter_map(|id| self.get_symbol(id)).collect(),
             None => Vec::new(),
         }
     }
@@ -229,7 +226,9 @@ impl CodeGraph {
                         }
                     };
                 }
-                let parser = borrow.as_mut().unwrap();
+                let Some(parser) = borrow.as_mut() else {
+                    return;
+                };
 
                 let parse_start = Instant::now();
                 if let Err(e) = self.index_file(parser, path, &source) {

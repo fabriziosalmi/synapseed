@@ -103,7 +103,9 @@ impl Janitor {
                         "Cargo.toml",
                         0,
                         0,
-                        &format!("Dependency `{dep}` appears unused — not imported in any source file"),
+                        &format!(
+                            "Dependency `{dep}` appears unused — not imported in any source file"
+                        ),
                         &format!("{dep} = ..."),
                         &format!("# {dep} removed (unused)"),
                     );
@@ -140,11 +142,7 @@ impl Janitor {
     ///
     /// Reads the file, applies the fix, runs `cargo check` to verify.
     /// Reverts automatically on failure.
-    pub fn apply(
-        &self,
-        proposal_id: &str,
-        project_path: &Path,
-    ) -> Result<String, JanitorError> {
+    pub fn apply(&self, proposal_id: &str, project_path: &Path) -> Result<String, JanitorError> {
         let proposal = self
             .store
             .get(proposal_id)
@@ -186,7 +184,12 @@ impl Janitor {
                 self.store.mark_applied(proposal_id);
                 Ok(format!(
                     "Acknowledged: remove `{}` from Cargo.toml dependencies",
-                    proposal.original_code.split('=').next().unwrap_or(&proposal.lint_code).trim()
+                    proposal
+                        .original_code
+                        .split('=')
+                        .next()
+                        .unwrap_or(&proposal.lint_code)
+                        .trim()
                 ))
             }
             ProposalCategory::CompilerError | ProposalCategory::AutoRepair => {
@@ -225,10 +228,7 @@ impl Janitor {
 }
 
 /// Apply a fix using string replacement (more resilient to minor file changes).
-fn apply_by_string_replacement(
-    fix: &fixer::Fix,
-    project_path: &Path,
-) -> Result<(), JanitorError> {
+fn apply_by_string_replacement(fix: &fixer::Fix, project_path: &Path) -> Result<(), JanitorError> {
     let source = std::fs::read_to_string(&fix.file_path).map_err(|e| {
         JanitorError::Fixer(format!("Cannot read {}: {e}", fix.file_path.display()))
     })?;

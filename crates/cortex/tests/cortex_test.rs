@@ -73,7 +73,10 @@ pub enum Status {
         .unwrap();
 
     assert_eq!(graph.file_count(), 1);
-    assert!(graph.symbol_count() >= 3, "Should find at least fn, struct, enum");
+    assert!(
+        graph.symbol_count() >= 3,
+        "Should find at least fn, struct, enum"
+    );
 }
 
 #[test]
@@ -271,7 +274,11 @@ fn test_index_directory_with_ceiling() {
     let dir = TempDir::new().unwrap();
     // Create more files than the ceiling
     for i in 0..5 {
-        write_file(dir.path(), &format!("file_{i}.rs"), &format!("pub fn func_{i}() {{}}"));
+        write_file(
+            dir.path(),
+            &format!("file_{i}.rs"),
+            &format!("pub fn func_{i}() {{}}"),
+        );
     }
 
     let graph = CodeGraph::new();
@@ -591,20 +598,20 @@ fn test_remove_file_clears_all_indices() {
         "alpha.rs",
         "pub fn alpha_fn() {}\npub struct AlphaStruct;\n",
     );
-    write_file(
-        dir.path(),
-        "beta.rs",
-        "pub fn beta_fn() {}\n",
-    );
+    write_file(dir.path(), "beta.rs", "pub fn beta_fn() {}\n");
 
     let graph = CodeGraph::new();
     let mut parser = AstParser::new().unwrap();
 
     let src_a = fs::read_to_string(dir.path().join("alpha.rs")).unwrap();
-    graph.index_file(&mut parser, &dir.path().join("alpha.rs"), &src_a).unwrap();
+    graph
+        .index_file(&mut parser, &dir.path().join("alpha.rs"), &src_a)
+        .unwrap();
 
     let src_b = fs::read_to_string(dir.path().join("beta.rs")).unwrap();
-    graph.index_file(&mut parser, &dir.path().join("beta.rs"), &src_b).unwrap();
+    graph
+        .index_file(&mut parser, &dir.path().join("beta.rs"), &src_b)
+        .unwrap();
 
     assert_eq!(graph.file_count(), 2);
     assert!(!graph.lookup("alpha_fn").is_empty());
@@ -613,12 +620,24 @@ fn test_remove_file_clears_all_indices() {
 
     // Remove alpha.rs — its symbols must vanish, beta.rs stays
     let removed = graph.remove_file(&dir.path().join("alpha.rs"));
-    assert!(removed >= 2, "Should remove at least fn + struct, got {removed}");
+    assert!(
+        removed >= 2,
+        "Should remove at least fn + struct, got {removed}"
+    );
 
     assert_eq!(graph.file_count(), 1);
-    assert!(graph.lookup("alpha_fn").is_empty(), "Ghost: alpha_fn still in graph");
-    assert!(graph.lookup("AlphaStruct").is_empty(), "Ghost: AlphaStruct still in graph");
-    assert!(!graph.lookup("beta_fn").is_empty(), "beta_fn should survive");
+    assert!(
+        graph.lookup("alpha_fn").is_empty(),
+        "Ghost: alpha_fn still in graph"
+    );
+    assert!(
+        graph.lookup("AlphaStruct").is_empty(),
+        "Ghost: AlphaStruct still in graph"
+    );
+    assert!(
+        !graph.lookup("beta_fn").is_empty(),
+        "beta_fn should survive"
+    );
 }
 
 #[test]
@@ -638,7 +657,9 @@ fn test_remove_then_reindex() {
     let mut parser = AstParser::new().unwrap();
 
     let src = fs::read_to_string(dir.path().join("module.rs")).unwrap();
-    graph.index_file(&mut parser, &dir.path().join("module.rs"), &src).unwrap();
+    graph
+        .index_file(&mut parser, &dir.path().join("module.rs"), &src)
+        .unwrap();
     assert!(!graph.lookup("original").is_empty());
 
     // Simulate rename: remove old, index new content
@@ -647,8 +668,16 @@ fn test_remove_then_reindex() {
 
     write_file(dir.path(), "module.rs", "pub fn replaced() {}\n");
     let src2 = fs::read_to_string(dir.path().join("module.rs")).unwrap();
-    graph.index_file(&mut parser, &dir.path().join("module.rs"), &src2).unwrap();
+    graph
+        .index_file(&mut parser, &dir.path().join("module.rs"), &src2)
+        .unwrap();
 
-    assert!(graph.lookup("original").is_empty(), "Old symbol should not reappear");
-    assert!(!graph.lookup("replaced").is_empty(), "New symbol should be indexed");
+    assert!(
+        graph.lookup("original").is_empty(),
+        "Old symbol should not reappear"
+    );
+    assert!(
+        !graph.lookup("replaced").is_empty(),
+        "New symbol should be indexed"
+    );
 }

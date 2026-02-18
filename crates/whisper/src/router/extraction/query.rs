@@ -48,7 +48,8 @@ pub(in crate::router) fn clean_query_for_search(query: &str) -> String {
         // snake_case expansion (v5.0.0): split on underscores
         if term.contains('_') {
             for part in term.split('_') {
-                if part.len() >= 3 && !expanded.iter().any(|e| e.eq_ignore_ascii_case(part))
+                if part.len() >= 3
+                    && !expanded.iter().any(|e| e.eq_ignore_ascii_case(part))
                     && !STOP_WORDS.contains(&part.to_lowercase().as_str())
                 {
                     expanded.push(part.to_string());
@@ -94,14 +95,14 @@ pub(in crate::router) fn clean_query_for_search(query: &str) -> String {
     let mut boosted_parts: Vec<String> = Vec::new();
     for term in &expanded {
         // Escape special chars that Tantivy QueryParser interprets
-        let clean = term.replace(':', " ").replace('(', " ").replace(')', " ");
+        let clean = term.replace([':', '(', ')'], " ");
         let clean = clean.trim();
         if !clean.is_empty() {
             boosted_parts.push(format!("{clean}^3"));
         }
     }
     for syn in &synonyms_for_query {
-        let clean = syn.replace(':', " ").replace('(', " ").replace(')', " ");
+        let clean = syn.replace([':', '(', ')'], " ");
         let clean = clean.trim();
         if !clean.is_empty() {
             boosted_parts.push(format!("{clean}^0.5"));
@@ -120,7 +121,8 @@ pub(in crate::router) fn clean_query_for_search(query: &str) -> String {
 /// "URLParser" → ["URL", "Parser"]
 fn split_camel_case(s: &str) -> Vec<String> {
     // Only split if the string contains mixed case (not all-upper, not all-lower, not snake_case)
-    if s.contains('_') || s.chars().all(|c| c.is_uppercase() || !c.is_alphabetic())
+    if s.contains('_')
+        || s.chars().all(|c| c.is_uppercase() || !c.is_alphabetic())
         || s.chars().all(|c| c.is_lowercase() || !c.is_alphabetic())
     {
         return Vec::new();
@@ -240,7 +242,8 @@ mod tests {
 
     #[test]
     fn test_clean_query_italian_stops_removed() {
-        let cleaned = clean_query_for_search("Come funziona il chunked transfer encoding in requests?");
+        let cleaned =
+            clean_query_for_search("Come funziona il chunked transfer encoding in requests?");
         // Core terms preserved with ^3 boost (v4.17.2 Conservative Boosting)
         assert!(cleaned.contains("chunked^3"));
         assert!(cleaned.contains("transfer^3"));
@@ -263,7 +266,7 @@ mod tests {
         // Synonym expansion: "chunked" → "chunk", "encoding" → "encode"
         assert!(cleaned.contains("chunk"));
         assert!(cleaned.contains("stream")); // synonym of chunk
-        // Italian noise removed
+                                             // Italian noise removed
         assert!(!cleaned.contains("viene"));
         assert!(!cleaned.contains("gestita"));
         assert!(!cleaned.contains("decodifica"));
@@ -274,7 +277,8 @@ mod tests {
 
     #[test]
     fn test_clean_query_english_stops_removed() {
-        let cleaned = clean_query_for_search("How does the authentication flow work in this project?");
+        let cleaned =
+            clean_query_for_search("How does the authentication flow work in this project?");
         // Core terms preserved with ^3 boost (v4.17.2)
         assert!(cleaned.contains("authentication^3"));
         assert!(cleaned.contains("flow^3"));
@@ -323,9 +327,15 @@ mod tests {
 
     #[test]
     fn test_split_camel_case_basic() {
-        assert_eq!(split_camel_case("MomentumEngine"), vec!["Momentum", "Engine"]);
+        assert_eq!(
+            split_camel_case("MomentumEngine"),
+            vec!["Momentum", "Engine"]
+        );
         assert_eq!(split_camel_case("CodeGraph"), vec!["Code", "Graph"]);
-        assert_eq!(split_camel_case("SmartContextInput"), vec!["Smart", "Context", "Input"]);
+        assert_eq!(
+            split_camel_case("SmartContextInput"),
+            vec!["Smart", "Context", "Input"]
+        );
     }
 
     #[test]

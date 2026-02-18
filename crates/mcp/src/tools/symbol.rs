@@ -8,10 +8,7 @@ use crate::protocol::ToolCallResult;
 /// D42: Maximum symbols returned by `lookup` to avoid blowing the context window.
 const LOOKUP_RESULT_CAP: usize = 20;
 
-pub(super) fn tool_lookup_symbol(
-    args: &serde_json::Value,
-    ctx: &SynapseContext,
-) -> ToolCallResult {
+pub(super) fn tool_lookup_symbol(args: &serde_json::Value, ctx: &SynapseContext) -> ToolCallResult {
     let name = match args.get("name").and_then(|v| v.as_str()) {
         Some(n) => n,
         None => return error_result("Missing required parameter: name".into()),
@@ -21,7 +18,7 @@ pub(super) fn tool_lookup_symbol(
     // D45: detect cold-start (graph registered but not yet populated)
     let cold_start = ctx
         .get_extension::<CodeGraph>()
-        .map_or(true, |g| g.file_count() == 0);
+        .is_none_or(|g| g.file_count() == 0);
 
     if let Some(graph) = ctx.get_extension::<CodeGraph>() {
         let results = graph.lookup(name);
@@ -67,11 +64,18 @@ fn format_lookup_results(name: &str, results: Vec<Symbol>, cold_start: bool) -> 
 
     let mut kind_summary: Vec<_> = by_kind.into_iter().collect();
     kind_summary.sort_by(|a, b| b.1.cmp(&a.1));
-    let kind_str: Vec<String> = kind_summary.iter().map(|(k, n)| format!("{k}: {n}")).collect();
+    let kind_str: Vec<String> = kind_summary
+        .iter()
+        .map(|(k, n)| format!("{k}: {n}"))
+        .collect();
 
     let mut file_summary: Vec<_> = by_file.into_iter().collect();
     file_summary.sort_by(|a, b| b.1.cmp(&a.1));
-    let top_files: Vec<String> = file_summary.iter().take(5).map(|(f, n)| format!("  {f} ({n})")).collect();
+    let top_files: Vec<String> = file_summary
+        .iter()
+        .take(5)
+        .map(|(f, n)| format!("  {f} ({n})"))
+        .collect();
 
     let shown: Vec<_> = results.into_iter().take(LOOKUP_RESULT_CAP).collect();
     let json = serde_json::to_string_pretty(&shown).unwrap_or_default();

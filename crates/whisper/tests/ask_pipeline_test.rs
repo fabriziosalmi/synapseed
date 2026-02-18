@@ -166,9 +166,15 @@ fn ask_adapts_output_per_model_tier() {
 
     // All tiers produce non-empty output
     assert!(!atomic.smart_context.is_empty(), "Atomic context empty");
-    assert!(!molecular.smart_context.is_empty(), "Molecular context empty");
+    assert!(
+        !molecular.smart_context.is_empty(),
+        "Molecular context empty"
+    );
     assert!(!galactic.smart_context.is_empty(), "Galactic context empty");
-    assert!(!universal.smart_context.is_empty(), "Universal context empty");
+    assert!(
+        !universal.smart_context.is_empty(),
+        "Universal context empty"
+    );
 
     // Atomic forces raw injection via needs_semantic_ballast()
     // so effective_raw should be true → raw_sources may be populated if targets found.
@@ -195,7 +201,10 @@ fn ask_handles_no_match_gracefully() {
     let result = router::ask("explain the kubernetes deployment manifest", &ctx);
 
     // Must still return a valid result
-    assert!(!result.smart_context.is_empty(), "no-match must still produce smart_context");
+    assert!(
+        !result.smart_context.is_empty(),
+        "no-match must still produce smart_context"
+    );
     assert!(result.sid.is_finite(), "no-match SID must be finite");
     assert!(
         result.pipeline_metrics.total_us > 0,

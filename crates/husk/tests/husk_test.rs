@@ -22,7 +22,10 @@ fn detect_github_personal_token() {
     let guard = SecurityGuard::with_defaults();
     let content = "token = ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmn";
     let result = guard.check(content);
-    assert!(result.is_err(), "GitHub personal access token should be detected");
+    assert!(
+        result.is_err(),
+        "GitHub personal access token should be detected"
+    );
 }
 
 #[test]
@@ -38,7 +41,10 @@ fn detect_generic_password_assignment() {
     let guard = SecurityGuard::with_defaults();
     let content = r#"password = "supersecretvalue123""#;
     let result = guard.check(content);
-    assert!(result.is_err(), "Generic password assignment should be detected");
+    assert!(
+        result.is_err(),
+        "Generic password assignment should be detected"
+    );
 }
 
 #[test]
@@ -46,7 +52,10 @@ fn detect_generic_api_key_assignment() {
     let guard = SecurityGuard::with_defaults();
     let content = r#"api_key = "sk-proj-abcdefghij12345678""#;
     let result = guard.check(content);
-    assert!(result.is_err(), "Generic api_key assignment should be detected");
+    assert!(
+        result.is_err(),
+        "Generic api_key assignment should be detected"
+    );
 }
 
 #[test]
@@ -120,8 +129,14 @@ fn redact_preserves_non_secret_content() {
     let guard = SecurityGuard::with_defaults();
     let content = "safe_var = 42\nkey = AKIAIOSFODNN7EXAMPLE\nother = hello";
     let redacted = guard.redact(content);
-    assert!(redacted.contains("safe_var = 42"), "Non-secret content should be preserved");
-    assert!(redacted.contains("other = hello"), "Non-secret content should be preserved");
+    assert!(
+        redacted.contains("safe_var = 42"),
+        "Non-secret content should be preserved"
+    );
+    assert!(
+        redacted.contains("other = hello"),
+        "Non-secret content should be preserved"
+    );
     assert!(redacted.contains("[REDACTED]"), "Secret should be redacted");
 }
 
@@ -181,7 +196,10 @@ fn detect_sql_injection_pattern() {
     let code = r#"let q = format!("SELECT * FROM users WHERE id = '{}'", user_id);"#;
     let report = scanner.scan(code);
     assert!(
-        report.findings.iter().any(|f| f.category == "sql_injection"),
+        report
+            .findings
+            .iter()
+            .any(|f| f.category == "sql_injection"),
         "SQL injection pattern should be detected, findings: {:?}",
         report.findings
     );
@@ -204,7 +222,10 @@ fn detect_command_injection_pattern() {
     let code = r#"Command::new(&format!("rm -rf {}", user_path));"#;
     let report = scanner.scan(code);
     assert!(
-        report.findings.iter().any(|f| f.category == "command_injection"),
+        report
+            .findings
+            .iter()
+            .any(|f| f.category == "command_injection"),
         "Command injection pattern should be detected"
     );
 }
@@ -215,7 +236,10 @@ fn detect_path_traversal_pattern() {
     let code = r#"let data = std::fs::read_to_string(&format!("/data/{}", filename));"#;
     let report = scanner.scan(code);
     assert!(
-        report.findings.iter().any(|f| f.category == "path_traversal"),
+        report
+            .findings
+            .iter()
+            .any(|f| f.category == "path_traversal"),
         "Path traversal pattern should be detected"
     );
 }
@@ -234,7 +258,10 @@ fn main() {
 }
 "#;
     let report = scanner.scan(code);
-    assert!(report.findings.is_empty(), "Clean code should have no findings");
+    assert!(
+        report.findings.is_empty(),
+        "Clean code should have no findings"
+    );
     assert!(report.status.starts_with("CLEAN"));
 }
 
@@ -263,7 +290,10 @@ let q = format!("SELECT * FROM users WHERE id = '{}'", uid);
 "#;
     let report = scanner.scan(code);
     assert!(
-        report.findings.iter().all(|f| f.category == "sql_injection"),
+        report
+            .findings
+            .iter()
+            .all(|f| f.category == "sql_injection"),
         "Only sql_injection findings should appear when filtering by category"
     );
 }
@@ -277,7 +307,10 @@ element.innerHTML = data;
 Command::new(&format!("rm {}", path));
 "#;
     let report = scanner.scan(code);
-    assert!(!report.findings.is_empty(), "Should detect multiple findings");
+    assert!(
+        !report.findings.is_empty(),
+        "Should detect multiple findings"
+    );
     assert!(
         report.status.contains("ALERT"),
         "Status should be ALERT, got: {}",
@@ -289,7 +322,10 @@ Command::new(&format!("rm {}", path));
         .iter()
         .filter(|f| f.confidence == "high")
         .count();
-    assert!(high_count >= 1, "Should have at least 1 high-confidence finding");
+    assert!(
+        high_count >= 1,
+        "Should have at least 1 high-confidence finding"
+    );
 }
 
 // ── v4.17.1: URI Credential Detection ────────────────────────────────
@@ -299,7 +335,10 @@ fn detect_postgres_uri_credentials() {
     let guard = SecurityGuard::with_defaults();
     let content = r#"DATABASE_URL = "postgresql://admin:s3cret_pass@db.example.com:5432/prod""#;
     let result = guard.check(content);
-    assert!(result.is_err(), "PostgreSQL URI with embedded password should be detected");
+    assert!(
+        result.is_err(),
+        "PostgreSQL URI with embedded password should be detected"
+    );
 }
 
 #[test]
@@ -307,7 +346,10 @@ fn detect_mongodb_uri_credentials() {
     let guard = SecurityGuard::with_defaults();
     let content = r#"MONGO_URL = "mongodb+srv://root:hunter2@cluster0.abc123.mongodb.net/test""#;
     let result = guard.check(content);
-    assert!(result.is_err(), "MongoDB URI with embedded password should be detected");
+    assert!(
+        result.is_err(),
+        "MongoDB URI with embedded password should be detected"
+    );
 }
 
 #[test]
@@ -315,7 +357,10 @@ fn detect_redis_uri_credentials() {
     let guard = SecurityGuard::with_defaults();
     let content = r#"REDIS_URL = "redis://default:mypassword@redis.example.com:6379""#;
     let result = guard.check(content);
-    assert!(result.is_err(), "Redis URI with embedded password should be detected");
+    assert!(
+        result.is_err(),
+        "Redis URI with embedded password should be detected"
+    );
 }
 
 #[test]
@@ -323,7 +368,10 @@ fn clean_uri_without_credentials_passes() {
     let guard = SecurityGuard::with_defaults();
     let content = r#"DATABASE_URL = "postgresql://db.example.com:5432/prod""#;
     let result = guard.check(content);
-    assert!(result.is_ok(), "URI without credentials should pass DLP check");
+    assert!(
+        result.is_ok(),
+        "URI without credentials should pass DLP check"
+    );
 }
 
 #[test]
@@ -361,7 +409,11 @@ fn detect_expanded_generic_secret_keywords() {
 
     for (content, label) in cases {
         let result = guard.check(content);
-        assert!(result.is_err(), "{} assignment should be detected as secret", label);
+        assert!(
+            result.is_err(),
+            "{} assignment should be detected as secret",
+            label
+        );
     }
 }
 
@@ -373,7 +425,10 @@ fn detect_command_injection_arg_format() {
     let code = r#"Command::new("sh").arg("-c").arg(&format!("ls {}", user_input));"#;
     let report = scanner.scan(code);
     assert!(
-        report.findings.iter().any(|f| f.category == "command_injection"),
+        report
+            .findings
+            .iter()
+            .any(|f| f.category == "command_injection"),
         "Command injection via .arg(format!()) should be detected, findings: {:?}",
         report.findings
     );
@@ -385,7 +440,10 @@ fn detect_python_subprocess_f_string() {
     let code = r#"subprocess.call(f"rm -rf {path}")"#;
     let report = scanner.scan(code);
     assert!(
-        report.findings.iter().any(|f| f.category == "command_injection"),
+        report
+            .findings
+            .iter()
+            .any(|f| f.category == "command_injection"),
         "Python subprocess f-string should be detected, findings: {:?}",
         report.findings
     );
@@ -397,7 +455,10 @@ fn detect_python_eval_with_variable() {
     let code = r#"eval(user_input + ".method()")"#;
     let report = scanner.scan(code);
     assert!(
-        report.findings.iter().any(|f| f.category == "command_injection"),
+        report
+            .findings
+            .iter()
+            .any(|f| f.category == "command_injection"),
         "Python eval with variable concatenation should be detected, findings: {:?}",
         report.findings
     );
@@ -412,7 +473,10 @@ fn detect_command_injection_arg_ref_variable() {
     let code = r#"Command::new("sh").arg("-c").arg(&cmd)"#;
     let report = scanner.scan(code);
     assert!(
-        report.findings.iter().any(|f| f.category == "command_injection"),
+        report
+            .findings
+            .iter()
+            .any(|f| f.category == "command_injection"),
         "Dynamic .arg(&var) should trigger heuristic warning, findings: {:?}",
         report.findings
     );
@@ -424,7 +488,10 @@ fn detect_command_injection_args_ref_variable() {
     let code = r#"Command::new("ls").args(&user_args)"#;
     let report = scanner.scan(code);
     assert!(
-        report.findings.iter().any(|f| f.category == "command_injection"),
+        report
+            .findings
+            .iter()
+            .any(|f| f.category == "command_injection"),
         "Dynamic .args(&var) should trigger heuristic warning, findings: {:?}",
         report.findings
     );
@@ -437,7 +504,10 @@ fn no_false_positive_arg_string_literal() {
     let code = r#"Command::new("ls").arg("--all").arg("-l")"#;
     let report = scanner.scan(code);
     assert!(
-        !report.findings.iter().any(|f| f.category == "command_injection"),
+        !report
+            .findings
+            .iter()
+            .any(|f| f.category == "command_injection"),
         "Static .arg(\"literal\") should NOT trigger, findings: {:?}",
         report.findings
     );
@@ -470,7 +540,8 @@ fn detect_custom_protocol_uri_credentials() {
 #[test]
 fn detect_concatenated_uri_credentials() {
     let guard = SecurityGuard::with_defaults();
-    let content = r#"let db = "postgresql" + "://admin:s3cret_pass" + "@db.example.com:5432/prod";"#;
+    let content =
+        r#"let db = "postgresql" + "://admin:s3cret_pass" + "@db.example.com:5432/prod";"#;
     let result = guard.check(content);
     assert!(
         result.is_err(),

@@ -47,7 +47,7 @@ pub fn extract_strings(data: &[u8], min_length: usize) -> Vec<(usize, String)> {
     let mut start = 0;
 
     for (i, &byte) in data.iter().enumerate() {
-        if byte >= 0x20 && byte < 0x7F {
+        if (0x20..0x7F).contains(&byte) {
             if current.is_empty() {
                 start = i;
             }
@@ -103,13 +103,23 @@ fn classify_one(s: &str) -> StringClass {
     }
 
     // SQL
-    let sql_keywords = ["select ", "insert ", "update ", "delete ", "create table", "alter table", "drop "];
+    let sql_keywords = [
+        "select ",
+        "insert ",
+        "update ",
+        "delete ",
+        "create table",
+        "alter table",
+        "drop ",
+    ];
     if sql_keywords.iter().any(|kw| lower.starts_with(kw)) {
         return StringClass::SqlQuery;
     }
 
     // Environment variable
-    if (s.starts_with('$') && s.len() > 1 && s[1..].chars().all(|c| c.is_alphanumeric() || c == '_'))
+    if (s.starts_with('$')
+        && s.len() > 1
+        && s[1..].chars().all(|c| c.is_alphanumeric() || c == '_'))
         || (s.starts_with('%') && s.ends_with('%') && s.len() > 2)
     {
         return StringClass::EnvVar;
@@ -132,8 +142,17 @@ fn classify_one(s: &str) -> StringClass {
 
     // Error message
     let error_markers = [
-        "error", "failed", "panic", "fatal", "abort", "segfault",
-        "exception", "invalid", "cannot", "unable to", "unexpected",
+        "error",
+        "failed",
+        "panic",
+        "fatal",
+        "abort",
+        "segfault",
+        "exception",
+        "invalid",
+        "cannot",
+        "unable to",
+        "unexpected",
     ];
     if error_markers.iter().any(|m| lower.contains(m)) {
         return StringClass::ErrorMessage;
@@ -155,7 +174,8 @@ fn classify_one(s: &str) -> StringClass {
     if s.len() <= 64
         && !s.contains(' ')
         && s.contains('-')
-        && s.chars().all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit())
+        && s.chars()
+            .all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit())
     {
         return StringClass::PackageName;
     }
@@ -200,7 +220,10 @@ mod tests {
 
     #[test]
     fn test_classify_error() {
-        assert_eq!(classify_one("connection failed: timeout"), StringClass::ErrorMessage);
+        assert_eq!(
+            classify_one("connection failed: timeout"),
+            StringClass::ErrorMessage
+        );
     }
 
     #[test]
@@ -216,7 +239,10 @@ mod tests {
 
     #[test]
     fn test_classify_format() {
-        assert_eq!(classify_one("value = {} at line {}"), StringClass::FormatString);
+        assert_eq!(
+            classify_one("value = {} at line {}"),
+            StringClass::FormatString
+        );
     }
 
     #[test]

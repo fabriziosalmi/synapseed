@@ -1,8 +1,8 @@
 //! MCP tool: run_benchmark — Benchmark Engine for reproducible SCR evaluation.
 
+use synapseed_bench::{run_benchmark, BenchmarkReport};
 use synapseed_core::context::SynapseContext;
 use synapseed_core::error::safe_resolve_path;
-use synapseed_bench::{run_benchmark, BenchmarkReport};
 
 use super::{error_result, text_result};
 use crate::protocol::ToolCallResult;
@@ -13,10 +13,7 @@ use crate::protocol::ToolCallResult;
 /// Rust API (zero JSON-RPC overhead), scores responses against ground truth,
 /// and returns a structured report with F1, SCR, SID correlation, and
 /// hallucination metrics.
-pub(super) fn tool_run_benchmark(
-    args: &serde_json::Value,
-    ctx: &SynapseContext,
-) -> ToolCallResult {
+pub(super) fn tool_run_benchmark(args: &serde_json::Value, ctx: &SynapseContext) -> ToolCallResult {
     let suite_path = match args.get("suite_path").and_then(|v| v.as_str()) {
         Some(p) => p,
         None => return error_result("Missing required parameter: suite_path".into()),
@@ -29,7 +26,7 @@ pub(super) fn tool_run_benchmark(
 
     // Security: validate path is within project
     let root = ctx.project_root();
-    if let Err(_) = safe_resolve_path(&root, suite_path) {
+    if safe_resolve_path(&root, suite_path).is_err() {
         // Try bare filename under suites/ before rejecting
         let suites_candidate = format!("crates/bench/suites/{suite_path}");
         if safe_resolve_path(&root, &suites_candidate).is_err() {

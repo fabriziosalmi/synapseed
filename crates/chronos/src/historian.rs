@@ -202,11 +202,7 @@ impl Historian {
                     .as_ref()
                     .and_then(|c| c.message().map(String::from))
                     .unwrap_or_default();
-                let message = full_message
-                    .lines()
-                    .next()
-                    .unwrap_or("")
-                    .to_string();
+                let message = full_message.lines().next().unwrap_or("").to_string();
 
                 // D30: Extract Co-authored-by trailers for AI attribution tracking.
                 let co_authors: Vec<String> = full_message

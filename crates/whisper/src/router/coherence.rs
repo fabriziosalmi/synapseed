@@ -33,7 +33,7 @@ fn module_prefix(path: &str) -> String {
     match parts.len() {
         0 => String::new(),
         1 => parts[0].to_string(),
-        2 => parts[0].to_string(), // "src/main.rs" → "src"
+        2 => parts[0].to_string(),                 // "src/main.rs" → "src"
         _ => format!("{}/{}", parts[0], parts[1]), // "crates/whisper/src/..." → "crates/whisper"
     }
 }
@@ -132,7 +132,10 @@ mod tests {
 
     #[test]
     fn test_module_prefix_extraction() {
-        assert_eq!(module_prefix("crates/whisper/src/router/mod.rs"), "crates/whisper");
+        assert_eq!(
+            module_prefix("crates/whisper/src/router/mod.rs"),
+            "crates/whisper"
+        );
         assert_eq!(module_prefix("crates/core/src/lib.rs"), "crates/core");
         assert_eq!(module_prefix("src/main.rs"), "src");
         assert_eq!(module_prefix("lib.rs"), "lib.rs");

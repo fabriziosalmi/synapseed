@@ -598,10 +598,28 @@ pub fn list_tools() -> Vec<ToolDefinition> {
 
 /// Canonical tool names (short, CLI-aligned).
 const TOOL_NAMES: &[&str] = &[
-    "hoist", "lookup", "scan", "check", "blame", "diagnose", "consult",
-    "search", "diagnostics", "analyze", "quickfix", "ask", "intent",
-    "train", "reset-telemetry", "janitor", "janitor-fix", "approve-fix",
-    "architect", "oracle", "similar", "verify_path",
+    "hoist",
+    "lookup",
+    "scan",
+    "check",
+    "blame",
+    "diagnose",
+    "consult",
+    "search",
+    "diagnostics",
+    "analyze",
+    "quickfix",
+    "ask",
+    "intent",
+    "train",
+    "reset-telemetry",
+    "janitor",
+    "janitor-fix",
+    "approve-fix",
+    "architect",
+    "oracle",
+    "similar",
+    "verify_path",
     #[cfg(feature = "decompiler")]
     "analyze_binary",
     #[cfg(feature = "decompiler")]
@@ -732,9 +750,9 @@ fn dispatch_tool_inner(
         "explain_dependency" => decompile::tool_explain_dependency(args, ctx),
         #[cfg(feature = "bench")]
         "run_benchmark" => bench::tool_run_benchmark(args, ctx),
-        _ => error_result(format!("Internal dispatch error: unknown canonical tool '{canonical}'")),
-
-
+        _ => error_result(format!(
+            "Internal dispatch error: unknown canonical tool '{canonical}'"
+        )),
     }
 }
 
@@ -768,7 +786,11 @@ pub fn handle_tool_call(
     // 1. Exact match (canonical or legacy alias)
     if let Some(canonical) = resolve_tool_name(name) {
         if canonical != name {
-            info!(alias = name, resolved = canonical, "MCP: Resolved legacy alias");
+            info!(
+                alias = name,
+                resolved = canonical,
+                "MCP: Resolved legacy alias"
+            );
         }
         return dispatch_tool(canonical, args, ctx);
     }
@@ -814,9 +836,7 @@ pub fn handle_tool_call(
                 name.to_string()
             };
             let mut result = dispatch_tool("ask", &json!({"query": query}), ctx);
-            let prefix = format!(
-                "[Redirected to ask] Input '{name}' is not a tool name.\n\n"
-            );
+            let prefix = format!("[Redirected to ask] Input '{name}' is not a tool name.\n\n");
             if let Some(ContentBlock::Text { text }) = result.content.first_mut() {
                 *text = format!("{prefix}{text}");
             }

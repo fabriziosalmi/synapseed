@@ -16,23 +16,23 @@ use synapseed_core::context::SynapseContext;
 use synapseed_core::event::{FileChangeKind, SynapseEvent};
 use synapseed_core::liquid::ProjectDna;
 use synapseed_core::momentum::{ModelTier, MomentumEngine};
-use synapseed_core::pulse::PulseStore;
 use synapseed_core::plugin::SynapsePlugin;
+use synapseed_core::pulse::PulseStore;
 use synapseed_core::recorder::FlightRecorder;
 use synapseed_core::state::ProjectState;
 use synapseed_core::telemetry;
 
+use synapseed_architect::plugin::ArchitectPlugin;
 use synapseed_chronos::plugin::ChronosPlugin;
 use synapseed_cortex::graph::CodeGraph;
 use synapseed_cortex::plugin::CortexPlugin;
+use synapseed_gym::plugin::GymPlugin;
 use synapseed_husk::plugin::HuskPlugin;
+use synapseed_janitor::plugin::JanitorPlugin;
 use synapseed_root::plugin::RootPlugin;
 use synapseed_search::plugin::SearchPlugin;
 use synapseed_shadow_check::plugin::ShadowCheckPlugin;
 use synapseed_telemetry_sink::plugin::TelemetrySinkPlugin;
-use synapseed_gym::plugin::GymPlugin;
-use synapseed_janitor::plugin::JanitorPlugin;
-use synapseed_architect::plugin::ArchitectPlugin;
 use synapseed_whisper::plugin::WhisperPlugin;
 
 use synapseed_mcp::protocol::ContentBlock;
@@ -65,7 +65,6 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     // ── Existing commands (with MCP aliases) ────────────────────────
-
     /// Index a project and display its code graph skeleton
     #[command(visible_alias = "get_code_skeleton")]
     Hoist {
@@ -132,7 +131,6 @@ enum Commands {
     Serve,
 
     // ── New commands (MCP-only tools exposed to CLI) ────────────────
-
     /// Ask a natural-language question — SYNAPSEED orchestrates all subsystems
     #[command(visible_alias = "ask_synapseed", visible_alias = "whisper")]
     Ask {
@@ -334,28 +332,48 @@ async fn main() -> Result<()> {
                     buf
                 }
             };
-            cmd_mcp(&project_root, "scan", json!({"content": text, "mode": mode}), cli.json).await?
+            cmd_mcp(
+                &project_root,
+                "scan",
+                json!({"content": text, "mode": mode}),
+                cli.json,
+            )
+            .await?
         }
         Commands::Check { command } => {
-            cmd_mcp(&project_root, "check", json!({"command": command}), cli.json).await?
+            cmd_mcp(
+                &project_root,
+                "check",
+                json!({"command": command}),
+                cli.json,
+            )
+            .await?
         }
-        Commands::Diagnose => {
-            cmd_mcp(&project_root, "diagnose", json!({}), cli.json).await?
-        }
+        Commands::Diagnose => cmd_mcp(&project_root, "diagnose", json!({}), cli.json).await?,
         Commands::History { limit } => cmd_history(&project_root, limit)?,
         Commands::Blame { file, start, end } => {
-            cmd_mcp(&project_root, "blame", json!({"file": file, "start_line": start, "end_line": end}), cli.json).await?
+            cmd_mcp(
+                &project_root,
+                "blame",
+                json!({"file": file, "start_line": start, "end_line": end}),
+                cli.json,
+            )
+            .await?
         }
         Commands::Status => cmd_status(&project_root).await?,
         Commands::Init => cmd_init(&project_root).await?,
         Commands::Serve => cmd_serve(&project_root).await?,
 
         // ── MCP-bridged commands ────────────────────────────────────
-        Commands::Ask { query, raw } => {
-            cmd_ask(&project_root, &query, raw, cli.json).await?
-        }
+        Commands::Ask { query, raw } => cmd_ask(&project_root, &query, raw, cli.json).await?,
         Commands::Search { query, limit } => {
-            cmd_mcp(&project_root, "search", json!({"query": query, "limit": limit}), cli.json).await?
+            cmd_mcp(
+                &project_root,
+                "search",
+                json!({"query": query, "limit": limit}),
+                cli.json,
+            )
+            .await?
         }
         Commands::Diagnostics { file, min_severity } => {
             let mut args = json!({"min_severity": min_severity});
@@ -366,17 +384,33 @@ async fn main() -> Result<()> {
         }
         Commands::Analyze { file, start, end } => {
             let mut args = json!({"file": file});
-            if let Some(s) = start { args["start_line"] = json!(s); }
-            if let Some(e) = end { args["end_line"] = json!(e); }
+            if let Some(s) = start {
+                args["start_line"] = json!(s);
+            }
+            if let Some(e) = end {
+                args["end_line"] = json!(e);
+            }
             cmd_mcp(&project_root, "analyze", args, cli.json).await?
         }
         Commands::Quickfix { file, error_code } => {
-            cmd_mcp(&project_root, "quickfix", json!({"file": file, "error_code": error_code}), cli.json).await?
+            cmd_mcp(
+                &project_root,
+                "quickfix",
+                json!({"file": file, "error_code": error_code}),
+                cli.json,
+            )
+            .await?
         }
         Commands::Intent { limit } => {
             cmd_mcp(&project_root, "intent", json!({"limit": limit}), cli.json).await?
         }
-        Commands::Train { source, tests, timeout, fuzz, adversarial } => {
+        Commands::Train {
+            source,
+            tests,
+            timeout,
+            fuzz,
+            adversarial,
+        } => {
             let src = read_source_or_stdin(&source)?;
             let mut args = json!({"source": src, "timeout": timeout, "fuzz": fuzz, "adversarial": adversarial});
             if let Some(t) = tests {
@@ -387,35 +421,80 @@ async fn main() -> Result<()> {
         Commands::ResetTelemetry => {
             cmd_mcp(&project_root, "reset-telemetry", json!({}), cli.json).await?
         }
-        Commands::Janitor => {
-            cmd_mcp(&project_root, "janitor", json!({}), cli.json).await?
-        }
-        Commands::JanitorFix { proposal_id, confirm } => {
-            cmd_mcp(&project_root, "janitor-fix", json!({"proposal_id": proposal_id, "confirm": confirm}), cli.json).await?
+        Commands::Janitor => cmd_mcp(&project_root, "janitor", json!({}), cli.json).await?,
+        Commands::JanitorFix {
+            proposal_id,
+            confirm,
+        } => {
+            cmd_mcp(
+                &project_root,
+                "janitor-fix",
+                json!({"proposal_id": proposal_id, "confirm": confirm}),
+                cli.json,
+            )
+            .await?
         }
         Commands::Architect { refresh } => {
-            cmd_mcp(&project_root, "architect", json!({"refresh": refresh}), cli.json).await?
+            cmd_mcp(
+                &project_root,
+                "architect",
+                json!({"refresh": refresh}),
+                cli.json,
+            )
+            .await?
         }
         Commands::Consult { query } => {
             cmd_mcp(&project_root, "consult", json!({"query": query}), cli.json).await?
         }
-        Commands::Oracle => {
-            cmd_mcp(&project_root, "oracle", json!({}), cli.json).await?
-        }
-        Commands::Similar { query, top_k, min_similarity } => {
-            cmd_mcp(&project_root, "similar", json!({"query": query, "top_k": top_k, "min_similarity": min_similarity}), cli.json).await?
+        Commands::Oracle => cmd_mcp(&project_root, "oracle", json!({}), cli.json).await?,
+        Commands::Similar {
+            query,
+            top_k,
+            min_similarity,
+        } => {
+            cmd_mcp(
+                &project_root,
+                "similar",
+                json!({"query": query, "top_k": top_k, "min_similarity": min_similarity}),
+                cli.json,
+            )
+            .await?
         }
         Commands::Verify { path } => {
-            cmd_mcp(&project_root, "verify_path", json!({"path": path}), cli.json).await?
+            cmd_mcp(
+                &project_root,
+                "verify_path",
+                json!({"path": path}),
+                cli.json,
+            )
+            .await?
         }
         Commands::AnalyzeBinary { path } => {
-            cmd_mcp(&project_root, "analyze_binary", json!({"path": path}), cli.json).await?
+            cmd_mcp(
+                &project_root,
+                "analyze_binary",
+                json!({"path": path}),
+                cli.json,
+            )
+            .await?
         }
         Commands::ExplainDependency { crate_name } => {
-            cmd_mcp(&project_root, "explain_dependency", json!({"crate_name": crate_name}), cli.json).await?
+            cmd_mcp(
+                &project_root,
+                "explain_dependency",
+                json!({"crate_name": crate_name}),
+                cli.json,
+            )
+            .await?
         }
         Commands::RunBenchmark { suite_path, format } => {
-            cmd_mcp(&project_root, "run_benchmark", json!({"suite_path": suite_path, "format": format}), cli.json).await?
+            cmd_mcp(
+                &project_root,
+                "run_benchmark",
+                json!({"suite_path": suite_path, "format": format}),
+                cli.json,
+            )
+            .await?
         }
         Commands::External(args) => {
             let query = args.join(" ");
@@ -616,17 +695,31 @@ async fn wait_for_index(ctx: &SynapseContext, timeout: Duration) {
 }
 
 /// Generic MCP tool bridge: init context, call tool, print result.
-async fn cmd_mcp(path: &Path, tool: &str, args: serde_json::Value, json_output: bool) -> Result<()> {
+async fn cmd_mcp(
+    path: &Path,
+    tool: &str,
+    args: serde_json::Value,
+    json_output: bool,
+) -> Result<()> {
     let ctx = init_full_context(path).await?;
+
+    // When the CLI requests JSON output, inject a hint so tools can return
+    // structured data instead of human-readable text.
+    let mut args = args;
+    if json_output {
+        if let Some(obj) = args.as_object_mut() {
+            obj.insert(
+                "_format".to_string(),
+                serde_json::Value::String("json".to_string()),
+            );
+        }
+    }
+
     let result = handle_tool_call(tool, &args, &ctx);
 
-    if json_output {
-        println!("{}", serde_json::to_string(&result)?);
-    } else {
-        for block in &result.content {
-            match block {
-                ContentBlock::Text { text } => println!("{text}"),
-            }
+    for block in &result.content {
+        match block {
+            ContentBlock::Text { text } => println!("{text}"),
         }
     }
 
@@ -857,18 +950,36 @@ struct WatcherHandle {
 
 /// Directories and patterns to ignore.
 const IGNORED_COMPONENTS: &[&str] = &[
-    ".git", "target", "node_modules", ".synapseed",
-    "__pycache__", ".DS_Store", ".mypy_cache", ".pytest_cache",
+    ".git",
+    "target",
+    "node_modules",
+    ".synapseed",
+    "__pycache__",
+    ".DS_Store",
+    ".mypy_cache",
+    ".pytest_cache",
 ];
 
 /// File extensions that are considered source files.
 fn is_source_file(path: &Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
-        .map(|ext| matches!(ext,
-            "rs" | "toml" | "py" | "js" | "ts" | "jsx" | "tsx"
-            | "json" | "yaml" | "yml" | "md" | "txt"
-        ))
+        .map(|ext| {
+            matches!(
+                ext,
+                "rs" | "toml"
+                    | "py"
+                    | "js"
+                    | "ts"
+                    | "jsx"
+                    | "tsx"
+                    | "json"
+                    | "yaml"
+                    | "yml"
+                    | "md"
+                    | "txt"
+            )
+        })
         .unwrap_or(false)
 }
 
@@ -883,8 +994,8 @@ fn should_ignore(path: &Path) -> bool {
 }
 
 fn spawn_file_watcher(project_root: &Path, ctx: &SynapseContext) -> WatcherHandle {
-    use notify_debouncer_mini::notify::RecursiveMode;
     use notify_debouncer_mini::new_debouncer;
+    use notify_debouncer_mini::notify::RecursiveMode;
 
     let ctx = ctx.clone();
     let root = project_root.to_path_buf();
@@ -893,7 +1004,10 @@ fn spawn_file_watcher(project_root: &Path, ctx: &SynapseContext) -> WatcherHandl
     // The callback fires on a background thread from `notify`.
     let debouncer = new_debouncer(
         Duration::from_millis(500),
-        move |result: Result<Vec<notify_debouncer_mini::DebouncedEvent>, notify_debouncer_mini::notify::Error>| {
+        move |result: Result<
+            Vec<notify_debouncer_mini::DebouncedEvent>,
+            notify_debouncer_mini::notify::Error,
+        >| {
             let events = match result {
                 Ok(evts) => evts,
                 Err(e) => {
@@ -936,17 +1050,22 @@ fn spawn_file_watcher(project_root: &Path, ctx: &SynapseContext) -> WatcherHandl
                 );
             }
 
-            debug!(count = batch.len(), "FileWatcher: emitting FileChanged events");
+            debug!(
+                count = batch.len(),
+                "FileWatcher: emitting FileChanged events"
+            );
 
             for (path, kind) in batch {
-                let rel = path.strip_prefix(&root)
+                let rel = path
+                    .strip_prefix(&root)
                     .unwrap_or(&path)
                     .display()
                     .to_string();
                 ctx.broadcast(SynapseEvent::FileChanged { path: rel, kind });
             }
         },
-    ).expect("FileWatcher: failed to create debouncer");
+    )
+    .expect("FileWatcher: failed to create debouncer");
 
     // Start watching the project root recursively
     // Note: we use the inner watcher via `debouncer.watcher()`
@@ -954,13 +1073,18 @@ fn spawn_file_watcher(project_root: &Path, ctx: &SynapseContext) -> WatcherHandl
     // But the API requires adding the watch path after creation.
     // Let's use the watcher method.
     let mut debouncer = debouncer;
-    if let Err(e) = debouncer.watcher().watch(project_root, RecursiveMode::Recursive) {
+    if let Err(e) = debouncer
+        .watcher()
+        .watch(project_root, RecursiveMode::Recursive)
+    {
         warn!(error = %e, "FileWatcher: failed to watch project root, continuing without file watching");
     } else {
         info!(path = %project_root.display(), "FileWatcher: watching for changes");
     }
 
-    WatcherHandle { _watcher: debouncer }
+    WatcherHandle {
+        _watcher: debouncer,
+    }
 }
 
 // ── Plugin Dispatch Loop ─────────────────────────────────────────────
@@ -974,10 +1098,7 @@ fn spawn_file_watcher(project_root: &Path, ctx: &SynapseContext) -> WatcherHandl
 /// Maximum event chain depth before dropping events.
 const MAX_EVENT_DEPTH: u8 = 3;
 
-fn spawn_plugin_dispatch_loop(
-    plugins: Arc<Vec<Box<dyn SynapsePlugin>>>,
-    ctx: &SynapseContext,
-) {
+fn spawn_plugin_dispatch_loop(plugins: Arc<Vec<Box<dyn SynapsePlugin>>>, ctx: &SynapseContext) {
     let mut rx = ctx.subscribe();
     let ctx = ctx.clone();
 
@@ -1025,11 +1146,10 @@ fn spawn_plugin_dispatch_loop(
                         for plugin in plugins.iter() {
                             // D44: catch_unwind prevents a panicking plugin from
                             // killing the entire dispatch loop.
-                            let result = std::panic::catch_unwind(
-                                std::panic::AssertUnwindSafe(|| {
+                            let result =
+                                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                                     rt.block_on(plugin.on_event(&event, &ctx))
-                                }),
-                            );
+                                }));
                             match result {
                                 Ok(Ok(Some(new_event))) => {
                                     debug!(
@@ -1057,7 +1177,9 @@ fn spawn_plugin_dispatch_loop(
                         }
 
                         depth.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
-                    }).await.ok();
+                    })
+                    .await
+                    .ok();
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                     debug!(skipped = n, "PluginDispatchLoop: lagged, dropped events");

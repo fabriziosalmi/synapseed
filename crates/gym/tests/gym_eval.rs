@@ -6,11 +6,9 @@ use synapseed_gym::{Scenario, Trainer};
 fn test_add_function_compiles_and_passes() {
     let trainer = Trainer::new();
 
-    let scenario = Scenario::new(
-        "pub fn add(a: i32, b: i32) -> i32 { a + b }",
-    )
-    .with_tests(
-        r#"
+    let scenario = Scenario::new("pub fn add(a: i32, b: i32) -> i32 { a + b }")
+        .with_tests(
+            r#"
 use eval_project::add;
 
 #[test]
@@ -28,10 +26,12 @@ fn test_add_zero() {
     assert_eq!(add(0, 0), 0);
 }
 "#,
-    )
-    .with_timeout(120);
+        )
+        .with_timeout(120);
 
-    let report = trainer.evaluate(&scenario).expect("Evaluation should succeed");
+    let report = trainer
+        .evaluate(&scenario)
+        .expect("Evaluation should succeed");
 
     assert!(report.compilation.compiled, "Code should compile");
     assert_eq!(report.compilation.errors, 0, "No compilation errors");
@@ -42,21 +42,27 @@ fn test_add_zero() {
     assert_eq!(tests.failed, 0, "0 tests should fail");
     assert_eq!(tests.total, 3, "3 total tests");
 
-    assert!(report.metrics.compile_time_ms > 0, "Compile time should be measured");
+    assert!(
+        report.metrics.compile_time_ms > 0,
+        "Compile time should be measured"
+    );
 
     let score = report.score();
-    assert!(score > 0.9, "Perfect code should score > 0.9, got {score:.2}");
+    assert!(
+        score > 0.9,
+        "Perfect code should score > 0.9, got {score:.2}"
+    );
 }
 
 #[test]
 fn test_compilation_failure_returns_errors() {
     let trainer = Trainer::new();
 
-    let scenario = Scenario::new(
-        "pub fn broken( { this is not valid rust }",
-    );
+    let scenario = Scenario::new("pub fn broken( { this is not valid rust }");
 
-    let report = trainer.evaluate(&scenario).expect("Evaluation should not panic");
+    let report = trainer
+        .evaluate(&scenario)
+        .expect("Evaluation should not panic");
 
     assert!(!report.compilation.compiled, "Should fail to compile");
     assert!(report.compilation.errors > 0, "Should have errors");
@@ -69,7 +75,7 @@ fn test_failing_tests_reported() {
     let trainer = Trainer::new();
 
     let scenario = Scenario::new(
-        "pub fn multiply(a: i32, b: i32) -> i32 { a + b }",  // Bug: add instead of multiply
+        "pub fn multiply(a: i32, b: i32) -> i32 { a + b }", // Bug: add instead of multiply
     )
     .with_tests(
         r#"
@@ -82,7 +88,9 @@ fn test_multiply_correct() {
 "#,
     );
 
-    let report = trainer.evaluate(&scenario).expect("Evaluation should not panic");
+    let report = trainer
+        .evaluate(&scenario)
+        .expect("Evaluation should not panic");
 
     assert!(report.compilation.compiled, "Should compile");
     assert!(!report.success, "Should fail (test failure)");
@@ -99,8 +107,11 @@ fn test_compare_variants() {
     let good = Scenario::new("pub fn double(x: i32) -> i32 { x * 2 }")
         .with_tests("use eval_project::double;\n#[test]\nfn t() { assert_eq!(double(5), 10); }");
 
-    let bad = Scenario::new("pub fn double(x: i32) -> i32 { x + x + 1 }")  // Off-by-one
-        .with_tests("use eval_project::double;\n#[test]\nfn t() { assert_eq!(double(5), 10); }");
+    let bad =
+        Scenario::new("pub fn double(x: i32) -> i32 { x + x + 1 }") // Off-by-one
+            .with_tests(
+                "use eval_project::double;\n#[test]\nfn t() { assert_eq!(double(5), 10); }",
+            );
 
     let results = trainer.compare(&[good, bad]);
 

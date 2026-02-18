@@ -65,8 +65,8 @@ fn default_category() -> QuestionCategory {
 ///
 /// Lines starting with `#` or empty lines are skipped.
 pub fn load_suite(path: &str) -> Result<Vec<BenchQuestion>> {
-    let content = std::fs::read_to_string(path)
-        .with_context(|| format!("Cannot read suite file: {path}"))?;
+    let content =
+        std::fs::read_to_string(path).with_context(|| format!("Cannot read suite file: {path}"))?;
 
     let mut questions = Vec::new();
     for (line_no, line) in content.lines().enumerate() {

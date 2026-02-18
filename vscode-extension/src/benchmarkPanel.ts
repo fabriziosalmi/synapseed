@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs';
+import * as fs from 'fs/promises';
+import * as fsSync from 'fs';
 import * as path from 'path';
 import { getProjectRoot } from './cli';
 import { log } from './log';
@@ -87,15 +88,16 @@ export class BenchmarkPanel {
         const root = getProjectRoot();
         if (!root) { return undefined; }
         const dir = path.join(root, 'benchmark', 'results');
-        if (!fs.existsSync(dir)) { return undefined; }
+        if (!fsSync.existsSync(dir)) { return undefined; }
         return dir;
     }
 
-    private loadResults(): BenchmarkFile[] {
+    private async loadResults(): Promise<BenchmarkFile[]> {
         const dir = this.getResultsDir();
         if (!dir) { return []; }
 
-        const files = fs.readdirSync(dir)
+        const allFiles = await fs.readdir(dir);
+        const files = allFiles
             .filter(f => f.endsWith('.json') && !f.startsWith('.'))
             .sort()
             .reverse();
@@ -103,7 +105,7 @@ export class BenchmarkPanel {
         const results: BenchmarkFile[] = [];
         for (const f of files) {
             try {
-                const raw = fs.readFileSync(path.join(dir, f), 'utf-8');
+                const raw = await fs.readFile(path.join(dir, f), 'utf-8');
                 const data: BenchmarkFileData = JSON.parse(raw);
                 const benchType = this.detectBenchType(f, data);
                 results.push({ filename: f, path: path.join(dir, f), type: benchType, data });
@@ -130,8 +132,8 @@ export class BenchmarkPanel {
         return 'unknown';
     }
 
-    private refresh() {
-        const results = this.loadResults();
+    private async refresh() {
+        const results = await this.loadResults();
         this.panel.webview.html = this.getHtml(results);
     }
 

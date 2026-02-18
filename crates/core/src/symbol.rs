@@ -107,10 +107,22 @@ mod tests {
 
     #[test]
     fn visibility_serde_snake_case() {
-        assert_eq!(serde_json::to_string(&Visibility::Public).unwrap(), "\"public\"");
-        assert_eq!(serde_json::to_string(&Visibility::Crate).unwrap(), "\"crate\"");
-        assert_eq!(serde_json::to_string(&Visibility::Super).unwrap(), "\"super\"");
-        assert_eq!(serde_json::to_string(&Visibility::Private).unwrap(), "\"private\"");
+        assert_eq!(
+            serde_json::to_string(&Visibility::Public).unwrap(),
+            "\"public\""
+        );
+        assert_eq!(
+            serde_json::to_string(&Visibility::Crate).unwrap(),
+            "\"crate\""
+        );
+        assert_eq!(
+            serde_json::to_string(&Visibility::Super).unwrap(),
+            "\"super\""
+        );
+        assert_eq!(
+            serde_json::to_string(&Visibility::Private).unwrap(),
+            "\"private\""
+        );
     }
 
     #[test]

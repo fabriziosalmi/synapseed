@@ -38,7 +38,7 @@ fn run_mcp_session(messages: &[&str]) -> Vec<serde_json::Value> {
     let reader = BufReader::new(stdout);
     let responses: Vec<serde_json::Value> = reader
         .lines()
-        .filter_map(|l| l.ok())
+        .map_while(Result::ok)
         .filter(|l| !l.is_empty())
         .filter_map(|l| serde_json::from_str(&l).ok())
         .collect();
@@ -339,10 +339,7 @@ fn test_mcp_prompt_get() {
     assert_eq!(messages[0]["role"], "user");
 
     let text = messages[0]["content"]["text"].as_str().unwrap();
-    assert!(
-        text.contains("scan"),
-        "Prompt should reference scan tool"
-    );
+    assert!(text.contains("scan"), "Prompt should reference scan tool");
     assert!(text.contains("CLEAN"), "Prompt should mention risk levels");
 }
 
@@ -394,7 +391,10 @@ fn test_mcp_diagnostics_severity_filter() {
     let text = res["result"]["content"][0]["text"].as_str().unwrap();
     // Valid outputs: "CLEAN: No diagnostics..." or "X errors, Y warnings" or "not active"
     assert!(
-        text.contains("errors") || text.contains("diagnostics") || text.contains("not active") || text.contains("CLEAN"),
+        text.contains("errors")
+            || text.contains("diagnostics")
+            || text.contains("not active")
+            || text.contains("CLEAN"),
         "Expected diagnostics output, got: {text}"
     );
 }

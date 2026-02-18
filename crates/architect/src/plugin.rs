@@ -75,7 +75,10 @@ impl SynapsePlugin for ArchitectPlugin {
                     let pairs = dep_graph.dep_pairs();
                     let count = pairs.len();
                     rec.lock().set_dep_hints(pairs);
-                    info!(dep_hints = count, "Architect: Populated FlightRecorder dep_hints");
+                    info!(
+                        dep_hints = count,
+                        "Architect: Populated FlightRecorder dep_hints"
+                    );
                 }
 
                 info!(
@@ -137,7 +140,9 @@ impl SynapsePlugin for ArchitectPlugin {
                         let report = blueprint::generate_report(&dep_graph, violations);
                         if !ctx_ev.is_shutting_down() {
                             // Refresh dep_hints in FlightRecorder (#76)
-                            if let Some(rec) = ctx_ev.get_extension::<parking_lot::Mutex<FlightRecorder>>() {
+                            if let Some(rec) =
+                                ctx_ev.get_extension::<parking_lot::Mutex<FlightRecorder>>()
+                            {
                                 rec.lock().set_dep_hints(dep_graph.dep_pairs());
                             }
 

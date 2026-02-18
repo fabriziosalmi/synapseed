@@ -108,7 +108,7 @@ pub fn build_call_graph(symbols: &[ExportedSymbol]) -> CallGraph {
             let loc_addr = nodes[loc_idx].address;
             if loc_addr <= imp_addr {
                 let dist = imp_addr - loc_addr;
-                if best.is_none() || dist < best.unwrap().1 {
+                if best.is_none() || dist < best.map_or(u64::MAX, |b| b.1) {
                     best = Some((loc_idx, dist));
                 }
             }
@@ -132,8 +132,14 @@ pub fn build_call_graph(symbols: &[ExportedSymbol]) -> CallGraph {
         }
     }
 
-    let leaf_count = nodes.iter().filter(|n| n.out_degree == 0 && !n.name.is_empty()).count();
-    let root_count = nodes.iter().filter(|n| n.in_degree == 0 && !n.name.is_empty()).count();
+    let leaf_count = nodes
+        .iter()
+        .filter(|n| n.out_degree == 0 && !n.name.is_empty())
+        .count();
+    let root_count = nodes
+        .iter()
+        .filter(|n| n.in_degree == 0 && !n.name.is_empty())
+        .count();
 
     // Simple component count via union-find
     let components = count_components(nodes.len(), &edges);

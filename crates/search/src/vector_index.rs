@@ -486,7 +486,11 @@ impl VectorIndex {
                 if let Err(e) = std::fs::write(path, &bytes) {
                     warn!(error = %e, "Failed to save vector index");
                 } else {
-                    debug!(vectors = data.vectors.len(), bytes = bytes.len(), "Vector index saved to disk (bincode)");
+                    debug!(
+                        vectors = data.vectors.len(),
+                        bytes = bytes.len(),
+                        "Vector index saved to disk (bincode)"
+                    );
                 }
             }
             Err(e) => warn!(error = %e, "Failed to serialize vector index"),
@@ -523,9 +527,7 @@ impl VectorIndex {
                         let mut entries = self.entries.write();
                         let mut file_map = self.file_map.write();
 
-                        for (vec, entry) in
-                            data.vectors.into_iter().zip(data.entries.into_iter())
-                        {
+                        for (vec, entry) in data.vectors.into_iter().zip(data.entries.into_iter()) {
                             let idx = vectors.len();
                             let fp = entry.file_path.clone();
                             vectors.push(vec);
@@ -682,7 +684,10 @@ mod tests {
         }
 
         index.add_batch(vectors.clone(), entries);
-        assert!(index.is_ann_active(), "HNSW should be active above threshold");
+        assert!(
+            index.is_ann_active(),
+            "HNSW should be active above threshold"
+        );
 
         // Search should return results
         let query: Vec<f32> = (0..dims).map(|d| (d as f32 * 0.1).sin()).collect();

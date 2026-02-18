@@ -16,6 +16,8 @@ pub(super) fn tool_architect_analyze(
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
+    let json_mode = args.get("_format").and_then(|v| v.as_str()) == Some("json");
+
     // Try cached report from ArchitectPlugin
     if !refresh {
         if let Some(store) = ctx.get_extension::<ReportStore>() {
@@ -24,13 +26,9 @@ pub(super) fn tool_architect_analyze(
                 // graph has files, fall through to fresh analysis.
                 let graph_has_files = ctx
                     .get_extension::<CodeGraph>()
-                    .map_or(false, |g| g.file_count() > 0);
+                    .is_some_and(|g| g.file_count() > 0);
                 if report.module_count > 0 || !graph_has_files {
-                    let json = serde_json::to_string_pretty(&report).unwrap_or_default();
-                    return text_result(format!(
-                        "=== ARCHITECTURE REPORT ===\nScore: {}/100 (Grade: {})\nModules: {} | Edges: {} | Violations: {}\n\n{json}",
-                        report.score, report.grade, report.module_count, report.edge_count, report.violations.len()
-                    ));
+                    return format_report(&report, json_mode);
                 }
             }
         }
@@ -68,9 +66,22 @@ pub(super) fn tool_architect_analyze(
         store.set(report.clone());
     }
 
-    let json = serde_json::to_string_pretty(&report).unwrap_or_default();
-    text_result(format!(
-        "=== ARCHITECTURE REPORT ===\nScore: {}/100 (Grade: {})\nModules: {} | Edges: {} | Violations: {}\n\n{json}",
-        report.score, report.grade, report.module_count, report.edge_count, report.violations.len()
-    ))
+    format_report(&report, json_mode)
+}
+
+/// Format the report as clean JSON (for `--json`) or human-readable text.
+fn format_report(
+    report: &synapseed_architect::ArchitectureReport,
+    json_mode: bool,
+) -> ToolCallResult {
+    if json_mode {
+        let json = serde_json::to_string_pretty(report).unwrap_or_default();
+        text_result(json)
+    } else {
+        let json = serde_json::to_string_pretty(report).unwrap_or_default();
+        text_result(format!(
+            "=== ARCHITECTURE REPORT ===\nScore: {}/100 (Grade: {})\nModules: {} | Edges: {} | Violations: {}\n\n{json}",
+            report.score, report.grade, report.module_count, report.edge_count, report.violations.len()
+        ))
+    }
 }

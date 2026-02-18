@@ -61,8 +61,8 @@ pub enum ModelTier {
     /// Token budget: 16K.  Entire modules + dependency graph.
     Galactic,
     /// > 14B / Cloud models (Claude, GPT-4, Gemini Pro).
-    /// Strategy: *Olistica* — massive synthesis capacity.
-    /// Token budget: 32K+.  Full module history + cross-references.
+    /// > Strategy: *Olistica* — massive synthesis capacity.
+    /// > Token budget: 32K+.  Full module history + cross-references.
     Universal,
 }
 
@@ -121,9 +121,25 @@ const TOOL_PHASE_TABLE: &[(&str, SessionPhase)] = &[
 
 /// Client name → tier detection rules (v5.0.1: table-driven, #71).
 const CLIENT_TIER_TABLE: &[(&[&str], ModelTier)] = &[
-    (&["ollama", "lm-studio", "lmstudio", "llamafile", "localai", "kobold"], ModelTier::Atomic),
-    (&["claude", "anthropic", "gpt", "openai", "gemini"], ModelTier::Universal),
-    (&["cursor", "windsurf", "zed", "continue"], ModelTier::Galactic),
+    (
+        &[
+            "ollama",
+            "lm-studio",
+            "lmstudio",
+            "llamafile",
+            "localai",
+            "kobold",
+        ],
+        ModelTier::Atomic,
+    ),
+    (
+        &["claude", "anthropic", "gpt", "openai", "gemini"],
+        ModelTier::Universal,
+    ),
+    (
+        &["cursor", "windsurf", "zed", "continue"],
+        ModelTier::Galactic,
+    ),
 ];
 
 impl ModelTier {
@@ -245,7 +261,6 @@ impl ModelTier {
     }
 }
 
-
 impl std::fmt::Display for ModelTier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -286,7 +301,8 @@ impl std::fmt::Display for SessionPhase {
 
 /// Categorize a tool name into a phase signal (table-driven, v5.0.1).
 fn tool_phase_signal(tool: &str) -> Option<SessionPhase> {
-    TOOL_PHASE_TABLE.iter()
+    TOOL_PHASE_TABLE
+        .iter()
         .find(|&&(name, _)| name == tool)
         .map(|&(_, phase)| phase)
 }
@@ -541,16 +557,25 @@ mod tests {
     fn test_atomic_budget_sanity() {
         // Atomic: 2K tokens → source should be roughly 5-7K chars
         let src = ModelTier::Atomic.source_char_budget();
-        assert!(src >= 4_000 && src <= 8_000, "Atomic source_char_budget = {src}");
+        assert!(
+            (4_000..=8_000).contains(&src),
+            "Atomic source_char_budget = {src}"
+        );
         let crit = ModelTier::Atomic.critical_char_budget();
-        assert!(crit >= 1_000 && crit <= 3_000, "Atomic critical_char_budget = {crit}");
+        assert!(
+            (1_000..=3_000).contains(&crit),
+            "Atomic critical_char_budget = {crit}"
+        );
     }
 
     #[test]
     fn test_molecular_budget_sanity() {
         // Molecular: 8K tokens → source should be roughly 20-28K chars
         let src = ModelTier::Molecular.source_char_budget();
-        assert!(src >= 20_000 && src <= 30_000, "Molecular source_char_budget = {src}");
+        assert!(
+            (20_000..=30_000).contains(&src),
+            "Molecular source_char_budget = {src}"
+        );
     }
 
     #[test]
@@ -655,10 +680,7 @@ mod tests {
             tool_phase_signal("diagnostics"),
             Some(SessionPhase::Implementation)
         );
-        assert_eq!(
-            tool_phase_signal("scan"),
-            Some(SessionPhase::Stabilization)
-        );
+        assert_eq!(tool_phase_signal("scan"), Some(SessionPhase::Stabilization));
         assert_eq!(tool_phase_signal("train"), None);
     }
 }

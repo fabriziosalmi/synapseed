@@ -128,7 +128,7 @@ fn run_scenario(project_dir: &Path, tool_messages: &[String]) -> Vec<serde_json:
     let reader = BufReader::new(stdout);
     let responses: Vec<serde_json::Value> = reader
         .lines()
-        .filter_map(|l| l.ok())
+        .map_while(Result::ok)
         .filter(|l| !l.is_empty())
         .filter_map(|l| serde_json::from_str(&l).ok())
         .collect();

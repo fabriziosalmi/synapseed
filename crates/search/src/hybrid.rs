@@ -88,11 +88,14 @@ pub fn hybrid_search(
     for (rank, result) in bm25_results.into_iter().enumerate() {
         let key = fusion_key(&result.file, &result.symbol, result.line_start);
         let rrf = 1.0 / (RRF_K + rank as f64 + 1.0);
-        fused.insert(key, FusedEntry {
-            rrf_score: rrf,
-            result,
-            sources: FusionSource::Bm25Only,
-        });
+        fused.insert(
+            key,
+            FusedEntry {
+                rrf_score: rrf,
+                result,
+                sources: FusionSource::Bm25Only,
+            },
+        );
     }
 
     // Process vector results — merge with BM25 or add as vector-only
@@ -112,21 +115,24 @@ pub fn hybrid_search(
             }
             None => {
                 // Vector-only: construct SearchResult from VectorEntry metadata
-                fused.insert(key, FusedEntry {
-                    rrf_score: rrf,
-                    result: SearchResult {
-                        score: 0.0, // placeholder, replaced by normalized RRF
-                        file: sim.entry.file_path,
-                        symbol: sim.entry.symbol_name,
-                        kind: sim.entry.kind,
-                        line_start: sim.entry.line_start as u64,
-                        line_end: sim.entry.line_end as u64,
-                        signature: String::new(),
-                        snippet: sim.entry.embedded_text,
-                        last_modified_epoch: 0,
+                fused.insert(
+                    key,
+                    FusedEntry {
+                        rrf_score: rrf,
+                        result: SearchResult {
+                            score: 0.0, // placeholder, replaced by normalized RRF
+                            file: sim.entry.file_path,
+                            symbol: sim.entry.symbol_name,
+                            kind: sim.entry.kind,
+                            line_start: sim.entry.line_start as u64,
+                            line_end: sim.entry.line_end as u64,
+                            signature: String::new(),
+                            snippet: sim.entry.embedded_text,
+                            last_modified_epoch: 0,
+                        },
+                        sources: FusionSource::VectorOnly,
                     },
-                    sources: FusionSource::VectorOnly,
-                });
+                );
             }
         }
     }
@@ -135,7 +141,10 @@ pub fn hybrid_search(
     // Max theoretical RRF: #1 in both = 2/(k+1)
     let max_rrf = 2.0 / (RRF_K + 1.0);
 
-    let both_count = fused.values().filter(|e| matches!(e.sources, FusionSource::Both)).count();
+    let both_count = fused
+        .values()
+        .filter(|e| matches!(e.sources, FusionSource::Both))
+        .count();
 
     let mut results: Vec<SearchResult> = fused
         .into_values()
@@ -145,7 +154,11 @@ pub fn hybrid_search(
         })
         .collect();
 
-    results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    results.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     // ── Quality rerank (v5.0.1) ──────────────────────────────────────
     // Apply the same quality signals (vendor penalty, exact match bonus,

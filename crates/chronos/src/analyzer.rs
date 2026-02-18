@@ -206,7 +206,10 @@ impl Historian {
 
             for oid in revwalk.take(max_commits) {
                 if Instant::now() > deadline {
-                    tracing::warn!("analyze: deadline exceeded after {}ms, returning partial results", 10_000);
+                    tracing::warn!(
+                        "analyze: deadline exceeded after {}ms, returning partial results",
+                        10_000
+                    );
                     break;
                 }
                 let oid = match oid {
@@ -407,8 +410,8 @@ impl Historian {
             for pair in commits.windows(2) {
                 let newer = &pair[0];
                 let older = &pair[1];
-                let both_fix = newer.tags.contains(&CommitTag::Fix)
-                    && older.tags.contains(&CommitTag::Fix);
+                let both_fix =
+                    newer.tags.contains(&CommitTag::Fix) && older.tags.contains(&CommitTag::Fix);
                 let within_48h = newer.epoch.saturating_sub(older.epoch) < 48 * 3600;
                 if both_fix && within_48h {
                     if !in_chain {

@@ -60,12 +60,18 @@ pub(super) fn tool_analyze_binary(
             out.push_str("## Metadata\n");
             out.push_str(&format!("- **Format**: {}\n", analysis.info.format));
             out.push_str(&format!("- **Architecture**: {}\n", analysis.info.arch));
-            out.push_str(&format!("- **Size**: {} bytes ({:.1} KB)\n",
-                analysis.info.size, analysis.info.size as f64 / 1024.0));
+            out.push_str(&format!(
+                "- **Size**: {} bytes ({:.1} KB)\n",
+                analysis.info.size,
+                analysis.info.size as f64 / 1024.0
+            ));
             out.push_str(&format!("- **Library**: {}\n", analysis.info.is_lib));
             out.push_str(&format!("- **Stripped**: {}\n", analysis.info.is_stripped));
             if analysis.info.entry_point != 0 {
-                out.push_str(&format!("- **Entry point**: 0x{:x}\n", analysis.info.entry_point));
+                out.push_str(&format!(
+                    "- **Entry point**: 0x{:x}\n",
+                    analysis.info.entry_point
+                ));
             }
             out.push_str(&format!("- **Sections**: {}\n\n", analysis.info.sections));
 
@@ -88,7 +94,9 @@ pub(super) fn tool_analyze_binary(
             let imports: Vec<_> = analysis.symbols.iter().filter(|s| s.is_import).collect();
             out.push_str(&format!(
                 "## Symbols ({} total: {} exports, {} imports)\n",
-                total_syms, exports.len(), imports.len()
+                total_syms,
+                exports.len(),
+                imports.len()
             ));
 
             if !exports.is_empty() {
@@ -96,7 +104,10 @@ pub(super) fn tool_analyze_binary(
                 for sym in exports.iter().take(max_symbols) {
                     let display = sym.demangled.as_deref().unwrap_or(&sym.name);
                     let kind = format!("{:?}", sym.kind).to_lowercase();
-                    out.push_str(&format!("- `{}` ({}, 0x{:x})\n", display, kind, sym.address));
+                    out.push_str(&format!(
+                        "- `{}` ({}, 0x{:x})\n",
+                        display, kind, sym.address
+                    ));
                 }
                 if exports.len() > max_symbols {
                     out.push_str(&format!("  ... and {} more\n", exports.len() - max_symbols));
@@ -176,12 +187,30 @@ pub(super) fn tool_explain_dependency(
 
     // Look for the compiled artifact in target/debug/deps or target/release/deps
     let candidates = [
-        root.join(format!("target/debug/deps/lib{}.rlib", crate_name.replace('-', "_"))),
-        root.join(format!("target/debug/deps/lib{}.dylib", crate_name.replace('-', "_"))),
-        root.join(format!("target/debug/deps/lib{}.so", crate_name.replace('-', "_"))),
-        root.join(format!("target/release/deps/lib{}.rlib", crate_name.replace('-', "_"))),
-        root.join(format!("target/release/deps/lib{}.dylib", crate_name.replace('-', "_"))),
-        root.join(format!("target/release/deps/lib{}.so", crate_name.replace('-', "_"))),
+        root.join(format!(
+            "target/debug/deps/lib{}.rlib",
+            crate_name.replace('-', "_")
+        )),
+        root.join(format!(
+            "target/debug/deps/lib{}.dylib",
+            crate_name.replace('-', "_")
+        )),
+        root.join(format!(
+            "target/debug/deps/lib{}.so",
+            crate_name.replace('-', "_")
+        )),
+        root.join(format!(
+            "target/release/deps/lib{}.rlib",
+            crate_name.replace('-', "_")
+        )),
+        root.join(format!(
+            "target/release/deps/lib{}.dylib",
+            crate_name.replace('-', "_")
+        )),
+        root.join(format!(
+            "target/release/deps/lib{}.so",
+            crate_name.replace('-', "_")
+        )),
     ];
 
     // Also check for exact prefix match in deps directory

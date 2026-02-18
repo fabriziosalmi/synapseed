@@ -4,10 +4,7 @@ use synapseed_core::error::safe_resolve_path;
 use super::{error_result, text_result};
 use crate::protocol::ToolCallResult;
 
-pub(super) fn tool_verify_path(
-    args: &serde_json::Value,
-    ctx: &SynapseContext,
-) -> ToolCallResult {
+pub(super) fn tool_verify_path(args: &serde_json::Value, ctx: &SynapseContext) -> ToolCallResult {
     let path = match args.get("path").and_then(|v| v.as_str()) {
         Some(p) => p,
         None => return error_result("Missing required parameter: path".into()),
@@ -31,10 +28,7 @@ pub(super) fn tool_verify_path(
 
     match std::fs::metadata(&abs_path) {
         Ok(meta) => {
-            let ext = abs_path
-                .extension()
-                .and_then(|e| e.to_str())
-                .unwrap_or("");
+            let ext = abs_path.extension().and_then(|e| e.to_str()).unwrap_or("");
             let language = match ext {
                 "rs" => "rust",
                 "py" | "pyi" => "python",

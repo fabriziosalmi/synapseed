@@ -42,7 +42,13 @@ impl Tokenizer for CodeTokenizer {
             }
         }
         if let Some(s) = start {
-            emit_code_tokens(&text[s..text.len()], s, text.len(), &mut tokens, &mut position);
+            emit_code_tokens(
+                &text[s..text.len()],
+                s,
+                text.len(),
+                &mut tokens,
+                &mut position,
+            );
         }
 
         CodeTokenStream { tokens, index: 0 }

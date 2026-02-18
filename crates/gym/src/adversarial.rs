@@ -176,11 +176,7 @@ impl Saboteur {
                     description: format!("Remove return expression on line {}", i + 1),
                     line: i + 1,
                     original: line.to_string(),
-                    mutated: format!(
-                        "{}{}",
-                        &line[..line.len() - trimmed.len()],
-                        mutated
-                    ),
+                    mutated: format!("{}{}", &line[..line.len() - trimmed.len()], mutated),
                 });
             }
 

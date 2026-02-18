@@ -35,7 +35,12 @@ pub fn generate_fuzz_tests(source: &str) -> Option<String> {
             target.name,
             param_strats.join(", "),
             target.name,
-            target.params.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>().join(", "),
+            target
+                .params
+                .iter()
+                .map(|(n, _)| n.as_str())
+                .collect::<Vec<_>>()
+                .join(", "),
         ));
     }
 
@@ -45,9 +50,8 @@ pub fn generate_fuzz_tests(source: &str) -> Option<String> {
 
 /// Extract public function signatures that have fuzzable parameters.
 fn extract_fuzz_targets(source: &str) -> Vec<FuzzTarget> {
-    let fn_re = Regex::new(
-        r"pub\s+fn\s+(\w+)\s*\(([^)]*)\)\s*(?:->\s*[^{]+)?\s*\{"
-    ).expect("valid regex");
+    let fn_re =
+        Regex::new(r"pub\s+fn\s+(\w+)\s*\(([^)]*)\)\s*(?:->\s*[^{]+)?\s*\{").expect("valid regex");
 
     let mut targets = Vec::new();
 
@@ -145,8 +149,8 @@ fn type_to_strategy_opt(ty: &str) -> Option<String> {
 
     // Primitive integers and floats.
     match ty {
-        "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "u8" | "u16" | "u32" | "u64"
-        | "u128" | "usize" | "f32" | "f64" | "bool" | "char" => {
+        "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "u8" | "u16" | "u32" | "u64" | "u128"
+        | "usize" | "f32" | "f64" | "bool" | "char" => {
             return Some(format!("any::<{ty}>()"));
         }
         "String" => {

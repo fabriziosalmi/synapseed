@@ -86,7 +86,7 @@ mod tests {
         };
         let json = serde_json::to_string(&policy).unwrap();
         let back: SecurityPolicy = serde_json::from_str(&json).unwrap();
-        assert_eq!(back.fail_closed, false);
+        assert!(!back.fail_closed);
         assert_eq!(back.dlp_rules.len(), 1);
         assert_eq!(back.dlp_rules[0].action, PolicyAction::Deny);
         assert_eq!(back.command_rules.len(), 1);

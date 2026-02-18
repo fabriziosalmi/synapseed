@@ -88,7 +88,10 @@ pub(super) fn gather_code_context(
     }
 
     if ghost_count > 0 {
-        debug!(ghosts = ghost_count, "Ghost detection: filtered stale symbols");
+        debug!(
+            ghosts = ghost_count,
+            "Ghost detection: filtered stale symbols"
+        );
     }
 
     // v4.28.0 Metadata File Fallback: if the CodeGraph doesn't contain
@@ -138,10 +141,16 @@ pub(super) fn gather_code_context(
             let mut map = serde_json::Map::new();
             map.insert("name".into(), serde_json::Value::String(fp.to_string()));
             map.insert("kind".into(), serde_json::Value::String("Constant".into()));
-            map.insert("file_path".into(), serde_json::Value::String(fp.to_string()));
+            map.insert(
+                "file_path".into(),
+                serde_json::Value::String(fp.to_string()),
+            );
             map.insert("signature".into(), serde_json::Value::String(signature));
             map.insert("line_start".into(), serde_json::json!(1));
-            map.insert("line_end".into(), serde_json::json!(content.lines().count()));
+            map.insert(
+                "line_end".into(),
+                serde_json::json!(content.lines().count()),
+            );
             map.insert("snippet".into(), serde_json::Value::String(snippet));
             symbols.push(serde_json::Value::Object(map));
             debug!(file = fp, "Metadata fallback: injected pseudo-symbol");

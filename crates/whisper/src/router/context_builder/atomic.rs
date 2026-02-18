@@ -26,8 +26,7 @@ pub(super) fn build_atomic_context(
     let mut parts = Vec::new();
 
     // Detect language from symbols
-    let lang = detect_predominant_language(code_context)
-        .unwrap_or_else(|| "unknown".to_string());
+    let lang = detect_predominant_language(code_context).unwrap_or_else(|| "unknown".to_string());
 
     // Environment header: ground the model in reality
     parts.push(format!(
@@ -43,7 +42,10 @@ pub(super) fn build_atomic_context(
                 diag.error_count, diag.warning_count
             ));
             for item in diag.items.iter().take(5) {
-                let file = item.get("file_path").and_then(|v| v.as_str()).unwrap_or("?");
+                let file = item
+                    .get("file_path")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("?");
                 let line = item.get("line_start").and_then(|v| v.as_u64()).unwrap_or(0);
                 let msg = item.get("message").and_then(|v| v.as_str()).unwrap_or("");
                 if !msg.is_empty() {
@@ -69,7 +71,10 @@ pub(super) fn build_atomic_context(
 
         for src in raw_sources {
             if src.line_start == 0 && src.line_end == 0 {
-                parts.push(format!("@@@ START_OF_TRUTH: {} (UNAVAILABLE) @@@", src.file_path));
+                parts.push(format!(
+                    "@@@ START_OF_TRUTH: {} (UNAVAILABLE) @@@",
+                    src.file_path
+                ));
                 parts.push(src.source.clone());
                 parts.push("@@@ END_OF_TRUTH @@@".into());
             } else {

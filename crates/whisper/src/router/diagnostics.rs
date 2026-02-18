@@ -36,7 +36,9 @@ pub(super) fn gather_diagnostics(
         // Merge global errors not already in the scoped set
         for d in &snapshot.diagnostics {
             if d.level == DiagnosticLevel::Error
-                && !scoped.iter().any(|s| s.file_path == d.file_path && s.line_start == d.line_start)
+                && !scoped
+                    .iter()
+                    .any(|s| s.file_path == d.file_path && s.line_start == d.line_start)
             {
                 scoped.push(d.clone());
             }

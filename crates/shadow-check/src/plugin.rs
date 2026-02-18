@@ -77,7 +77,10 @@ impl SynapsePlugin for ShadowCheckPlugin {
                 // Trigger a recheck on source file changes.
                 // v4.17.1 (W5): Also recheck on Deleted — stale diagnostics
                 // for removed files persist until the next recheck.
-                if matches!(kind, FileChangeKind::Created | FileChangeKind::Modified | FileChangeKind::Deleted) {
+                if matches!(
+                    kind,
+                    FileChangeKind::Created | FileChangeKind::Modified | FileChangeKind::Deleted
+                ) {
                     let is_source = path.ends_with(".rs")
                         || path.ends_with(".toml")
                         || path.ends_with(".py")

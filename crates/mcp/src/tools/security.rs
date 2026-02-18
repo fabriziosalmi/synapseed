@@ -6,19 +6,13 @@ use synapseed_root::sentinel::Sentinel;
 use super::{error_result, text_result};
 use crate::protocol::ToolCallResult;
 
-pub(super) fn tool_scan_security(
-    args: &serde_json::Value,
-    ctx: &SynapseContext,
-) -> ToolCallResult {
+pub(super) fn tool_scan_security(args: &serde_json::Value, ctx: &SynapseContext) -> ToolCallResult {
     let content = match args.get("content").and_then(|v| v.as_str()) {
         Some(c) => c,
         None => return error_result("Missing required parameter: content".into()),
     };
 
-    let mode = args
-        .get("mode")
-        .and_then(|v| v.as_str())
-        .unwrap_or("all");
+    let mode = args.get("mode").and_then(|v| v.as_str()).unwrap_or("all");
 
     let mut output_parts = Vec::new();
 
@@ -60,10 +54,7 @@ pub(super) fn tool_scan_security(
     text_result(output_parts.join("\n\n"))
 }
 
-pub(super) fn tool_check_command(
-    args: &serde_json::Value,
-    ctx: &SynapseContext,
-) -> ToolCallResult {
+pub(super) fn tool_check_command(args: &serde_json::Value, ctx: &SynapseContext) -> ToolCallResult {
     let command = match args.get("command").and_then(|v| v.as_str()) {
         Some(c) => c,
         None => return error_result("Missing required parameter: command".into()),

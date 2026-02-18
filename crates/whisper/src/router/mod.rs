@@ -247,7 +247,11 @@ pub fn ask_raw(query: &str, ctx: &SynapseContext, raw_injection: bool) -> Whispe
 
 fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> WhisperResult {
     let pipeline_start = Instant::now();
-    info!(query = query, raw = raw_injection, "Whisperer: Processing query");
+    info!(
+        query = query,
+        raw = raw_injection,
+        "Whisperer: Processing query"
+    );
 
     // ── Stage 1: Momentum — read tier + phase, check git staged ────
     let stage_start = Instant::now();
@@ -317,12 +321,21 @@ fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> W
     let max_files = tier.max_unique_files();
     if max_files < usize::MAX {
         let before = state.targets.len();
-        state.targets.retain(|t| !t.file_path.as_deref().is_some_and(is_vendor_path));
+        state
+            .targets
+            .retain(|t| !t.file_path.as_deref().is_some_and(is_vendor_path));
         if state.targets.len() < before {
-            debug!(before, after = state.targets.len(), "Whisper: dropped vendor/static targets");
+            debug!(
+                before,
+                after = state.targets.len(),
+                "Whisper: dropped vendor/static targets"
+            );
         }
         if state.targets.len() > max_files {
-            debug!(before = state.targets.len(), max_files, "Whisper: greedy pruning to max unique-file targets");
+            debug!(
+                before = state.targets.len(),
+                max_files, "Whisper: greedy pruning to max unique-file targets"
+            );
             let mut seen_files = std::collections::HashSet::new();
             state.targets.retain(|t| {
                 let key = t.file_path.as_deref().unwrap_or("");
@@ -339,12 +352,16 @@ fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> W
     let coherence_us = stage_start.elapsed().as_micros() as u64;
     let targets_after_prune = state.targets.len();
 
-    debug!(target_count = state.targets.len(), "Whisperer: Extracted targets");
+    debug!(
+        target_count = state.targets.len(),
+        "Whisperer: Extracted targets"
+    );
 
     // Intent Hardening: if query matched known symbols but intent is General,
     // promote to Explain — the user is asking about specific code entities.
     if state.intent == Intent::General
-        && state.targets
+        && state
+            .targets
             .iter()
             .any(|t| matches!(t.kind, TargetKind::Symbol))
     {
@@ -405,15 +422,13 @@ fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> W
         }
     }
 
-    state.session_hint = ctx
-        .get_extension::<Mutex<FlightRecorder>>()
-        .map(|rec| {
-            let recorder = rec.lock();
-            let (errs, warns, prev_errs, prev_warns) = get_diagnostic_counts(ctx);
-            let snap = recorder.build_metrics_snapshot(errs, warns, prev_errs, prev_warns);
-            let pulse = MomentClassifier::classify(&snap);
-            pulse.session_hint
-        });
+    state.session_hint = ctx.get_extension::<Mutex<FlightRecorder>>().map(|rec| {
+        let recorder = rec.lock();
+        let (errs, warns, prev_errs, prev_warns) = get_diagnostic_counts(ctx);
+        let snap = recorder.build_metrics_snapshot(errs, warns, prev_errs, prev_warns);
+        let pulse = MomentClassifier::classify(&snap);
+        pulse.session_hint
+    });
     let session_us = stage_start.elapsed().as_micros() as u64;
 
     // ── Stage 9: Build smart context ───────────────────────────────
@@ -429,11 +444,14 @@ fn ask_with_options(query: &str, ctx: &SynapseContext, raw_injection: bool) -> W
 
     // ── Stage 10: Finalize — SID + result assembly ─────────────────
     let stage_start = Instant::now();
-    let symbols_found = gathered.code_context.as_ref().map_or(0, |c| c.symbols.len());
+    let symbols_found = gathered
+        .code_context
+        .as_ref()
+        .map_or(0, |c| c.symbols.len());
     let prompt_tokens = (smart_context.len() as f64 / 4.0).max(1.0);
     let sid = symbols_found as f64 / (prompt_tokens / 1000.0);
     let context_bytes = smart_context.len();
-    let context_tokens = (context_bytes + 3) / 4;
+    let context_tokens = context_bytes.div_ceil(4);
     let finalize_us = stage_start.elapsed().as_micros() as u64;
 
     let total_us = pipeline_start.elapsed().as_micros() as u64;

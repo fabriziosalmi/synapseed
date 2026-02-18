@@ -65,7 +65,7 @@ pub(super) fn tool_project_diagnose(ctx: &SynapseContext) -> ToolCallResult {
                    cargo init        # For a Rust project\n\
                    npm init          # For a Node.js project\n\
                  \n\
-                 SYNAPSEED will auto-detect the build system on next scan.\n"
+                 SYNAPSEED will auto-detect the build system on next scan.\n",
             );
         }
         ProjectState::PartialSetup { missing, .. } => {

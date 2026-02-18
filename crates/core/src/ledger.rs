@@ -465,7 +465,9 @@ impl MomentClassifier {
             format!(
                 "Steady rhythm: avg {:.1}s between calls, {} module(s)",
                 avg_interval, distinct_modules
-            ),            &m,        )
+            ),
+            &m,
+        )
     }
 
     /// Compute the recency boost factor for search results.
@@ -498,10 +500,7 @@ impl MomentClassifier {
     ) -> SessionPulse {
         // Build the session hint line
         let error_hint = if snap.active_errors > 0 {
-            format!(
-                " Recent errors detected ({} error(s)).",
-                snap.active_errors
-            )
+            format!(" Recent errors detected ({} error(s)).", snap.active_errors)
         } else {
             String::new()
         };
@@ -511,7 +510,7 @@ impl MomentClassifier {
         } else {
             snap.focus_module
                 .split('/')
-                .last()
+                .next_back()
                 .unwrap_or(&snap.focus_module)
                 .to_string()
         };
@@ -662,7 +661,8 @@ mod tests {
             snap.call_timestamps
                 .push_back(now - Duration::from_secs(i * 3));
             snap.call_tools.push_back("diagnostics".to_string());
-            snap.call_subjects.push_back("crates/core/src/lib.rs".to_string());
+            snap.call_subjects
+                .push_back("crates/core/src/lib.rs".to_string());
             snap.call_modules.push_back("crates/core".to_string());
         }
         snap.active_errors = 7;
@@ -702,7 +702,12 @@ mod tests {
     fn test_architecture_wiring_on_cross_module() {
         let now = Instant::now();
         let mut snap = MetricsSnapshot::default();
-        let modules = ["crates/core", "crates/mcp", "crates/whisper", "crates/search"];
+        let modules = [
+            "crates/core",
+            "crates/mcp",
+            "crates/whisper",
+            "crates/search",
+        ];
         for (i, m) in modules.iter().enumerate() {
             snap.call_timestamps
                 .push_back(now - Duration::from_secs(i as u64 * 20));
@@ -766,14 +771,19 @@ mod tests {
             "crates/husk/src/scanner.rs".to_string(),
             "crates/core/src/lib.rs".to_string(),
         ];
-        assert!((MomentClassifier::recency_boost("scanner", "crates/husk/src/scanner.rs", &ws)
-            - MAX_RECENCY_BOOST).abs() < 0.001);
+        assert!(
+            (MomentClassifier::recency_boost("scanner", "crates/husk/src/scanner.rs", &ws)
+                - MAX_RECENCY_BOOST)
+                .abs()
+                < 0.001
+        );
     }
 
     #[test]
     fn test_recency_boost_no_match() {
         let ws = vec!["crates/husk/src/scanner.rs".to_string()];
-        let boost = MomentClassifier::recency_boost("totally_unknown", "crates/other/src/lib.rs", &ws);
+        let boost =
+            MomentClassifier::recency_boost("totally_unknown", "crates/other/src/lib.rs", &ws);
         assert!((boost - 1.0).abs() < 0.001, "No match should return 1.0");
     }
 
@@ -811,6 +821,9 @@ mod tests {
         let val: serde_json::Value = serde_json::from_str(&json).unwrap();
         assert_eq!(val["moment"], serde_json::json!(pulse.moment));
         assert_eq!(val["needle_range"], pulse.needle_range);
-        assert!(val["session_hint"].as_str().unwrap().contains("[SESSION_HINT]"));
+        assert!(val["session_hint"]
+            .as_str()
+            .unwrap()
+            .contains("[SESSION_HINT]"));
     }
 }

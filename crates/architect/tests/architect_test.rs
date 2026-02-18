@@ -1,6 +1,6 @@
-use synapseed_architect::DependencyGraph;
 use synapseed_architect::blueprint::{self, ReportStore};
 use synapseed_architect::linter::{self, LinterConfig};
+use synapseed_architect::DependencyGraph;
 
 // ── Graph building on real project ──────────────────────────
 

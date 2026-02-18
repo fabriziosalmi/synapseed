@@ -67,6 +67,7 @@ pub enum ProposalStatus {
 
 impl Proposal {
     /// Create a new pending proposal.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         category: ProposalCategory,
         lint_code: &str,
@@ -186,11 +187,7 @@ impl ProposalStore {
             }
             // Second pass: if still over limit, remove oldest pending
             if self.proposals.len() >= MAX_PROPOSALS {
-                if let Some(oldest) = self
-                    .proposals
-                    .iter()
-                    .min_by_key(|p| p.created_at.clone())
-                {
+                if let Some(oldest) = self.proposals.iter().min_by_key(|p| p.created_at.clone()) {
                     let id = oldest.id.clone();
                     drop(oldest);
                     self.proposals.remove(&id);

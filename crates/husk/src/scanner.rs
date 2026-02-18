@@ -162,10 +162,10 @@ impl DlpScanner {
         // "token" in CancellationToken, shutdown_token(), etc. is not a secret.
         let default_whitelist = vec![
             r"(?i)token\s*[:=]\s*[A-Z]\w+".to_string(), // Type assignment (e.g. token: CancellationToken)
-            r"(?i)shutdown_token".to_string(),            // Common Rust async pattern
-            r"127\.0\.0\.1".to_string(),                  // D87: localhost is not PII
-            r"0\.0\.0\.0".to_string(),                    // D87: bind-all is not PII
-            r"(?i)example\.com".to_string(),               // D87: example domains are not PII
+            r"(?i)shutdown_token".to_string(),          // Common Rust async pattern
+            r"127\.0\.0\.1".to_string(),                // D87: localhost is not PII
+            r"0\.0\.0\.0".to_string(),                  // D87: bind-all is not PII
+            r"(?i)example\.com".to_string(),            // D87: example domains are not PII
         ];
         scanner.set_whitelist(&default_whitelist);
 
@@ -273,7 +273,10 @@ impl DlpScanner {
             self.scan_regex_pass(&merged, &mut concat_findings);
             for mut f in concat_findings {
                 // Deduplicate: skip if same rule already found in Pass 2.
-                if findings.iter().any(|existing| existing.rule_name == f.rule_name) {
+                if findings
+                    .iter()
+                    .any(|existing| existing.rule_name == f.rule_name)
+                {
                     continue;
                 }
                 // Offsets don't map to the original content.
@@ -303,8 +306,7 @@ impl DlpScanner {
             return content.to_string();
         }
 
-        let concat_strip =
-            Regex::new(r#"["'`]\s*\+\s*["'`]"#).expect("valid regex");
+        let concat_strip = Regex::new(r#"["'`]\s*\+\s*["'`]"#).expect("valid regex");
 
         // Replace all `" + "` / `' + '` / `` ` + ` `` patterns with empty string,
         // effectively joining the adjacent string literals.
@@ -321,8 +323,12 @@ impl DlpScanner {
                     // Extract the "value" portion after the `=` or `:` separator
                     // for entropy calculation; if no separator, use the whole match.
                     let value_part = matched_text
-                        .find(|c: char| c == '=' || c == ':')
-                        .map(|pos| matched_text[pos + 1..].trim().trim_matches(|c: char| c == '"' || c == '\''))
+                        .find(['=', ':'])
+                        .map(|pos| {
+                            matched_text[pos + 1..]
+                                .trim()
+                                .trim_matches(|c: char| c == '"' || c == '\'')
+                        })
                         .filter(|v| v.len() >= 8)
                         .unwrap_or(matched_text);
                     // D36: Skip entropy gate for URI credential patterns
@@ -331,7 +337,11 @@ impl DlpScanner {
                     // variable name provides sufficient signal.
                     let is_uri = matched_text.contains("://");
                     let entropy = Self::shannon_entropy(value_part);
-                    if !is_uri && !pat.skip_entropy && entropy < self.min_entropy && value_part.len() >= 8 {
+                    if !is_uri
+                        && !pat.skip_entropy
+                        && entropy < self.min_entropy
+                        && value_part.len() >= 8
+                    {
                         debug!(
                             rule = %pat.name,
                             entropy = format!("{:.2}", entropy),
@@ -364,7 +374,10 @@ impl DlpScanner {
         let b64_re = Regex::new(r"[A-Za-z0-9+/]{20,}={0,2}").expect("valid regex");
         for mat in b64_re.find_iter(content) {
             if let Some(decoded) = Self::try_base64_decode(mat.as_str()) {
-                if decoded.chars().all(|c| c.is_ascii_graphic() || c.is_ascii_whitespace()) {
+                if decoded
+                    .chars()
+                    .all(|c| c.is_ascii_graphic() || c.is_ascii_whitespace())
+                {
                     let entropy = Self::shannon_entropy(&decoded);
                     if entropy < self.min_entropy {
                         debug!(
@@ -386,7 +399,10 @@ impl DlpScanner {
             let s = mat.as_str();
             if s.len() % 2 == 0 {
                 if let Some(decoded) = Self::try_hex_decode(s) {
-                    if decoded.chars().all(|c| c.is_ascii_graphic() || c.is_ascii_whitespace()) {
+                    if decoded
+                        .chars()
+                        .all(|c| c.is_ascii_graphic() || c.is_ascii_whitespace())
+                    {
                         let entropy = Self::shannon_entropy(&decoded);
                         if entropy < self.min_entropy {
                             debug!(

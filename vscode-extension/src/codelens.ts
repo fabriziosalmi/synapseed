@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { runSynapseedJson, getProjectRoot } from './cli';
 import { globalCache } from './cache';
 import { log } from './log';
-import { CACHE_TTL } from './constants';
+import { CACHE_TTL, TIMEOUT } from './constants';
 import { AnalyzeResult } from './types';
 
 /**
@@ -85,7 +85,7 @@ export class SynapseedCodeLensProvider implements vscode.CodeLensProvider {
         try {
             const result = await runSynapseedJson<AnalyzeResult>(
                 ['analyze', relPath],
-                { timeoutMs: 10_000, cache: true, cacheTtlMs: CACHE_TTL.ARCHITECTURE },
+                { timeoutMs: TIMEOUT.TELEMETRY, cache: true, cacheTtlMs: CACHE_TTL.ARCHITECTURE },
             );
             if (result) { this.analysisCache.set(relPath, result); }
             return result;

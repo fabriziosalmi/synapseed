@@ -4,6 +4,7 @@ src/**
 node_modules/**
 .gitignore
 tsconfig.json
+PLAN.md
 **/*.map
 **/*.ts
 !out/**/*.js

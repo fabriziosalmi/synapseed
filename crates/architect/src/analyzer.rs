@@ -73,12 +73,7 @@ impl DependencyGraph {
                 .filter(|s| s.kind != SymbolKind::Import)
                 .count();
 
-            let approx_lines = file
-                .symbols
-                .iter()
-                .map(|s| s.line_end)
-                .max()
-                .unwrap_or(0);
+            let approx_lines = file.symbols.iter().map(|s| s.line_end).max().unwrap_or(0);
 
             let function_count = file
                 .symbols
@@ -182,14 +177,8 @@ impl DependencyGraph {
         for (name, &idx) in &self.node_map {
             let node = &self.graph[idx];
 
-            let efferent: usize = self
-                .graph
-                .edges_directed(idx, Direction::Outgoing)
-                .count();
-            let afferent: usize = self
-                .graph
-                .edges_directed(idx, Direction::Incoming)
-                .count();
+            let efferent: usize = self.graph.edges_directed(idx, Direction::Outgoing).count();
+            let afferent: usize = self.graph.edges_directed(idx, Direction::Incoming).count();
 
             let instability = if efferent + afferent == 0 {
                 0.0
@@ -242,10 +231,7 @@ impl DependencyGraph {
             .edge_indices()
             .filter_map(|e| {
                 let (src, tgt) = self.graph.edge_endpoints(e)?;
-                Some((
-                    self.graph[src].name.clone(),
-                    self.graph[tgt].name.clone(),
-                ))
+                Some((self.graph[src].name.clone(), self.graph[tgt].name.clone()))
             })
             .collect()
     }
@@ -350,7 +336,11 @@ fn derive_module_name(file_path: &str) -> String {
     }
 
     // Fallback: use parent dir + stem.
-    if let Some(parent) = path.parent().and_then(|p| p.file_name()).and_then(|s| s.to_str()) {
+    if let Some(parent) = path
+        .parent()
+        .and_then(|p| p.file_name())
+        .and_then(|s| s.to_str())
+    {
         if parent != "src" && parent != "." {
             return format!("{parent}::{stem}");
         }
@@ -470,7 +460,10 @@ mod tests {
             Some("graph".to_string())
         );
         assert_eq!(
-            parse_import_target("use crate::protocol::{ContentBlock, ToolCallResult};", "rust"),
+            parse_import_target(
+                "use crate::protocol::{ContentBlock, ToolCallResult};",
+                "rust"
+            ),
             Some("protocol".to_string())
         );
     }
@@ -489,7 +482,10 @@ mod tests {
 
     #[test]
     fn test_parse_import_rust_external_skipped() {
-        assert_eq!(parse_import_target("use std::collections::HashMap;", "rust"), None);
+        assert_eq!(
+            parse_import_target("use std::collections::HashMap;", "rust"),
+            None
+        );
         assert_eq!(parse_import_target("use serde::Serialize;", "rust"), None);
         assert_eq!(parse_import_target("use tokio::sync::Mutex;", "rust"), None);
     }

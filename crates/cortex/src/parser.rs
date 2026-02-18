@@ -16,7 +16,12 @@ impl AstParser {
     pub fn new() -> Result<Self> {
         let mut parsers = std::collections::HashMap::new();
 
-        for lang in [Language::Rust, Language::Python, Language::JavaScript, Language::TypeScript] {
+        for lang in [
+            Language::Rust,
+            Language::Python,
+            Language::JavaScript,
+            Language::TypeScript,
+        ] {
             let mut parser = tree_sitter::Parser::new();
             parser
                 .set_language(&lang.ts_language()?)
@@ -90,14 +95,19 @@ impl AstParser {
                 Some(("FIXME", pos, trimmed))
             } else if let Some(pos) = trimmed.find("HACK") {
                 Some(("HACK", pos, trimmed))
-            } else { trimmed.find("XXX").map(|pos| ("XXX", pos, trimmed)) };
+            } else {
+                trimmed.find("XXX").map(|pos| ("XXX", pos, trimmed))
+            };
 
             if let Some((tag, _, line_text)) = marker {
                 // Extract the comment text after the marker
                 let signature = line_text.to_string();
                 symbols.push(Symbol {
                     id: SymbolId::new(),
-                    name: format!("{tag}:{}", path.file_name().and_then(|n| n.to_str()).unwrap_or("?")),
+                    name: format!(
+                        "{tag}:{}",
+                        path.file_name().and_then(|n| n.to_str()).unwrap_or("?")
+                    ),
                     kind: SymbolKind::Variable, // reuse Variable kind for markers
                     file_path: String::new(),
                     line_start: line_idx + 1,
@@ -269,7 +279,9 @@ impl AstParser {
 
     fn extract_name(node: tree_sitter::Node, source: &str, lang: Language) -> Option<String> {
         let name_field = match lang {
-            Language::Rust | Language::Python | Language::JavaScript | Language::TypeScript => "name",
+            Language::Rust | Language::Python | Language::JavaScript | Language::TypeScript => {
+                "name"
+            }
             Language::Unknown => return None,
         };
 

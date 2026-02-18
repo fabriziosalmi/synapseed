@@ -213,7 +213,10 @@ fn generate_recommendations(
     let mut priority = 1u32;
 
     // Cycles get highest priority.
-    for v in violations.iter().filter(|v| v.rule == "circular_dependency") {
+    for v in violations
+        .iter()
+        .filter(|v| v.rule == "circular_dependency")
+    {
         recs.push(Recommendation {
             priority,
             category: "decouple".to_string(),

@@ -58,9 +58,7 @@ pub fn scan_clippy(project_path: &Path) -> Result<Vec<ClippyIssue>, crate::Janit
         .current_dir(project_path)
         .env("CARGO_TERM_COLOR", "never")
         .output()
-        .map_err(|e| {
-            crate::JanitorError::Scanner(format!("Failed to run cargo clippy: {e}"))
-        })?;
+        .map_err(|e| crate::JanitorError::Scanner(format!("Failed to run cargo clippy: {e}")))?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -115,7 +113,11 @@ pub fn scan_clippy(project_path: &Path) -> Result<Vec<ClippyIssue>, crate::Janit
         let primary_span = message
             .get("spans")
             .and_then(|s| s.as_array())
-            .and_then(|spans| spans.iter().find(|s| s.get("is_primary") == Some(&serde_json::Value::Bool(true))));
+            .and_then(|spans| {
+                spans
+                    .iter()
+                    .find(|s| s.get("is_primary") == Some(&serde_json::Value::Bool(true)))
+            });
 
         let (file_path, line_start, line_end) = match primary_span {
             Some(span) => (
@@ -123,12 +125,8 @@ pub fn scan_clippy(project_path: &Path) -> Result<Vec<ClippyIssue>, crate::Janit
                     .and_then(|f| f.as_str())
                     .unwrap_or("")
                     .to_string(),
-                span.get("line_start")
-                    .and_then(|l| l.as_u64())
-                    .unwrap_or(0) as u32,
-                span.get("line_end")
-                    .and_then(|l| l.as_u64())
-                    .unwrap_or(0) as u32,
+                span.get("line_start").and_then(|l| l.as_u64()).unwrap_or(0) as u32,
+                span.get("line_end").and_then(|l| l.as_u64()).unwrap_or(0) as u32,
             ),
             None => continue,
         };
@@ -170,9 +168,7 @@ impl ClippyIssue {
 
     /// Get the first MachineApplicable suggestion, if any.
     pub fn auto_fix(&self) -> Option<&Suggestion> {
-        self.suggestions
-            .iter()
-            .find(|s| s.is_machine_applicable())
+        self.suggestions.iter().find(|s| s.is_machine_applicable())
     }
 }
 
@@ -196,9 +192,7 @@ fn extract_suggestions(message: &serde_json::Value) -> Vec<Suggestion> {
         };
 
         for span in spans {
-            let Some(replacement) = span
-                .get("suggested_replacement")
-                .and_then(|r| r.as_str())
+            let Some(replacement) = span.get("suggested_replacement").and_then(|r| r.as_str())
             else {
                 continue;
             };
@@ -215,15 +209,9 @@ fn extract_suggestions(message: &serde_json::Value) -> Vec<Suggestion> {
                 .unwrap_or("")
                 .to_string();
 
-            let byte_start = span
-                .get("byte_start")
-                .and_then(|b| b.as_u64())
-                .unwrap_or(0) as usize;
+            let byte_start = span.get("byte_start").and_then(|b| b.as_u64()).unwrap_or(0) as usize;
 
-            let byte_end = span
-                .get("byte_end")
-                .and_then(|b| b.as_u64())
-                .unwrap_or(0) as usize;
+            let byte_end = span.get("byte_end").and_then(|b| b.as_u64()).unwrap_or(0) as usize;
 
             suggestions.push(Suggestion {
                 message: child_msg.clone(),
@@ -246,9 +234,8 @@ fn extract_suggestions(message: &serde_json::Value) -> Vec<Suggestion> {
 /// imported via `use <crate>::`, `extern crate <crate>`, or `<crate>::`.
 pub fn scan_unused_deps(project_path: &Path) -> Result<Vec<String>, crate::JanitorError> {
     let cargo_toml = project_path.join("Cargo.toml");
-    let content = std::fs::read_to_string(&cargo_toml).map_err(|e| {
-        crate::JanitorError::Scanner(format!("Cannot read Cargo.toml: {e}"))
-    })?;
+    let content = std::fs::read_to_string(&cargo_toml)
+        .map_err(|e| crate::JanitorError::Scanner(format!("Cannot read Cargo.toml: {e}")))?;
 
     // Parse dependency names from [dependencies] section
     let dep_names = parse_dependency_names(&content);
@@ -278,7 +265,10 @@ pub fn scan_unused_deps(project_path: &Path) -> Result<Vec<String>, crate::Janit
     }
 
     if !unused.is_empty() {
-        debug!(count = unused.len(), "Found potentially unused dependencies");
+        debug!(
+            count = unused.len(),
+            "Found potentially unused dependencies"
+        );
     }
 
     Ok(unused)

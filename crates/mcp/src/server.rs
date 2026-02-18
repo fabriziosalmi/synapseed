@@ -139,8 +139,14 @@ fn spawn_recorder_subscriber(ctx: &SynapseContext) {
                                 None,
                             );
                         }
-                        SynapseEvent::AutoFixProposed { file_path, error_code, preview, .. } => {
-                            let detail = format!("{error_code}: {}", &preview[..preview.len().min(80)]);
+                        SynapseEvent::AutoFixProposed {
+                            file_path,
+                            error_code,
+                            preview,
+                            ..
+                        } => {
+                            let detail =
+                                format!("{error_code}: {}", &preview[..preview.len().min(80)]);
                             recorder.lock().record(
                                 EventKind::AutoFixProposed,
                                 file_path,
@@ -148,7 +154,9 @@ fn spawn_recorder_subscriber(ctx: &SynapseContext) {
                                 None,
                             );
                         }
-                        SynapseEvent::AutoFixApplied { file_path, success, .. } => {
+                        SynapseEvent::AutoFixApplied {
+                            file_path, success, ..
+                        } => {
                             let detail = if *success { "applied" } else { "reverted" };
                             recorder.lock().record(
                                 EventKind::AutoFixApplied,
@@ -165,7 +173,10 @@ fn spawn_recorder_subscriber(ctx: &SynapseContext) {
                     }
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                    debug!(skipped = n, "Flight Recorder subscriber lagged, dropped events");
+                    debug!(
+                        skipped = n,
+                        "Flight Recorder subscriber lagged, dropped events"
+                    );
                 }
                 Err(_) => break, // Channel closed
             }
@@ -221,7 +232,8 @@ async fn handle_request(
 
             // D80: Emit "started" progress notification if client sent a token
             if let Some(ref token) = progress_token {
-                let notif = JsonRpcNotification::progress(token.clone(), 0, Some(2), Some("started"));
+                let notif =
+                    JsonRpcNotification::progress(token.clone(), 0, Some(2), Some("started"));
                 if let Ok(json) = serde_json::to_string(&notif) {
                     let mut out = tokio::io::stdout();
                     let _ = out.write_all(json.as_bytes()).await;
@@ -245,10 +257,11 @@ async fn handle_request(
                     // Flight Recorder: record tool call for session memory (D83: include args)
                     if let Some(recorder) = ctx.get_extension::<Mutex<FlightRecorder>>() {
                         // D83: Combine input args + output snippet for full audit trail
-                        let args_summary: String = arguments_for_audit.to_string().chars().take(120).collect();
-                        let result_snippet = result.content.first().and_then(|b| match b {
+                        let args_summary: String =
+                            arguments_for_audit.to_string().chars().take(120).collect();
+                        let result_snippet = result.content.first().map(|b| match b {
                             crate::protocol::ContentBlock::Text { text } => {
-                                Some(text.chars().take(80).collect::<String>())
+                                text.chars().take(80).collect::<String>()
                             }
                         });
                         let detail = Some(format!(
@@ -265,7 +278,12 @@ async fn handle_request(
                     }
                     // D80: Emit "completed" progress notification if client sent a token
                     if let Some(ref token) = progress_token {
-                        let notif = JsonRpcNotification::progress(token.clone(), 2, Some(2), Some("completed"));
+                        let notif = JsonRpcNotification::progress(
+                            token.clone(),
+                            2,
+                            Some(2),
+                            Some("completed"),
+                        );
                         if let Ok(json) = serde_json::to_string(&notif) {
                             let mut out = tokio::io::stdout();
                             let _ = out.write_all(json.as_bytes()).await;
@@ -466,9 +484,7 @@ fn build_instructions(ctx: &SynapseContext) -> String {
             ));
         }
         ProjectState::Unknown => {
-            instructions.push_str(
-                "PROJECT STATE: Unknown. Run `diagnose` first.\n\n",
-            );
+            instructions.push_str("PROJECT STATE: Unknown. Run `diagnose` first.\n\n");
         }
     }
 

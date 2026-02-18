@@ -32,18 +32,18 @@
 //! # }
 //! ```
 
-mod suite;
-mod scoring;
 mod report;
+mod scoring;
+mod suite;
 
-pub use suite::{BenchQuestion, Difficulty, QuestionCategory};
+pub use report::{AggregateMetrics, BenchmarkReport, QuestionResult, ReportMetadata};
 pub use scoring::{score_response, QuestionScore};
-pub use report::{BenchmarkReport, AggregateMetrics, QuestionResult, ReportMetadata};
+pub use suite::{BenchQuestion, Difficulty, QuestionCategory};
 
 use anyhow::{Context, Result};
+use std::time::Instant;
 use synapseed_core::context::SynapseContext;
 use tracing::{info, warn};
-use std::time::Instant;
 
 /// Run a full benchmark suite against the `ask` orchestrator.
 ///
@@ -171,7 +171,7 @@ fn resolve_suite_path(suite_path: &str, ctx: &SynapseContext) -> String {
 
 /// Estimate token count (~4 chars per token, standard approximation).
 fn estimate_tokens(text: &str) -> usize {
-    (text.len() + 3) / 4
+    text.len().div_ceil(4)
 }
 
 /// ISO 8601 timestamp without external deps.
@@ -223,7 +223,7 @@ fn days_to_ymd(mut days: u64) -> (u64, u64, u64) {
 }
 
 fn is_leap(y: u64) -> bool {
-    (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+    (y.is_multiple_of(4) && !y.is_multiple_of(100)) || y.is_multiple_of(400)
 }
 
 /// Compute aggregate metrics across all question results.
@@ -256,9 +256,18 @@ fn compute_aggregate(
     );
 
     // Difficulty breakdown
-    let easy: Vec<_> = results.iter().filter(|r| r.difficulty == Difficulty::Easy).collect();
-    let medium: Vec<_> = results.iter().filter(|r| r.difficulty == Difficulty::Medium).collect();
-    let hard: Vec<_> = results.iter().filter(|r| r.difficulty == Difficulty::Hard).collect();
+    let easy: Vec<_> = results
+        .iter()
+        .filter(|r| r.difficulty == Difficulty::Easy)
+        .collect();
+    let medium: Vec<_> = results
+        .iter()
+        .filter(|r| r.difficulty == Difficulty::Medium)
+        .collect();
+    let hard: Vec<_> = results
+        .iter()
+        .filter(|r| r.difficulty == Difficulty::Hard)
+        .collect();
 
     // Latency stats
     let mean_latency_ms = results.iter().map(|r| r.latency_ms).sum::<f64>() / n;
@@ -278,7 +287,10 @@ fn compute_aggregate(
         hallucination_rate,
         sid_f1_correlation,
         questions_total: total_questions,
-        perfect_scores: results.iter().filter(|r| r.f1 >= 1.0 - f64::EPSILON).count(),
+        perfect_scores: results
+            .iter()
+            .filter(|r| r.f1 >= 1.0 - f64::EPSILON)
+            .count(),
         zero_scores: results.iter().filter(|r| r.f1 < f64::EPSILON).count(),
         easy_mean_f1: mean_f1_of(&easy),
         medium_mean_f1: mean_f1_of(&medium),

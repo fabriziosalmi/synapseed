@@ -77,7 +77,11 @@ fn index_file_and_search_by_name() {
     let index = SemanticIndex::new().unwrap();
     let project_root = Path::new("/nonexistent");
 
-    let file = make_file("src/auth.rs", "authenticate_user", "fn authenticate_user(creds: &Credentials) -> Result<Token>");
+    let file = make_file(
+        "src/auth.rs",
+        "authenticate_user",
+        "fn authenticate_user(creds: &Credentials) -> Result<Token>",
+    );
     let count = index.index_all(&[file], project_root);
     assert_eq!(count, 1, "Should have indexed 1 symbol");
 
@@ -97,10 +101,7 @@ fn index_file_and_search_by_name() {
 fn search_empty_index_returns_zero_results() {
     let index = SemanticIndex::new().unwrap();
     let results = index.search("anything", 10);
-    assert!(
-        results.is_empty(),
-        "Empty index should return zero results"
-    );
+    assert!(results.is_empty(), "Empty index should return zero results");
 }
 
 #[test]
@@ -109,9 +110,21 @@ fn index_multiple_files_and_search() {
     let project_root = Path::new("/nonexistent");
 
     let files = vec![
-        make_file("src/auth.rs", "login", "fn login(user: &str, pass: &str) -> bool"),
-        make_file("src/db.rs", "connect_database", "fn connect_database(url: &str) -> Connection"),
-        make_file("src/api.rs", "handle_request", "fn handle_request(req: Request) -> Response"),
+        make_file(
+            "src/auth.rs",
+            "login",
+            "fn login(user: &str, pass: &str) -> bool",
+        ),
+        make_file(
+            "src/db.rs",
+            "connect_database",
+            "fn connect_database(url: &str) -> Connection",
+        ),
+        make_file(
+            "src/api.rs",
+            "handle_request",
+            "fn handle_request(req: Request) -> Response",
+        ),
     ];
     let count = index.index_all(&files, project_root);
     assert_eq!(count, 3, "Should have indexed 3 symbols");
@@ -137,7 +150,11 @@ fn reindex_same_file_no_duplicates() {
     let index = SemanticIndex::new().unwrap();
     let project_root = Path::new("/nonexistent");
 
-    let file = make_file("src/lib.rs", "process_data", "fn process_data(input: &[u8]) -> Vec<u8>");
+    let file = make_file(
+        "src/lib.rs",
+        "process_data",
+        "fn process_data(input: &[u8]) -> Vec<u8>",
+    );
 
     // Index the file twice using reindex_file (delete + re-add)
     index.index_all(std::slice::from_ref(&file), project_root);
@@ -170,7 +187,10 @@ fn remove_file_from_index() {
 
     // Verify it's indexed
     let results = index.search("temp_function", 10);
-    assert!(!results.is_empty(), "Should find temp_function before removal");
+    assert!(
+        !results.is_empty(),
+        "Should find temp_function before removal"
+    );
 
     // Remove it
     index.remove_file("src/temp.rs");
@@ -205,9 +225,21 @@ fn index_file_with_multiple_symbols() {
         "src/service.rs",
         vec![
             ("UserService", SymbolKind::Struct, "struct UserService"),
-            ("create_user", SymbolKind::Method, "fn create_user(&self, name: &str) -> User"),
-            ("delete_user", SymbolKind::Method, "fn delete_user(&self, id: u64) -> bool"),
-            ("list_users", SymbolKind::Method, "fn list_users(&self) -> Vec<User>"),
+            (
+                "create_user",
+                SymbolKind::Method,
+                "fn create_user(&self, name: &str) -> User",
+            ),
+            (
+                "delete_user",
+                SymbolKind::Method,
+                "fn delete_user(&self, id: u64) -> bool",
+            ),
+            (
+                "list_users",
+                SymbolKind::Method,
+                "fn list_users(&self) -> Vec<User>",
+            ),
         ],
     );
 
@@ -217,5 +249,8 @@ fn index_file_with_multiple_symbols() {
     std::thread::sleep(std::time::Duration::from_millis(700));
 
     let results = index.search("create_user", 10);
-    assert!(!results.is_empty(), "Search for 'create_user' should return results");
+    assert!(
+        !results.is_empty(),
+        "Search for 'create_user' should return results"
+    );
 }

@@ -109,12 +109,24 @@ pub(super) fn prune_noise(source: &str, file_ext: &str) -> String {
 pub(super) fn is_log_statement(trimmed: &str) -> bool {
     // Rust: macro-based logging
     for prefix in [
-        "debug!(", "info!(", "warn!(", "error!(", "trace!(",
-        "println!(", "eprintln!(", "dbg!(",
-        "tracing::debug!(", "tracing::info!(", "tracing::warn!(",
-        "tracing::error!(", "tracing::trace!(",
-        "log::debug!(", "log::info!(", "log::warn!(",
-        "log::error!(", "log::trace!(",
+        "debug!(",
+        "info!(",
+        "warn!(",
+        "error!(",
+        "trace!(",
+        "println!(",
+        "eprintln!(",
+        "dbg!(",
+        "tracing::debug!(",
+        "tracing::info!(",
+        "tracing::warn!(",
+        "tracing::error!(",
+        "tracing::trace!(",
+        "log::debug!(",
+        "log::info!(",
+        "log::warn!(",
+        "log::error!(",
+        "log::trace!(",
     ] {
         if trimmed.starts_with(prefix) {
             return true;
@@ -123,9 +135,15 @@ pub(super) fn is_log_statement(trimmed: &str) -> bool {
 
     // Python: logger.method() / logging.method()
     for obj in ["logger.", "logging.", "log."] {
-        if trimmed.starts_with(obj) {
-            let after = &trimmed[obj.len()..];
-            for method in ["debug(", "info(", "warning(", "error(", "critical(", "exception("] {
+        if let Some(after) = trimmed.strip_prefix(obj) {
+            for method in [
+                "debug(",
+                "info(",
+                "warning(",
+                "error(",
+                "critical(",
+                "exception(",
+            ] {
                 if after.starts_with(method) {
                     return true;
                 }
@@ -139,8 +157,7 @@ pub(super) fn is_log_statement(trimmed: &str) -> bool {
     }
 
     // JavaScript/TypeScript: console.*()
-    if trimmed.starts_with("console.") {
-        let after = &trimmed["console.".len()..];
+    if let Some(after) = trimmed.strip_prefix("console.") {
         for method in ["log(", "error(", "warn(", "debug(", "info(", "trace("] {
             if after.starts_with(method) {
                 return true;
@@ -156,7 +173,11 @@ pub(super) fn is_log_statement(trimmed: &str) -> bool {
 /// Budgets are derived from `ModelTier::source_char_budget()` (Context
 /// Budgeting v5.0).  Critical symbols get a dedicated pool from
 /// `ModelTier::critical_char_budget()` so they don't starve the shared pool.
-pub(in crate::router) fn inject_raw_sources(targets: &[Target], ctx: &SynapseContext, tier: ModelTier) -> Vec<RawSource> {
+pub(in crate::router) fn inject_raw_sources(
+    targets: &[Target],
+    ctx: &SynapseContext,
+    tier: ModelTier,
+) -> Vec<RawSource> {
     let char_budget: usize = tier.source_char_budget();
     let critical_budget: usize = tier.critical_char_budget();
     let min_lines: usize = tier.min_source_lines();
@@ -183,10 +204,14 @@ pub(in crate::router) fn inject_raw_sources(targets: &[Target], ctx: &SynapseCon
                 // Pulse tiebreaker: at equal search score, prefer files
                 // the user has been working with recently.
                 let pa = pulse.as_ref().map_or(0.0, |p| {
-                    a.file_path.as_deref().map_or(0.0, |fp| p.score_of(COUNTER_FILE_TOUCHED, fp) as f32)
+                    a.file_path
+                        .as_deref()
+                        .map_or(0.0, |fp| p.score_of(COUNTER_FILE_TOUCHED, fp) as f32)
                 });
                 let pb = pulse.as_ref().map_or(0.0, |p| {
-                    b.file_path.as_deref().map_or(0.0, |fp| p.score_of(COUNTER_FILE_TOUCHED, fp) as f32)
+                    b.file_path
+                        .as_deref()
+                        .map_or(0.0, |fp| p.score_of(COUNTER_FILE_TOUCHED, fp) as f32)
                 });
                 // Blend: search score + configurable pulse bonus (#67)
                 let pw = ctx.dna().context.pulse_blend_weight;
@@ -282,7 +307,9 @@ pub(in crate::router) fn inject_raw_sources(targets: &[Target], ctx: &SynapseCon
         // For very large functions, a truncated view is better than nothing.
         // Critical symbols use a DEDICATED budget pool (v4.19.1) so they don't
         // compete with or starve normal symbols. Normal symbols use the shared pool.
-        let is_critical = critical_symbols.iter().any(|c| target.name.contains(c.as_str()));
+        let is_critical = critical_symbols
+            .iter()
+            .any(|c| target.name.contains(c.as_str()));
         let snippet = if is_critical {
             if critical_used + snippet.len() > critical_budget {
                 // Even critical symbols have a ceiling to prevent one massive
@@ -460,7 +487,10 @@ mod tests {
         let pruned = prune_noise(source, "rs");
         // 3 consecutive logs → only 1 "// ..." marker
         let marker_count = pruned.matches("// ...").count();
-        assert_eq!(marker_count, 1, "Should collapse consecutive logs: {pruned}");
+        assert_eq!(
+            marker_count, 1,
+            "Should collapse consecutive logs: {pruned}"
+        );
         assert!(pruned.contains("let db = connect();"));
     }
 

@@ -13,15 +13,9 @@ pub(super) fn tool_train_code(args: &serde_json::Value) -> ToolCallResult {
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
-    let timeout = args
-        .get("timeout")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(60);
+    let timeout = args.get("timeout").and_then(|v| v.as_u64()).unwrap_or(60);
 
-    let fuzz = args
-        .get("fuzz")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
+    let fuzz = args.get("fuzz").and_then(|v| v.as_bool()).unwrap_or(false);
 
     let adversarial = args
         .get("adversarial")

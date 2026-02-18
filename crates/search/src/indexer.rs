@@ -78,26 +78,24 @@ impl SemanticIndex {
         }
 
         let (index, fields) = match Index::open_in_dir(index_dir) {
-            Ok(idx) => {
-                match fields_from_schema(&idx.schema()) {
-                    Some(recovered) => {
-                        info!("Search: Opened existing disk index");
-                        (idx, recovered)
-                    }
-                    None => {
-                        warn!("Search: Schema mismatch (v4.11+ migration), recreating disk index");
-                        drop(idx);
-                        let _ = std::fs::remove_dir_all(index_dir);
-                        std::fs::create_dir_all(index_dir).map_err(|e| {
-                            tantivy::TantivyError::SystemError(format!(
-                                "Failed to recreate index directory: {e}"
-                            ))
-                        })?;
-                        let idx = Index::create_in_dir(index_dir, schema)?;
-                        (idx, fields)
-                    }
+            Ok(idx) => match fields_from_schema(&idx.schema()) {
+                Some(recovered) => {
+                    info!("Search: Opened existing disk index");
+                    (idx, recovered)
                 }
-            }
+                None => {
+                    warn!("Search: Schema mismatch (v4.11+ migration), recreating disk index");
+                    drop(idx);
+                    let _ = std::fs::remove_dir_all(index_dir);
+                    std::fs::create_dir_all(index_dir).map_err(|e| {
+                        tantivy::TantivyError::SystemError(format!(
+                            "Failed to recreate index directory: {e}"
+                        ))
+                    })?;
+                    let idx = Index::create_in_dir(index_dir, schema)?;
+                    (idx, fields)
+                }
+            },
             Err(_) => {
                 info!("Search: Creating new disk index");
                 let idx = Index::create_in_dir(index_dir, schema)?;
@@ -183,7 +181,9 @@ impl SemanticIndex {
                     self.fields.schema_version => SCHEMA_VERSION,
                 )) {
                     Ok(_) => count += 1,
-                    Err(e) => warn!(error = %e, file = rel_path, "Search: Failed to index metadata file"),
+                    Err(e) => {
+                        warn!(error = %e, file = rel_path, "Search: Failed to index metadata file")
+                    }
                 }
             }
         }
@@ -244,7 +244,9 @@ impl SemanticIndex {
                     self.fields.schema_version => SCHEMA_VERSION,
                 )) {
                     Ok(_) => count += 1,
-                    Err(e) => warn!(error = %e, symbol = %sym.name, "Search: Failed to add document"),
+                    Err(e) => {
+                        warn!(error = %e, symbol = %sym.name, "Search: Failed to add document")
+                    }
                 }
             }
         }
@@ -515,9 +517,12 @@ impl SemanticIndex {
             // When a query term exactly matches the symbol name (case-insensitive),
             // boost heavily. "ask" → should rank `ask` above `ask_with_options`.
             let sym_lower = symbol_name.to_ascii_lowercase();
-            let exact_match = if query_terms_lower.iter().any(|t| *t == sym_lower) {
+            let exact_match = if query_terms_lower.contains(&sym_lower) {
                 1.0
-            } else if query_terms_lower.iter().any(|t| sym_lower.starts_with(t.as_str())) {
+            } else if query_terms_lower
+                .iter()
+                .any(|t| sym_lower.starts_with(t.as_str()))
+            {
                 0.3 // Prefix match: weaker signal but still useful
             } else {
                 0.0
@@ -585,7 +590,10 @@ impl SemanticIndex {
         }
 
         // Min-max normalize BM25 across result set
-        let min_bm25 = candidates.iter().map(|c| c.bm25).fold(f32::INFINITY, f32::min);
+        let min_bm25 = candidates
+            .iter()
+            .map(|c| c.bm25)
+            .fold(f32::INFINITY, f32::min);
         let max_bm25 = candidates
             .iter()
             .map(|c| c.bm25)
@@ -671,15 +679,21 @@ impl SemanticIndex {
             let path_match = if query_terms_lower.is_empty() {
                 0.0
             } else {
-                query_terms_lower.iter().filter(|t| path_lower.contains(&**t)).count() as f32
+                query_terms_lower
+                    .iter()
+                    .filter(|t| path_lower.contains(&**t))
+                    .count() as f32
                     / query_terms_lower.len() as f32
             };
 
             // Exact name match
             let sym_lower = r.symbol.to_ascii_lowercase();
-            let exact_match = if query_terms_lower.iter().any(|t| *t == sym_lower) {
+            let exact_match = if query_terms_lower.contains(&sym_lower) {
                 1.0
-            } else if query_terms_lower.iter().any(|t| sym_lower.starts_with(t.as_str())) {
+            } else if query_terms_lower
+                .iter()
+                .any(|t| sym_lower.starts_with(t.as_str()))
+            {
                 0.3
             } else {
                 0.0
@@ -747,7 +761,10 @@ impl SemanticIndex {
             .map(|term| {
                 let t = Term::from_field_text(self.fields.symbol_name, &term.to_lowercase());
                 let fuzzy = FuzzyTermQuery::new(t, 1, true);
-                (Occur::Should, Box::new(fuzzy) as Box<dyn tantivy::query::Query>)
+                (
+                    Occur::Should,
+                    Box::new(fuzzy) as Box<dyn tantivy::query::Query>,
+                )
             })
             .collect();
 
@@ -875,9 +892,8 @@ pub fn extract_doc_comment(source: &str, line_start: usize) -> String {
             }
         } else if trimmed.starts_with('#') {
             break;
-        } else if trimmed.is_empty() && !doc_lines.is_empty() {
-            break;
-        } else if !trimmed.is_empty() {
+        } else if !trimmed.is_empty() || !doc_lines.is_empty() {
+            // Non-doc line found, or blank line after collecting some docs → stop.
             break;
         }
 
@@ -898,7 +914,9 @@ fn extract_body_snippet(source: &str, line_start: usize, line_end: usize) -> Str
     }
     let start = line_start.saturating_sub(1);
     let total_body = line_end.saturating_sub(line_start) + 1;
-    let end_idx = line_end.saturating_sub(1).min(lines.len().saturating_sub(1));
+    let end_idx = line_end
+        .saturating_sub(1)
+        .min(lines.len().saturating_sub(1));
 
     if total_body <= 40 {
         // Small function: capture all of it (up to 40 lines)
@@ -923,7 +941,7 @@ fn extract_body_snippet(source: &str, line_start: usize, line_end: usize) -> Str
             snippet.push('\n');
             snippet.push_str(&lines[start..sig_end].join("\n"));
             snippet.push_str("\n    // ... [complete item list in REGISTRY comment above]");
-            snippet.push_str("\n");
+            snippet.push('\n');
             snippet.push_str(closing.trim());
             return snippet;
         }
@@ -939,7 +957,7 @@ fn extract_body_snippet(source: &str, line_start: usize, line_end: usize) -> Str
             snippet.push('\n');
             snippet.push_str(&lines[start..sig_end].join("\n"));
             snippet.push_str("\n    // ... [complete variant list in ENUM comment above]");
-            snippet.push_str("\n");
+            snippet.push('\n');
             snippet.push_str(closing.trim());
             return snippet;
         }
@@ -984,7 +1002,7 @@ fn extract_enum_variant_summary(body: &[&str]) -> Option<String> {
             .take_while(|c| c.is_alphanumeric() || *c == '_')
             .collect();
         if !name.is_empty()
-            && name.chars().next().map_or(false, |c| c.is_uppercase())
+            && name.chars().next().is_some_and(|c| c.is_uppercase())
             && seen.insert(name.clone())
         {
             variants.push(name);
@@ -1169,7 +1187,12 @@ pub fn authenticate_user(credentials: &Credentials) -> Result<Token> {
         // Simulate a registry function with 12 name: "..." entries
         let mut lines = vec!["pub fn list_tools() -> Vec<ToolDefinition> {", "    vec!["];
         let tool_names: Vec<String> = (1..=12)
-            .map(|i| format!("        ToolDefinition {{ name: \"tool{}\".into(), .. }}", i))
+            .map(|i| {
+                format!(
+                    "        ToolDefinition {{ name: \"tool{}\".into(), .. }}",
+                    i
+                )
+            })
             .collect();
         let tool_lines: Vec<&str> = tool_names.iter().map(|s| s.as_str()).collect();
         lines.extend_from_slice(&tool_lines);
@@ -1177,9 +1200,15 @@ pub fn authenticate_user(credentials: &Credentials) -> Result<Token> {
         lines.push("}");
 
         let summary = extract_registry_summary(&lines);
-        assert!(summary.is_some(), "Should detect registry pattern with 12 entries");
+        assert!(
+            summary.is_some(),
+            "Should detect registry pattern with 12 entries"
+        );
         let s = summary.unwrap();
-        assert!(s.contains("REGISTRY: 12 items"), "Should report 12 items, got: {s}");
+        assert!(
+            s.contains("REGISTRY: 12 items"),
+            "Should report 12 items, got: {s}"
+        );
         for i in 1..=12 {
             assert!(s.contains(&format!("tool{i}")), "Should list tool{i}");
         }
@@ -1193,13 +1222,19 @@ pub fn authenticate_user(credentials: &Credentials) -> Result<Token> {
             "    name: \"b\".into(),",
             "}",
         ];
-        assert!(extract_registry_summary(&lines).is_none(), "Should not trigger for <10 entries");
+        assert!(
+            extract_registry_summary(&lines).is_none(),
+            "Should not trigger for <10 entries"
+        );
     }
 
     #[test]
     fn test_extract_body_snippet_with_registry_compact() {
         // Build a >40 line function with 15 name: entries
-        let mut source_lines = vec!["header".to_string(), "pub fn list_tools() -> Vec<X> {".to_string()];
+        let mut source_lines = vec![
+            "header".to_string(),
+            "pub fn list_tools() -> Vec<X> {".to_string(),
+        ];
         for i in 1..=15 {
             source_lines.push(format!("    Item {{ name: \"item{i}\".into() }},"));
             source_lines.push("    // filler line".to_string());
@@ -1210,14 +1245,23 @@ pub fn authenticate_user(credentials: &Credentials) -> Result<Token> {
 
         // line_start=2, line_end = total lines
         let snippet = extract_body_snippet(&source, 2, source_lines.len());
-        assert!(snippet.contains("REGISTRY: 15 items"), "Snippet should contain registry summary, got: {snippet}");
+        assert!(
+            snippet.contains("REGISTRY: 15 items"),
+            "Snippet should contain registry summary, got: {snippet}"
+        );
         // Compact format: all items listed in the REGISTRY header
         assert!(snippet.contains("item1"));
         assert!(snippet.contains("item15"));
         // Should NOT contain the sandwich separator — compact format replaces it
-        assert!(!snippet.contains("// ...\n"), "Registry snippet should use compact format, not sandwich. Got: {snippet}");
+        assert!(
+            !snippet.contains("// ...\n"),
+            "Registry snippet should use compact format, not sandwich. Got: {snippet}"
+        );
         // Should contain the closing brace
-        assert!(snippet.contains("}"), "Snippet should include closing delimiter");
+        assert!(
+            snippet.contains("}"),
+            "Snippet should include closing delimiter"
+        );
     }
 
     #[test]
@@ -1232,7 +1276,13 @@ pub fn authenticate_user(credentials: &Credentials) -> Result<Token> {
 
         let snippet = extract_body_snippet(&source, 1, source_lines.len());
         // Non-registry should still use sandwich
-        assert!(snippet.contains("// ..."), "Non-registry large function should use sandwich, got: {snippet}");
-        assert!(!snippet.contains("REGISTRY"), "No registry header for non-registry function");
+        assert!(
+            snippet.contains("// ..."),
+            "Non-registry large function should use sandwich, got: {snippet}"
+        );
+        assert!(
+            !snippet.contains("REGISTRY"),
+            "No registry header for non-registry function"
+        );
     }
 }

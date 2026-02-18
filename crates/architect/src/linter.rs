@@ -196,8 +196,11 @@ pub(crate) fn detect_god_objects(
                     format!(
                         "🚨 {} is a God Object — ~{} lines with {} modules depending on it \
                          (limits: {} lines, {} dependents). It's doing too much.",
-                        m.module_name, node.approx_lines, m.fan_in,
-                        thresholds.max_lines, thresholds.min_fan_in
+                        m.module_name,
+                        node.approx_lines,
+                        m.fan_in,
+                        thresholds.max_lines,
+                        thresholds.min_fan_in
                     )
                 };
 

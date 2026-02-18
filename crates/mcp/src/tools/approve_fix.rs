@@ -4,7 +4,6 @@
 //! (or the LLM) preview and approve them.  Matches the Janitor's
 //! propose-then-confirm pattern for consistency.
 
-
 use synapseed_core::context::SynapseContext;
 use synapseed_core::event::SynapseEvent;
 use synapseed_janitor::proposal::ProposalStore;
@@ -18,10 +17,7 @@ use crate::notification_sink::{Notification, NotificationSink};
 /// Params:
 /// - `proposal_id` (required): UUID of the proposal to approve.
 /// - `confirm` (optional, default false): if false, returns a preview (dry-run).
-pub(super) fn tool_approve_fix(
-    args: &serde_json::Value,
-    ctx: &SynapseContext,
-) -> ToolCallResult {
+pub(super) fn tool_approve_fix(args: &serde_json::Value, ctx: &SynapseContext) -> ToolCallResult {
     let proposal_id = match args.get("proposal_id").and_then(|v| v.as_str()) {
         Some(id) => id,
         None => return error_result("Missing required parameter: proposal_id".into()),
@@ -98,7 +94,11 @@ pub(super) fn tool_approve_fix(
         Err(e) => {
             // Fix failed (reverted automatically by DiagnosticStore)
             if let Some(sink) = ctx.get_extension::<NotificationSink>() {
-                sink.send(Notification::auto_fix_applied(proposal_id, file_path, false));
+                sink.send(Notification::auto_fix_applied(
+                    proposal_id,
+                    file_path,
+                    false,
+                ));
             }
 
             ctx.broadcast(SynapseEvent::AutoFixApplied {
