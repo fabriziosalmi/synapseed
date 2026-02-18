@@ -188,7 +188,7 @@ python run.py search
 
 Results are saved as JSON in `benchmark/results/` and can be visualized in the VS Code extension's Benchmark Results panel.
 
-### Model Tier — Context Budgeting (v5.0)
+### Model Tier — Context Budgeting
 
 SYNAPSEED adapts context injection to the downstream model's capacity. All budgets derive from a single `token_budget()` parameter:
 
