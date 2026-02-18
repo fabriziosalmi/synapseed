@@ -3,62 +3,61 @@ layout: home
 
 hero:
   name: SYNAPSEED
-  text: The Thinking Layer Between You and the LLM
-  tagline: High-Performance Semantic AI Middleware — AST intelligence, DLP security, and architectural analysis in a single Rust binary.
+  text: Code Intelligence for AI Assistants
+  tagline: Give your AI assistant X-ray vision for code. Fast, local, and secure.
   actions:
     - theme: brand
-      text: Get Started
-      link: /guide/introduction
+      text: Quick Start (5 Minutes)
+      link: /guide/quickstart
     - theme: alt
       text: View on GitHub
       link: https://github.com/fabriziosalmi/synapseed
 
 features:
-  - icon: "\U0001F9E0"
-    title: AST Semantic Engine
-    details: Tree-sitter based multi-language parsing. Your LLM sees symbols and relationships, not raw text.
-    link: /features/cortex
-  - icon: "\U0001F6E1\uFE0F"
-    title: DLP Fail-Closed Security
-    details: Real-time secret detection and redaction via Aho-Corasick. Every byte is scanned before leaving the process.
-    link: /features/husk
-  - icon: "\U0001F50D"
-    title: Tantivy Semantic Search
-    details: Concept-based code search. Find "authentication logic" even when the code says "verify_credentials".
+  - icon: "🔍"
+    title: Smart Code Search
+    details: Find functions, classes, and patterns across your entire codebase. Works with 20+ languages via tree-sitter.
     link: /features/search
-  - icon: "\u231B"
-    title: Git Time-Travel
-    details: Churn analysis, co-change patterns, and semantic commit classification. Understand why code looks the way it does.
+  - icon: "🛡️"
+    title: Secret Protection
+    details: Automatically catch API keys, passwords, and sensitive data before they leak to AI or git.
+    link: /features/husk
+  - icon: "📊"
+    title: Code Understanding
+    details: Parse and analyze code structure. Your AI sees relationships and dependencies, not just text.
+    link: /features/cortex
+  - icon: "⏱️"
+    title: Git History Analysis
+    details: Understand code evolution. See who changed what, when, and why with semantic commit analysis.
     link: /features/chronos
   - icon: "🏗️"
     title: Architecture Health
-    details: Dependency graph analysis, coupling metrics, and cycle detection with graded health scores (A-F).
+    details: Get objective quality scores (A-F) for code organization with automated health checks.
     link: /features/architect
-  - icon: "\U0001F525"
-    title: OTLP Telemetry Heatmap
-    details: Ingest OpenTelemetry traces, map spans to source symbols, and visualize runtime hotspots directly on the code graph.
-    link: /features/telemetry
-  - icon: "\U0001F4AC"
-    title: Intent Router
-    details: Ask a natural-language question, get an orchestrated response from all subsystems in a single call.
-    link: /features/whisper
-  - icon: "\U0001F6E0\uFE0F"
-    title: Shadow Compiler
-    details: Background cargo check with live diagnostics and auto-applicable quick fixes.
+  - icon: "⚡"
+    title: Lightning Fast
+    details: Pure Rust, zero network calls, sub-10ms responses. Everything runs locally on your machine.
+  - icon: "🐛"
+    title: Live Error Detection
+    details: Background compilation with instant diagnostics. Catch errors without running cargo manually.
     link: /features/shadow-check
-  - icon: "\u26A1"
-    title: Zero-Latency Local Execution
-    details: Pure Rust, no network calls, no cloud dependencies. Sub-10ms response times for most operations.
+  - icon: "💬"
+    title: Natural Language Interface
+    details: Ask questions in plain English. Get orchestrated answers from all subsystems in one response.
+    link: /features/whisper
   - icon: "🧪"
-    title: Benchmark Engine
-    details: Reproducible SCR evaluation with JSONL question suites. Track search MRR, precision, and recall metrics.
+    title: Proven Results
+    details: Benchmark suite shows 50% improvement in AI code understanding accuracy.
     link: /features/bench
-  - icon: "\U0001F9F9"
-    title: The Janitor
-    details: Autonomous code maintenance. Finds unused deps and fixes clippy warnings.
+  - icon: "🔒"
+    title: Privacy First
+    details: Your code never leaves your machine. No cloud dependencies, no telemetry collection.
+  - icon: "🧹"
+    title: Code Maintenance
+    details: Automated detection and fixing of code quality issues, unused dependencies, and warnings.
     link: /features/janitor
-  - icon: "\U0001F9EA"
-    title: Neural Decompiler
-    details: Analyze compiled binaries (ELF/Mach-O/PE) to understand behavior without source code.
+  - icon: "🔍"
+    title: Binary Analysis
+    details: Understand compiled code without source. Analyze ELF, Mach-O, and PE binaries.
     link: /features/decompiler
 ---

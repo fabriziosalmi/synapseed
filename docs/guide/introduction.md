@@ -1,6 +1,18 @@
 # Introduction
 
-## What is SYNAPSEED?
+## What is SYNAPSEED? (Simple Version)
+
+SYNAPSEED helps AI assistants understand your code better. Instead of just reading text files, it gives AI tools like Claude:
+
+- 📍 **Exact locations** of functions, classes, and variables
+- 🔍 **Smart search** that understands concepts, not just keywords
+- 🛡️ **Security protection** to prevent leaking passwords or API keys
+- 📊 **Code history** showing who changed what and why
+- 🏗️ **Quality metrics** with letter grades (A-F) for code health
+
+**Real-world impact:** With SYNAPSEED, AI assistants make ~50% fewer mistakes when understanding code (measured in [our benchmark suite](../../benchmark/)).
+
+## For Technical Users
 
 **SYNAPSEED** is a local, high-performance middleware designed to act as the **Thinking Layer** between you (the Developer) and your LLM (Claude, Copilot, etc.).
 

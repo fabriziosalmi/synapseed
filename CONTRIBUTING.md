@@ -1,6 +1,18 @@
 # Contributing to SYNAPSEED
 
-Thank you for your interest in contributing to SYNAPSEED. This guide covers the setup, workflow, and standards for contributions.
+Thank you for your interest in contributing! This guide will help you get started, whether you're fixing a typo or adding a major feature.
+
+## 🚀 Quick Start for New Contributors
+
+**Never contributed to open source before?** No problem!
+
+1. Check out [GOOD_FIRST_ISSUES.md](GOOD_FIRST_ISSUES.md) for beginner-friendly tasks
+2. Pick something that interests you
+3. Follow the steps below to submit your changes
+
+**Already familiar with open source?** Jump straight to [Development Workflow](#development-workflow).
+
+---
 
 ## Prerequisites
 
