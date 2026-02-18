@@ -1,4 +1,52 @@
-# Synapseed: Technical Q&A
+# Synapseed: Q&A
+
+## For Everyone (Simple Questions)
+
+### What is Synapseed in one sentence?
+Synapseed is a tool that helps AI assistants like Claude understand your code better by giving them structured information instead of just raw text files.
+
+### Do I need to know Rust to use Synapseed?
+No! You can use Synapseed with any programming language (Rust, Python, JavaScript, Go, etc.). You only need Rust installed to *build* Synapseed itself.
+
+### Is my code safe? Does it get sent to the cloud?
+Yes, it's completely safe. Synapseed runs entirely on your machine with **zero network calls**. Your code never leaves your computer.
+
+### What's the difference between Synapseed and just using ChatGPT/Claude?
+Without Synapseed, AI assistants read code as plain text and can make mistakes about structure and relationships. With Synapseed, they get:
+- Exact locations of functions and classes
+- Security scanning to prevent secret leaks
+- Git history to understand why code exists
+- Architecture metrics for code quality
+
+It's like the difference between reading a book vs. having an index, table of contents, and annotations.
+
+### How long does it take to set up?
+About 5 minutes for installation, then it's ready to use. See [FIRST_5_MINUTES.md](FIRST_5_MINUTES.md) for a hands-on guide.
+
+### Does it work with VS Code / Cursor / other editors?
+Yes! Synapseed uses the Model Context Protocol (MCP), which works with:
+- Claude Desktop
+- VS Code (via extension)
+- Cursor
+- Any MCP-compatible AI tool
+
+### Will it slow down my editor?
+No. Synapseed runs as a separate process and most operations complete in under 10 milliseconds. You won't notice any lag.
+
+### Can I try it without installing?
+Synapseed runs locally, so you need to install it. However, installation is a single `cargo install` command and takes ~2 minutes.
+
+### What if I find a bug or have a question?
+- 🐛 **Bugs:** Open a [GitHub Issue](https://github.com/fabriziosalmi/synapseed/issues)
+- 💬 **Questions:** Start a [GitHub Discussion](https://github.com/fabriziosalmi/synapseed/discussions)
+- 📖 **Documentation:** Check the [docs/](docs/) folder
+
+### How can I contribute?
+Start with [GOOD_FIRST_ISSUES.md](GOOD_FIRST_ISSUES.md) for beginner-friendly tasks. Contributions of all kinds welcome!
+
+---
+
+## For Developers (Technical Questions)
 
 **Synapseed** is an open-source middleware developed in Rust, designed to act as a logical layer between users and Large Language Models (LLMs) during programming.
 
