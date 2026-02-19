@@ -20,7 +20,7 @@ SYNAPSEED is a **code analysis tool** that provides AI assistants (like Claude) 
 - 🏗️ **Measure code health** - Get architecture quality scores and identify coupling issues
 - 🐛 **Live error detection** - Background compilation with instant diagnostics
 
-**In Plain English:** Think of it as giving your AI assistant X-ray vision for code. Instead of just seeing text files, it understands structure, relationships, and history.
+Think of it as giving your AI assistant X-ray vision for code. Instead of just seeing text files, it understands structure, relationships, and history.
 
 ### Real-World Examples
 
