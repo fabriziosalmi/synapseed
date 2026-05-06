@@ -57,3 +57,6 @@ benchmark/targets/*/
 benchmark/results/*.json
 __pycache__/
 vscode-extension/PLAN.md
+
+# Workspace settings - 2026-05-07
+tmp/
