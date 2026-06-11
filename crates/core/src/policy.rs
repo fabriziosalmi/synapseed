@@ -14,6 +14,7 @@ pub enum PolicyAction {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DlpRule {
     pub name: String,
+    #[serde(deserialize_with = "validate_non_empty")]
     pub pattern: String,
     pub action: PolicyAction,
 }
@@ -21,6 +22,7 @@ pub struct DlpRule {
 /// A command execution policy rule for the SSH sentinel.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CommandRule {
+    #[serde(deserialize_with = "validate_non_empty")]
     pub pattern: String,
     pub action: PolicyAction,
     pub description: Option<String>,
@@ -42,6 +44,18 @@ pub struct SecurityPolicy {
 
 fn default_true() -> bool {
     true
+}
+
+fn validate_non_empty<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    if s.is_empty() {
+        Err(serde::de::Error::custom("pattern must not be empty"))
+    } else {
+        Ok(s)
+    }
 }
 
 impl Default for SecurityPolicy {
@@ -114,5 +128,33 @@ mod tests {
         let policy: SecurityPolicy = serde_json::from_str(json).unwrap();
         assert!(policy.fail_closed);
         assert!(policy.dlp_rules.is_empty());
+    }
+
+    #[test]
+    fn dlp_rule_rejects_empty_pattern() {
+        let json = r#"{"name":"test","pattern":"","action":"deny"}"#;
+        let result: Result<DlpRule, _> = serde_json::from_str(json);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn command_rule_rejects_empty_pattern() {
+        let json = r#"{"pattern":"","action":"allow"}"#;
+        let result: Result<CommandRule, _> = serde_json::from_str(json);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn dlp_rule_accepts_nonempty_pattern() {
+        let json = r#"{"name":"test","pattern":".*","action":"deny"}"#;
+        let rule: DlpRule = serde_json::from_str(json).unwrap();
+        assert_eq!(rule.pattern, ".*");
+    }
+
+    #[test]
+    fn command_rule_accepts_nonempty_pattern() {
+        let json = r#"{"pattern":"ls","action":"allow"}"#;
+        let rule: CommandRule = serde_json::from_str(json).unwrap();
+        assert_eq!(rule.pattern, "ls");
     }
 }
