@@ -96,8 +96,14 @@ pub fn spawn_notification_sink() -> NotificationSink {
                         warn!(error = %e, "NotificationSink: stdout write failed");
                         break;
                     }
-                    let _ = stdout.write_all(b"\n").await;
-                    let _ = stdout.flush().await;
+                    if let Err(e) = stdout.write_all(b"\n").await {
+                        warn!(error = %e, "NotificationSink: stdout newline write failed");
+                        break;
+                    }
+                    if let Err(e) = stdout.flush().await {
+                        warn!(error = %e, "NotificationSink: stdout flush failed");
+                        break;
+                    }
                     debug!(method = %notif.method, "NotificationSink: sent notification");
                 }
                 Err(e) => {
