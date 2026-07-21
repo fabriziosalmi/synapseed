@@ -8,6 +8,18 @@ export default withMermaid(defineConfig({
   base: '/synapseed/',
 
   head: [
+    // Tutto first-party. 'unsafe-inline' serve perche' VitePress emette
+    // uno script inline per il tema e stili inline.
+    [
+      'meta',
+      {
+        'http-equiv': 'Content-Security-Policy',
+        content:
+          "default-src 'self'; script-src 'self' 'unsafe-inline'; " +
+          "style-src 'self' 'unsafe-inline'; img-src 'self' data:; " +
+          "font-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'",
+      },
+    ],
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
     ['meta', { name: 'theme-color', content: '#7ee787' }],
     ['meta', { property: 'og:type', content: 'website' }],
@@ -134,7 +146,7 @@ export default withMermaid(defineConfig({
     },
 
     footer: {
-      message: 'Released under the Apache License 2.0.',
+      message: 'Released under the Apache License 2.0.' + ' · <a href="https://fabriziosalmi.github.io/privacy">Privacy &amp; legal</a>',
       copyright: 'Copyright 2024-present Fabrizio Salmi',
     },
 
