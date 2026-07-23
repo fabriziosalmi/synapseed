@@ -10,7 +10,7 @@ SYNAPSEED helps AI assistants understand your code better. Instead of just readi
 - 📊 **Code history** showing who changed what and why
 - 🏗️ **Quality metrics** with letter grades (A-F) for code health
 
-**Real-world impact:** With SYNAPSEED, AI assistants make ~50% fewer mistakes when understanding code (measured in [our benchmark suite](../../benchmark/)).
+**Real-world impact:** With SYNAPSEED, AI assistants make ~50% fewer mistakes when understanding code (measured in [our benchmark suite](https://github.com/fabriziosalmi/synapseed/tree/main/benchmark)).
 
 ## For Technical Users
 
