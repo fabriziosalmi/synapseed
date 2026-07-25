@@ -103,10 +103,24 @@ pub struct ExecutionResult {
 
 impl ExecutionResult {
     fn from_output(output: Output) -> Self {
+        let exit_code = output.status.code().unwrap_or_else(|| {
+            // On Unix, process terminated by signal; capture signal number if available
+            #[cfg(unix)]
+            {
+                use std::os::unix::process::ExitStatusExt;
+                output.status.signal().unwrap_or(-1)
+            }
+            // On non-Unix platforms, fall back to -1
+            #[cfg(not(unix))]
+            {
+                -1
+            }
+        });
+
         Self {
             stdout: String::from_utf8_lossy(&output.stdout).to_string(),
             stderr: String::from_utf8_lossy(&output.stderr).to_string(),
-            exit_code: output.status.code().unwrap_or(-1),
+            exit_code,
         }
     }
 }
