@@ -333,7 +333,7 @@ pub(super) fn extract_targets(query: &str, ctx: &SynapseContext) -> Vec<Target> 
 
         // Keep the top-2 modules by target count (matching Coherence Gate logic)
         let mut ranked: Vec<_> = module_counts.into_iter().collect();
-        ranked.sort_by(|a, b| b.1.cmp(&a.1));
+        ranked.sort_by_key(|r| std::cmp::Reverse(r.1));
         let keep_prefixes: HashSet<String> = ranked.into_iter().take(2).map(|(p, _)| p).collect();
 
         let before = targets.len();

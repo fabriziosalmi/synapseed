@@ -169,7 +169,7 @@ impl VectorIndex {
 
             start_idx = vecs.len();
 
-            for (vector, entry) in vectors.into_iter().zip(entries.into_iter()) {
+            for (vector, entry) in vectors.into_iter().zip(entries) {
                 debug_assert_eq!(vector.len(), self.dimensions);
                 let idx = vecs.len();
                 let file_path = entry.file_path.clone();
@@ -527,7 +527,7 @@ impl VectorIndex {
                         let mut entries = self.entries.write();
                         let mut file_map = self.file_map.write();
 
-                        for (vec, entry) in data.vectors.into_iter().zip(data.entries.into_iter()) {
+                        for (vec, entry) in data.vectors.into_iter().zip(data.entries) {
                             let idx = vectors.len();
                             let fp = entry.file_path.clone();
                             vectors.push(vec);

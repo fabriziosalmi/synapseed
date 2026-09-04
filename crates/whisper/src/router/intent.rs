@@ -155,7 +155,7 @@ pub(super) fn classify_intent_scores(query: &str) -> Vec<(String, usize)> {
 
     // Keep only non-zero, sort descending
     scores.retain(|(_, s)| *s > 0);
-    scores.sort_by(|a, b| b.1.cmp(&a.1));
+    scores.sort_by_key(|s| std::cmp::Reverse(s.1));
     scores
 }
 

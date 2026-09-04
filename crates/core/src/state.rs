@@ -83,15 +83,11 @@ impl ProjectState {
         // Check for partial setup
         let mut missing = Vec::new();
         match build_system {
-            BuildSystem::Cargo => {
-                if !has_src && !has_crates {
-                    missing.push("src/ or crates/ directory".into());
-                }
+            BuildSystem::Cargo if !has_src && !has_crates => {
+                missing.push("src/ or crates/ directory".into());
             }
-            BuildSystem::Npm => {
-                if !has_src && !root.join("lib").is_dir() {
-                    missing.push("src/ or lib/ directory".into());
-                }
+            BuildSystem::Npm if !has_src && !root.join("lib").is_dir() => {
+                missing.push("src/ or lib/ directory".into());
             }
             _ => {}
         }

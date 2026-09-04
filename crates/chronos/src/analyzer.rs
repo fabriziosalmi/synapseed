@@ -341,7 +341,7 @@ impl Historian {
 
             // Top authors by commit count
             let mut top_authors: Vec<(String, usize)> = author_counts.into_iter().collect();
-            top_authors.sort_by(|a, b| b.1.cmp(&a.1));
+            top_authors.sort_by_key(|a| std::cmp::Reverse(a.1));
             top_authors.truncate(5);
 
             // Semantic summary
@@ -395,7 +395,7 @@ impl Historian {
                     co_change_ratio: count as f64 / total.max(1) as f64,
                 })
                 .collect();
-            co_changes.sort_by(|a, b| b.co_change_count.cmp(&a.co_change_count));
+            co_changes.sort_by_key(|c| std::cmp::Reverse(c.co_change_count));
             co_changes.truncate(10);
 
             let line_range = match (line_start, line_end) {
@@ -548,7 +548,7 @@ impl Historian {
             // Build natural-language summary
             let mut sorted_cats: Vec<(String, usize)> =
                 categories.iter().map(|(k, v)| (k.clone(), *v)).collect();
-            sorted_cats.sort_by(|a, b| b.1.cmp(&a.1));
+            sorted_cats.sort_by_key(|c| std::cmp::Reverse(c.1));
 
             let parts: Vec<String> = sorted_cats
                 .iter()
