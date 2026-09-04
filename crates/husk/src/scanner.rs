@@ -253,7 +253,7 @@ impl DlpScanner {
                     findings.push(Finding {
                         rule_name: format!(
                             "static_term:{}",
-                            &self.static_terms[mat.pattern().as_usize()]
+                            self.static_terms[mat.pattern().as_usize()]
                         ),
                         start: mat.start(),
                         end: mat.end(),
