@@ -475,7 +475,7 @@ impl DlpScanner {
 
         // Sort by start position, then replace from end to start to preserve offsets
         let mut sorted = findings.clone();
-        sorted.sort_by(|a, b| b.start.cmp(&a.start));
+        sorted.sort_by_key(|f| std::cmp::Reverse(f.start));
 
         let mut result = content.to_string();
         for finding in &sorted {
