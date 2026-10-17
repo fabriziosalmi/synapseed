@@ -6,6 +6,9 @@ export default withMermaid(defineConfig({
   description: 'High-Performance Semantic AI Middleware — The Thinking Layer Between You and the LLM',
   lang: 'en-US',
   base: '/synapseed/',
+  // The hostname carries the base path on purpose: VitePress joins it with each
+  // page's route, so without it every URL in the sitemap would point at a 404.
+  sitemap: { hostname: 'https://fabriziosalmi.github.io/synapseed/' },
 
   head: [
     // Everything this site loads is first-party. 'unsafe-inline' is required
