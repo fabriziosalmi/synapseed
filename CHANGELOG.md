@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- **Intel Macs (`x86_64-apple-darwin`) are no longer a CI or release target.** The
+  build never completed there: its jobs ran on the retired `macos-13` runner and were
+  always cancelled, and on `macos-15-intel` it fails because `ort` ships no prebuilt
+  ONNX Runtime for that target. No release ever published an Intel Mac binary.
+
 ## [4.29.0] — 2026-02-16
 
 ### Sentinel Hardening + CI Lockfile + README Cleanup

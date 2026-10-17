@@ -26,10 +26,6 @@ jobs:
             os: ubuntu-latest
             archive: tar.gz
             cross: true
-          - target: x86_64-apple-darwin
-            # macos-13 is retired: jobs on it queue for 24h and are cancelled.
-            os: macos-15-intel
-            archive: tar.gz
           - target: aarch64-apple-darwin
             os: macos-latest
             archive: tar.gz
