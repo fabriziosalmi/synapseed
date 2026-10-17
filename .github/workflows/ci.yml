@@ -23,7 +23,8 @@ jobs:
           - name: macOS (arm64)
             os: macos-latest
           - name: macOS (x86_64)
-            os: macos-13
+            # macos-13 is retired: jobs on it queue for 24h and are cancelled.
+            os: macos-15-intel
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
