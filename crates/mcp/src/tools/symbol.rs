@@ -63,14 +63,14 @@ fn format_lookup_results(name: &str, results: Vec<Symbol>, cold_start: bool) -> 
     }
 
     let mut kind_summary: Vec<_> = by_kind.into_iter().collect();
-    kind_summary.sort_by(|a, b| b.1.cmp(&a.1));
+    kind_summary.sort_by_key(|k| std::cmp::Reverse(k.1));
     let kind_str: Vec<String> = kind_summary
         .iter()
         .map(|(k, n)| format!("{k}: {n}"))
         .collect();
 
     let mut file_summary: Vec<_> = by_file.into_iter().collect();
-    file_summary.sort_by(|a, b| b.1.cmp(&a.1));
+    file_summary.sort_by_key(|f| std::cmp::Reverse(f.1));
     let top_files: Vec<String> = file_summary
         .iter()
         .take(5)

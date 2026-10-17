@@ -253,7 +253,7 @@ impl DlpScanner {
                     findings.push(Finding {
                         rule_name: format!(
                             "static_term:{}",
-                            &self.static_terms[mat.pattern().as_usize()]
+                            self.static_terms[mat.pattern().as_usize()]
                         ),
                         start: mat.start(),
                         end: mat.end(),
@@ -475,7 +475,7 @@ impl DlpScanner {
 
         // Sort by start position, then replace from end to start to preserve offsets
         let mut sorted = findings.clone();
-        sorted.sort_by(|a, b| b.start.cmp(&a.start));
+        sorted.sort_by_key(|f| std::cmp::Reverse(f.start));
 
         let mut result = content.to_string();
         for finding in &sorted {

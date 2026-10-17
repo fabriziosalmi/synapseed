@@ -102,6 +102,8 @@ Then ask Claude: *"What functions are in this codebase?"* - It can now see your 
 
 **Prerequisites:** Rust 1.75+, Git.
 
+**Platforms:** Linux (x86_64, aarch64) and macOS on Apple Silicon. Intel Macs are not supported: the default `embeddings` feature links ONNX Runtime through `ort`, which ships no prebuilt binaries for `x86_64-apple-darwin`.
+
 ---
 
 ## Integration
