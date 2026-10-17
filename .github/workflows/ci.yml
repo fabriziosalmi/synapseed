@@ -22,8 +22,6 @@ jobs:
             os: ubuntu-latest
           - name: macOS (arm64)
             os: macos-latest
-          - name: macOS (x86_64)
-            os: macos-13
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
