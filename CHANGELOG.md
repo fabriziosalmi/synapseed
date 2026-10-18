@@ -2,11 +2,30 @@
 
 ## Unreleased
 
+## [4.31.0] — 2026-10-18
+
+The first release built to ship binaries: Linux x86_64, Linux aarch64 and
+macOS on Apple Silicon. v4.30.0's release run failed on aarch64 Linux and
+published none.
+
 ### Changed
+- **aarch64 Linux is built natively on GitHub's arm64 runner** instead of
+  with `cross` in a container, the step that failed in v4.30.0's release run.
+  A manual run of the release workflow on 2026-10-18 built all three targets.
 - **Intel Macs (`x86_64-apple-darwin`) are no longer a CI or release target.** The
   build never completed there: its jobs ran on the retired `macos-13` runner and were
   always cancelled, and on `macos-15-intel` it fails because `ort` ships no prebuilt
   ONNX Runtime for that target. No release ever published an Intel Mac binary.
+
+### Fixed
+- `ExecutionResult::from_output` no longer assumes the process left an exit
+  code (#103).
+- `DlpRule` and `CommandRule` reject an empty pattern (#98).
+- The notification sink ends each write with a newline and flushes it (#100).
+- The docs deploy no longer fails on a dead benchmark link (#102).
+
+### Dependencies
+- lz4_flex 0.11.6 (#96); dompurify and rollup in the docs site (#97, #95).
 
 ## [4.29.0] — 2026-02-16
 
