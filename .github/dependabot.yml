@@ -1,0 +1,14 @@
+version: 2
+updates:
+  # Docs site (VitePress). open-pull-requests-limit 0 keeps version updates off;
+  # the entry exists so security updates respect the ignore rule below.
+  - package-ecosystem: "npm"
+    directory: "/docs"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    ignore:
+      # vitepress-plugin-mermaid 2.x declares peer mermaid "10 || 11";
+      # mermaid 12 breaks `npm ci` in docs/ (ERESOLVE).
+      - dependency-name: "mermaid"
+        update-types: ["version-update:semver-major"]
