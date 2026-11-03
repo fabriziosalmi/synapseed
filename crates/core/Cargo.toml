@@ -35,4 +35,7 @@ tracing-subscriber = {workspace = true}
 uuid = {workspace = true}
 
 [dev-dependencies]
+# OTLP receiver for the self-telemetry round-trip test in src/telemetry.rs.
+opentelemetry-proto = {workspace = true}
 tempfile = {workspace = true}
+tonic = {workspace = true}
