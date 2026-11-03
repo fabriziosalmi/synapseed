@@ -12,3 +12,22 @@ updates:
       # mermaid 12 breaks `npm ci` in docs/ (ERESOLVE).
       - dependency-name: "mermaid"
         update-types: ["version-update:semver-major"]
+
+  # Rust workspace. open-pull-requests-limit 0 keeps version updates off;
+  # the entry exists so security updates respect the ignore rule below.
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    ignore:
+      # The OpenTelemetry crates (opentelemetry, opentelemetry_sdk,
+      # opentelemetry-otlp, opentelemetry-proto, tracing-opentelemetry) only
+      # build when they move together, and 0.27 -> 0.32 changes the SDK API
+      # (TracerProvider -> SdkTracerProvider, Resource::new is private).
+      # A lone opentelemetry_sdk bump fails to compile (#114). Upgrade the
+      # family in one manual PR instead.
+      - dependency-name: "opentelemetry*"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "tracing-opentelemetry"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
